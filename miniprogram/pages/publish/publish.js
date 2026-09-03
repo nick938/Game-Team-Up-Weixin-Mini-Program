@@ -4,7 +4,6 @@ const {
   combineDateTime,
   defaultStartAt,
   defaultEndAt,
-  decorateTeam,
 } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 
@@ -16,7 +15,6 @@ function emptyForm() {
   const today = dateParts(Date.now());
   return {
     editingId: "",
-    blockedTeam: null,
     platforms: PLATFORMS,
     voices: VOICES,
     gameName: "",
@@ -53,22 +51,6 @@ Page({
     if (this.data.editingId) {
       this.setData(emptyForm());
     }
-    await this.checkBlocked();
-  },
-
-  async checkBlocked() {
-    try {
-      const res = await callTeam("myTeams");
-      const hosted = (res.hosted || []).find(
-        (t) => t.displayStatus === "recruiting" || t.displayStatus === "full"
-      );
-      this.setData({
-        blockedTeam:
-          hosted && !this.data.editingId ? decorateTeam(hosted) : null,
-      });
-    } catch (e) {
-      showError(e);
-    }
   },
 
   async loadEdit(id) {
@@ -81,7 +63,6 @@ Page({
       this.setData({
         ...emptyForm(),
         editingId: id,
-        blockedTeam: null,
         gameName: team.gameName || "",
         startDate: start.date,
         startTime: start.time,
@@ -100,13 +81,6 @@ Page({
       showError(e);
     } finally {
       wx.hideLoading();
-    }
-  },
-
-  goBlocked() {
-    const id = this.data.blockedTeam && this.data.blockedTeam._id;
-    if (id) {
-      wx.navigateTo({ url: `/pages/team/detail?id=${id}` });
     }
   },
 

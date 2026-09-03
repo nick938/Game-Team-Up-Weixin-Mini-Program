@@ -221,15 +221,6 @@ async function getTeamsByIds(ids) {
   return teams;
 }
 
-async function findOngoingByRole(openid, role) {
-  const now = nowMs();
-  const mems = await findMembersByOpenid(openid);
-  const roleMems = mems.filter((m) => m.role === role);
-  if (!roleMems.length) return null;
-  const teams = await getTeamsByIds(roleMems.map((m) => m.teamId));
-  return teams.find((t) => isOngoing(t, now)) || null;
-}
-
 function validateTeamInput(input, { isCreate }) {
   const gameName = trim(input.gameName, GAME_MAX);
   const roomNo = trim(input.roomNo, ROOM_MAX);
@@ -317,11 +308,6 @@ async function createTeam(event, openid) {
   const user = await requireProfile(openid);
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
-
-  const hosted = await findOngoingByRole(openid, "host");
-  if (hosted) {
-    return fail("你已有一趟进行中的局，结束后才能再开");
-  }
 
   const teamData = {
     ...checked.value,

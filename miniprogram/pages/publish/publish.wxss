@@ -1,25 +1,3 @@
-.block-card {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 40rpx 32rpx;
-  margin-top: 24rpx;
-}
-
-.block-title {
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.block-sub {
-  margin: 12rpx 0 36rpx;
-  color: #8a8178;
-  font-size: 26rpx;
-}
-
-.later {
-  margin-top: 16rpx;
-}
-
 .form {
   padding-bottom: 40rpx;
 }

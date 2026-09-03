@@ -1,11 +1,5 @@
 <view class="page">
-  <view wx:if="{{blockedTeam}}" class="block-card">
-    <view class="block-title">你已经有一趟进行中的局</view>
-    <view class="block-sub">{{blockedTeam.gameName}} · {{blockedTeam.timeText}} · {{blockedTeam.memberCount}}/{{blockedTeam.capacity}}</view>
-    <button class="btn-primary" bindtap="goBlocked">去看看</button>
-  </view>
-
-  <view wx:else class="form">
+  <view class="form">
     <view class="label">玩什么</view>
     <input
       class="field field-lg"
