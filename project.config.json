@@ -42,7 +42,9 @@
     "useCompilerPlugins": false,
     "condition": false,
     "swc": false,
-    "disableSWC": true
+    "disableSWC": true,
+    "ignoreDevUnusedFiles": false,
+    "ignoreUploadUnusedFiles": false
   },
   "appid": "wxa1af4fb6a4c66334",
   "projectname": "quickstart-wx-cloud",
@@ -75,7 +77,16 @@
   "srcMiniprogramRoot": "miniprogram/",
   "packOptions": {
     "ignore": [],
-    "include": []
+    "include": [
+      {
+        "type": "glob",
+        "value": "images/tab-*.png"
+      },
+      {
+        "type": "glob",
+        "value": "miniprogram/images/tab-*.png"
+      }
+    ]
   },
   "editorSetting": {
     "tabIndent": "insertSpaces",
