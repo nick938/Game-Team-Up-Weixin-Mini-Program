@@ -1,6 +1,7 @@
 {
-  "navigationBarTitleText": "基础能力",
+  "navigationBarTitleText": "开一局",
+  "enablePullDownRefresh": true,
   "usingComponents": {
-    "cloud-tip-modal": "/components/cloudTipModal/index"
+    "team-card": "/components/team-card/index"
   }
 }

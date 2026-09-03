@@ -1,0 +1,75 @@
+<view class="page" wx:if="{{team}}">
+  <view class="hero card">
+    <view class="status-row">
+      <view class="status status-{{team.displayStatus}}">{{team.statusText}}</view>
+      <view class="soon" wx:if="{{team.soon}}">即将开始</view>
+    </view>
+    <view class="game">{{team.gameName}}</view>
+    <view class="time">{{team.timeText}}</view>
+    <view class="count">{{team.memberCount}}/{{team.capacity}}
+      <text class="need" wx:if="{{team.displayStatus === 'recruiting'}}">还差 {{team.needCount}} 人</text>
+    </view>
+    <view class="tags">
+      <text wx:if="{{team.platform}}">{{team.platform}}</text>
+      <text wx:if="{{team.server}}">{{team.server}}</text>
+      <text wx:if="{{team.voice && team.voice !== '不限'}}">{{team.voice}}</text>
+      <text wx:if="{{team.rankReq}}">{{team.rankReq}}</text>
+    </view>
+    <view class="note" wx:if="{{team.note}}">{{team.note}}</view>
+  </view>
+
+  <view class="card" wx:if="{{team.roomNo || role}}">
+    <view class="card-title">怎么进</view>
+    <view class="copy-row" wx:if="{{team.roomNo}}" bindtap="copyRoom">
+      <view class="copy-label">房间 / 好友码</view>
+      <view class="copy-val">{{team.roomNo}}</view>
+      <view class="copy-btn">复制</view>
+    </view>
+    <view class="copy-row" wx:if="{{role}}" bindtap="copyPwd">
+      <view class="copy-label">密码</view>
+      <view class="copy-val">{{team.roomPwd || '无'}}</view>
+      <view class="copy-btn" wx:if="{{team.roomPwd}}">复制</view>
+    </view>
+    <view class="hint" wx:if="{{!role && team.hasPwd}}">加入后可见进房密码</view>
+    <view class="hint" wx:if="{{!team.roomNo && !team.hasPwd}}">进房方式看备注，或进局后问局主</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">成员 {{members.length}}/{{team.capacity}}</view>
+    <view class="members">
+      <view class="member" wx:for="{{members}}" wx:key="_id">
+        <image class="avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
+        <view class="member-name">
+          {{item.nickName || '玩家'}}
+          <text class="host-tag" wx:if="{{item.role === 'host'}}">车头</text>
+        </view>
+        <view
+          wx:if="{{role === 'host' && item.role !== 'host' && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}"
+          class="kick"
+          data-openid="{{item.openid}}"
+          catchtap="onKick"
+        >踢出</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="actions" wx:if="{{team.displayStatus === 'recruiting' || team.displayStatus === 'full'}}">
+    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">加入</button>
+    <button class="btn-ghost" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">已满员，看看别的局</button>
+    <button class="btn-ghost" wx:if="{{role === 'member'}}" bindtap="onLeave">退出组局</button>
+    <button class="share" open-type="share">分享给好友</button>
+    <button class="btn-ghost" wx:if="{{role === 'host'}}" bindtap="onEdit">编辑</button>
+    <button class="btn-ghost btn-danger" wx:if="{{role === 'host'}}" bindtap="onCancel">撤销组局</button>
+  </view>
+
+  <view class="actions" wx:else>
+    <view class="over-tip">
+      {{team.displayStatus === 'cancelled' ? '这趟局已关闭' : '已经结束，不能再加入'}}
+    </view>
+    <button class="btn-primary" bindtap="goPlaza">看看别的局</button>
+  </view>
+</view>
+
+<view class="empty" wx:elif="{{!loading}}">找不到这趟组队</view>
+
+<profile-gate show="{{showProfile}}" bind:done="onProfileDone" />

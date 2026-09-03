@@ -1,29 +1,22 @@
-<!--index.wxml-->
-<view class="container">
-  <view class="title">快速了解云开发</view>
-  <view class="top_tip">免鉴权接口调用 免部署后台 高并发</view>
-  <view class="power" wx:key="title" wx:for="{{powerList}}" wx:for-item="power">
-    <view class="power_info" data-index="{{index}}" data-type="{{ power.type }}" bindtap="onClickPowerInfo">
-      <view class="power_info_text">
-        <view class="power_info_text_title">
-          {{power.title}}
-          <view class="power_info_text_tag" wx:if="{{power.tag}}">{{power.tag}}</view>
-        </view>
-        <view class="power_info_text_tip">{{power.tip}}</view>
-      </view>
-      <image wx:if="{{!power.showItem && power.item.length}}" class="power_info_more" src="../../images/arrow.svg"></image>
-      <image wx:if="{{power.showItem && power.item.length}}" class="power_info_less" src="../../images/arrow.svg"></image>
-      <image wx:if="{{!power.item.length}}" class="power_item_icon" src="../../images/arrow.svg"></image>
-    </view>
-    <view wx:if="{{power.showItem}}">
-      <view wx:key="title" wx:for="{{power.item}}">
-        <view class="line"></view>
-        <view class="power_item" bindtap="jumpPage" data-type="{{ item.type }}" data-page="{{item.page}}">
-          <view class="power_item_title">{{item.title}}</view>
-          <image class="power_item_icon" src="../../images/arrow.svg"></image>
-        </view>
-      </view>
-    </view>
+<view class="page">
+  <view class="hero">
+    <view class="hero-title">找人开一局</view>
+    <view class="hero-sub">组局、分享、上车。到结束时间自动过期。</view>
   </view>
-  <cloud-tip-modal showTipProps="{{showTip}}" title="{{title}}" content="{{content}}"></cloud-tip-modal>
+
+  <view class="zone">游戏区</view>
+
+  <view wx:if="{{loading && !list.length}}" class="empty">正在拉组局…</view>
+  <view wx:elif="{{!list.length}}" class="empty">
+    <view>现在没有正在招募的局。</view>
+    <view>自己开一趟，把卡片丢进群里。</view>
+    <button class="btn-primary empty-btn" bindtap="goPublish">去组局</button>
+  </view>
+
+  <team-card
+    wx:for="{{list}}"
+    wx:key="_id"
+    team="{{item}}"
+    bind:tap="onOpen"
+  />
 </view>

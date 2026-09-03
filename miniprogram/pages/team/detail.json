@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "组队详情",
+  "enableShareAppMessage": true,
+  "usingComponents": {
+    "profile-gate": "/components/profile-gate/index"
+  }
+}

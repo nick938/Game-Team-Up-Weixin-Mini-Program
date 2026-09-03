@@ -1,0 +1,734 @@
+const cloud = require("wx-server-sdk");
+
+cloud.init({
+  env: cloud.DYNAMIC_CURRENT_ENV,
+});
+
+const db = cloud.database();
+const _ = db.command;
+
+const NOTE_MAX = 80;
+const ROOM_MAX = 80;
+const GAME_MAX = 40;
+const SERVER_MAX = 20;
+const RANK_MAX = 20;
+const CAP_MIN = 2;
+const CAP_MAX = 20;
+const BAD =
+  /微信群|加微|加v|加V|vx\s*:|代练|外挂|脚本|出租账号|买号|卖号|色情|赌博/i;
+
+const PLATFORMS = ["Steam", "手游", "端游", "主机"];
+const VOICES = ["不限", "游戏内语音", "开麦", "Discord"];
+
+function ok(data) {
+  return { ok: true, ...(data || {}) };
+}
+
+function fail(errMsg) {
+  return { ok: false, errMsg };
+}
+
+function teamExists(team) {
+  return !!(team && (team.gameName || team.startAt));
+}
+
+function nowMs() {
+  return Date.now();
+}
+
+function trim(value, max) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function teamEndAt(team) {
+  if (!team) return 0;
+  return Number(team.endAt || team.expireAt || team.startAt || 0);
+}
+
+function resolveStatus(team, now) {
+  if (!team) return "expired";
+  if (team.status === "cancelled") return "cancelled";
+  if (now >= teamEndAt(team)) return "expired";
+  if (team.memberCount >= team.capacity) return "full";
+  return "recruiting";
+}
+
+function isOngoing(team, now) {
+  const status = resolveStatus(team, now);
+  return status === "recruiting" || status === "full";
+}
+
+function stripSecret(team, showPwd) {
+  const copy = { ...team };
+  if (!showPwd) {
+    copy.roomPwd = "";
+    copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
+  } else {
+    copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
+  }
+  copy.displayStatus = resolveStatus(team, nowMs());
+  copy.needCount = Math.max(0, (team.capacity || 0) - (team.memberCount || 0));
+  return copy;
+}
+
+function memberUid(m) {
+  return (m && (m.openid || m._openid)) || "";
+}
+
+function hostUid(team) {
+  return (team && (team.openid || team._openid)) || "";
+}
+
+function memberKey(m, team) {
+  const uid = memberUid(m);
+  if (uid) return "id:" + uid;
+  const hid = hostUid(team);
+  if (
+    hid &&
+    (m.role === "host" || (team.hostNickName && m.nickName === team.hostNickName))
+  ) {
+    return "id:" + hid;
+  }
+  return "anon:" + (m.nickName || "") + "|" + (m.avatarUrl || "");
+}
+
+async function persistHostOpenid(teamId, openid) {
+  if (!teamId || !openid) return;
+  await db.collection("teams").doc(teamId).update({
+    data: { openid },
+  });
+}
+
+async function isTeamHost(team, openid, teamId, members) {
+  if (!team || !openid) return false;
+  if (hostUid(team) === openid) return true;
+
+  const id = teamId || team._id;
+  let hostMem = null;
+  if (members) {
+    hostMem = members.find((m) => m.role === "host") || null;
+  } else if (id) {
+    try {
+      const memRes = await db.collection("members").where({ teamId: id }).get();
+      hostMem = (memRes.data || []).find((m) => m.role === "host") || null;
+    } catch (e) {
+      hostMem = null;
+    }
+  }
+  if (hostMem && memberUid(hostMem) === openid) {
+    await persistHostOpenid(id, openid);
+    team.openid = openid;
+    return true;
+  }
+  if (hostUid(team)) return false;
+
+  const user = await getUser(openid);
+  const nick = (user && user.nickName) || "";
+  const nickMatch =
+    !!nick &&
+    (nick === team.hostNickName || (hostMem && nick === hostMem.nickName));
+  if (!nickMatch) return false;
+  await persistHostOpenid(id, openid);
+  team.openid = openid;
+  return true;
+}
+
+async function findMembersByOpenid(openid) {
+  const seen = {};
+  const out = [];
+  const pushAll = (list) => {
+    (list || []).forEach((m) => {
+      if (!m || !m._id || seen[m._id]) return;
+      seen[m._id] = true;
+      out.push(m);
+    });
+  };
+  try {
+    const a = await db.collection("members").where({ _openid: openid }).get();
+    pushAll(a.data);
+  } catch (e) {
+    // ignore
+  }
+  try {
+    const b = await db.collection("members").where({ openid }).get();
+    pushAll(b.data);
+  } catch (e) {
+    // ignore
+  }
+  return out;
+}
+
+async function ensureCollections() {
+  for (const name of ["users", "teams", "members"]) {
+    try {
+      await db.createCollection(name);
+    } catch (e) {
+      // already exists
+    }
+  }
+}
+
+async function getOpenid() {
+  const wxContext = cloud.getWXContext();
+  if (!wxContext.OPENID) {
+    throw new Error("无法获取用户身份");
+  }
+  return wxContext.OPENID;
+}
+
+async function getUser(openid) {
+  try {
+    const res = await db.collection("users").doc(openid).get();
+    if (res.data && (res.data.nickName || res.data.avatarUrl)) {
+      return { _id: openid, ...res.data };
+    }
+  } catch (e) {
+    // no doc with this id yet
+  }
+  try {
+    const res = await db
+      .collection("users")
+      .where({ _openid: openid })
+      .limit(1)
+      .get();
+    return res.data[0] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function requireProfile(openid) {
+  const user = await getUser(openid);
+  if (!user || !user.nickName) {
+    const err = new Error("请先填写头像和昵称");
+    err.code = "NEED_PROFILE";
+    throw err;
+  }
+  return user;
+}
+
+async function getTeamsByIds(ids) {
+  const unique = [...new Set((ids || []).filter(Boolean))];
+  const teams = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const part = unique.slice(i, i + 10);
+    const res = await db
+      .collection("teams")
+      .where({ _id: _.in(part) })
+      .get();
+    teams.push(...res.data);
+  }
+  return teams;
+}
+
+async function findOngoingByRole(openid, role) {
+  const now = nowMs();
+  const mems = await findMembersByOpenid(openid);
+  const roleMems = mems.filter((m) => m.role === role);
+  if (!roleMems.length) return null;
+  const teams = await getTeamsByIds(roleMems.map((m) => m.teamId));
+  return teams.find((t) => isOngoing(t, now)) || null;
+}
+
+function validateTeamInput(input, { isCreate }) {
+  const gameName = trim(input.gameName, GAME_MAX);
+  const roomNo = trim(input.roomNo, ROOM_MAX);
+  const roomPwd = trim(input.roomPwd, ROOM_MAX);
+  const server = trim(input.server, SERVER_MAX);
+  const rankReq = trim(input.rankReq, RANK_MAX);
+  const note = trim(input.note, NOTE_MAX);
+  const platform = PLATFORMS.includes(input.platform)
+    ? input.platform
+    : "不限";
+  const voice = VOICES.includes(input.voice) ? input.voice : "不限";
+  const capacity = Number(input.capacity);
+  const startAt = Number(input.startAt);
+  const endAt = Number(input.endAt);
+
+  if (!gameName) return { error: "请填写玩什么" };
+  if (!Number.isFinite(capacity) || capacity < CAP_MIN || capacity > CAP_MAX) {
+    return { error: `人数需在 ${CAP_MIN}–${CAP_MAX} 之间` };
+  }
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) {
+    return { error: "请选择开始和结束时间" };
+  }
+  if (endAt <= startAt) {
+    return { error: "结束时间要晚于开始时间" };
+  }
+  if (endAt <= nowMs()) {
+    return { error: "结束时间必须晚于现在" };
+  }
+  if (endAt - startAt > 12 * 60 * 60 * 1000) {
+    return { error: "一局最长 12 小时" };
+  }
+  const text = `${gameName}${roomNo}${roomPwd}${server}${rankReq}${note}`;
+  if (BAD.test(text)) {
+    return { error: "内容包含不允许发布的信息" };
+  }
+  if (isCreate && startAt - nowMs() > 7 * 24 * 60 * 60 * 1000) {
+    return { error: "开始时间请选 7 天内" };
+  }
+  return {
+    value: {
+      gameName,
+      roomNo,
+      roomPwd,
+      server,
+      rankReq,
+      note,
+      platform,
+      voice,
+      capacity,
+      startAt,
+      endAt,
+      expireAt: endAt,
+      zone: "game",
+    },
+  };
+}
+
+async function saveProfile(event, openid) {
+  const nickName = trim(event.nickName, 32);
+  const avatarUrl = trim(event.avatarUrl, 1000);
+  if (!nickName) return fail("请填写昵称");
+  const existed = await getUser(openid);
+  const payload = {
+    nickName,
+    avatarUrl: avatarUrl || (existed && existed.avatarUrl) || "",
+    updatedAt: nowMs(),
+  };
+  await db.collection("users").doc(openid).set({
+    data: {
+      ...payload,
+      _openid: openid,
+    },
+  });
+  return ok({
+    user: { _id: openid, _openid: openid, ...payload },
+  });
+}
+
+async function getProfile(openid) {
+  const user = await getUser(openid);
+  return ok({ user: user || null });
+}
+
+async function createTeam(event, openid) {
+  const user = await requireProfile(openid);
+  const checked = validateTeamInput(event.team || {}, { isCreate: true });
+  if (checked.error) return fail(checked.error);
+
+  const hosted = await findOngoingByRole(openid, "host");
+  if (hosted) {
+    return fail("你已有一趟进行中的局，结束后才能再开");
+  }
+
+  const teamData = {
+    ...checked.value,
+    openid,
+    memberCount: 1,
+    status: "recruiting",
+    hostNickName: user.nickName,
+    hostAvatarUrl: user.avatarUrl || "",
+    createdAt: nowMs(),
+  };
+
+  const addRes = await db.collection("teams").add({ data: teamData });
+  const teamId = addRes._id;
+  await db.collection("members").add({
+    data: {
+      teamId,
+      openid,
+      role: "host",
+      nickName: user.nickName,
+      avatarUrl: user.avatarUrl || "",
+      joinedAt: nowMs(),
+    },
+  });
+
+  return ok({ teamId });
+}
+
+async function updateTeam(event, openid) {
+  await requireProfile(openid);
+  const teamId = event.teamId;
+  if (!teamId) return fail("缺少队伍");
+  const teamRes = await db.collection("teams").doc(teamId).get();
+  const team = teamRes.data;
+  if (!teamExists(team)) return fail("队伍不存在");
+  if (!(await isTeamHost(team, openid, teamId))) {
+    return fail("只有局头可以编辑");
+  }
+  if (!isOngoing(team, nowMs())) return fail("队伍已结束，不能再改");
+
+  const checked = validateTeamInput(
+    { ...team, ...(event.team || {}) },
+    { isCreate: false }
+  );
+  if (checked.error) return fail(checked.error);
+  if (checked.value.capacity < team.memberCount) {
+    return fail("人数不能少于当前已加入人数");
+  }
+
+  const nextStatus =
+    checked.value.capacity <= team.memberCount ? "full" : "recruiting";
+
+  await db.collection("teams").doc(teamId).update({
+    data: {
+      ...checked.value,
+      status: nextStatus,
+    },
+  });
+  return ok();
+}
+
+async function cancelTeam(event, openid) {
+  const teamId = event.teamId;
+  const teamRes = await db.collection("teams").doc(teamId).get();
+  const team = teamRes.data;
+  if (!teamExists(team)) return fail("队伍不存在");
+  if (!(await isTeamHost(team, openid, teamId))) {
+    return fail("只有局头可以撤销组局");
+  }
+  if (team.status === "cancelled") return fail("已经撤销了");
+  if (nowMs() >= teamEndAt(team)) return fail("已经结束，不用撤销");
+
+  await db.collection("teams").doc(teamId).update({
+    data: { status: "cancelled" },
+  });
+  return ok();
+}
+
+async function joinTeam(event, openid) {
+  const user = await requireProfile(openid);
+  const teamId = event.teamId;
+  if (!teamId) return fail("缺少队伍");
+  try {
+    const peek = await db.collection("teams").doc(teamId).get();
+    if (peek.data && (await isTeamHost(peek.data, openid, teamId))) {
+      return fail("你已经是局头，不用再加入");
+    }
+  } catch (e) {
+    // 事务里会再校验
+  }
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const teamRes = await transaction.collection("teams").doc(teamId).get();
+      const team = teamRes.data;
+      if (!teamExists(team)) throw new Error("队伍不存在");
+      if (team.status === "cancelled") throw new Error("这趟组队已关闭");
+      if (nowMs() >= teamEndAt(team)) throw new Error("已经结束，不能加入");
+      if (hostUid(team) === openid) {
+        throw new Error("你已经是局头，不用再加入");
+      }
+      const exist = await transaction.collection("members").where({ teamId }).get();
+      if (exist.data.some((m) => memberUid(m) === openid)) {
+        throw new Error("你已经在队伍里了");
+      }
+      if (team.memberCount >= team.capacity) throw new Error("人已经满了");
+
+      const nextCount = team.memberCount + 1;
+      await transaction.collection("members").add({
+        data: {
+          teamId,
+          openid,
+          role: "member",
+          nickName: user.nickName,
+          avatarUrl: user.avatarUrl || "",
+          joinedAt: nowMs(),
+        },
+      });
+      await transaction.collection("teams").doc(teamId).update({
+        data: {
+          memberCount: nextCount,
+          status: nextCount >= team.capacity ? "full" : "recruiting",
+        },
+      });
+    });
+  } catch (e) {
+    return fail(e.message || "加入失败");
+  }
+  return ok();
+}
+
+async function leaveTeam(event, openid) {
+  const teamId = event.teamId;
+  try {
+    const peek = await db.collection("teams").doc(teamId).get();
+    if (peek.data && (await isTeamHost(peek.data, openid, teamId))) {
+      return fail("局头不能退出，请撤销组局");
+    }
+  } catch (e) {
+    // 事务里会再校验
+  }
+  try {
+    await db.runTransaction(async (transaction) => {
+      const teamRes = await transaction.collection("teams").doc(teamId).get();
+      const team = teamRes.data;
+      if (!teamExists(team)) throw new Error("队伍不存在");
+      if (hostUid(team) === openid) {
+        throw new Error("局头不能退出，请撤销组局");
+      }
+      if (!isOngoing(team, nowMs())) throw new Error("队伍已结束");
+
+      const mem = await transaction.collection("members").where({ teamId }).get();
+      const mineList = mem.data.filter((m) => memberUid(m) === openid);
+      if (!mineList.length) throw new Error("你不在这趟队伍里");
+
+      for (let i = 0; i < mineList.length; i += 1) {
+        await transaction.collection("members").doc(mineList[i]._id).remove();
+      }
+      const nextCount = Math.max(1, team.memberCount - mineList.length);
+      await transaction.collection("teams").doc(teamId).update({
+        data: {
+          memberCount: nextCount,
+          status: nextCount >= team.capacity ? "full" : "recruiting",
+        },
+      });
+    });
+  } catch (e) {
+    return fail(e.message || "退出失败");
+  }
+  return ok();
+}
+
+async function kickMember(event, openid) {
+  const teamId = event.teamId;
+  const targetOpenid = event.openid;
+  if (!targetOpenid) return fail("缺少成员");
+  try {
+    const peek = await db.collection("teams").doc(teamId).get();
+    if (!peek.data || !(await isTeamHost(peek.data, openid, teamId))) {
+      return fail("只有局头可以踢人");
+    }
+  } catch (e) {
+    return fail(e.message || "踢人失败");
+  }
+  try {
+    await db.runTransaction(async (transaction) => {
+      const teamRes = await transaction.collection("teams").doc(teamId).get();
+      const team = teamRes.data;
+      if (!teamExists(team)) throw new Error("队伍不存在");
+      if (hostUid(team) && hostUid(team) !== openid) {
+        throw new Error("只有局头可以踢人");
+      }
+      if (targetOpenid === openid) throw new Error("不能踢自己");
+      if (!isOngoing(team, nowMs())) throw new Error("队伍已结束");
+
+      const mem = await transaction.collection("members").where({ teamId }).get();
+      const targets = mem.data.filter((m) => memberUid(m) === targetOpenid);
+      if (!targets.length) throw new Error("对方不在队伍里");
+
+      for (let i = 0; i < targets.length; i += 1) {
+        await transaction.collection("members").doc(targets[i]._id).remove();
+      }
+      const nextCount = Math.max(1, team.memberCount - targets.length);
+      await transaction.collection("teams").doc(teamId).update({
+        data: {
+          memberCount: nextCount,
+          status: nextCount >= team.capacity ? "full" : "recruiting",
+        },
+      });
+    });
+  } catch (e) {
+    return fail(e.message || "踢人失败");
+  }
+  return ok();
+}
+
+async function backfillMemberOpenid(members, team) {
+  const jobs = (members || [])
+    .filter((m) => m && m._id && !m.openid)
+    .map((m) => {
+      const uid =
+        memberUid(m) ||
+        (team &&
+        (m.role === "host" || m.nickName === team.hostNickName)
+          ? hostUid(team)
+          : "");
+      if (!uid) return null;
+      return db.collection("members").doc(m._id).update({
+        data: { openid: uid },
+      });
+    })
+    .filter(Boolean);
+  if (jobs.length) await Promise.all(jobs);
+}
+
+async function dedupeTeamMembers(teamId, team) {
+  const memRes = await db.collection("members").where({ teamId }).get();
+  const groups = {};
+  memRes.data.forEach((m) => {
+    const key = memberKey(m, team);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  });
+  const toDelete = [];
+  const kept = [];
+  Object.keys(groups).forEach((key) => {
+    const list = groups[key].slice().sort((a, b) => {
+      if (a.role === "host") return -1;
+      if (b.role === "host") return 1;
+      return (a.joinedAt || 0) - (b.joinedAt || 0);
+    });
+    kept.push(list[0]);
+    toDelete.push(...list.slice(1));
+  });
+  if (toDelete.length) {
+    await Promise.all(
+      toDelete.map((m) => db.collection("members").doc(m._id).remove())
+    );
+    const left = kept.length;
+    const nextStatus =
+      team.status === "cancelled"
+        ? "cancelled"
+        : left >= team.capacity
+        ? "full"
+        : "recruiting";
+    await db.collection("teams").doc(teamId).update({
+      data: {
+        memberCount: left,
+        status: nextStatus,
+      },
+    });
+  }
+  await backfillMemberOpenid(kept, team);
+  return toDelete.length > 0;
+}
+
+async function getTeam(event, openid) {
+  const teamId = event.teamId;
+  if (!teamId) return fail("缺少队伍");
+  let team;
+  try {
+    const teamRes = await db.collection("teams").doc(teamId).get();
+    team = teamRes.data;
+  } catch (e) {
+    return fail("队伍不存在");
+  }
+  if (!teamExists(team)) return fail("队伍不存在");
+
+  const repaired = await dedupeTeamMembers(teamId, team);
+  if (repaired) {
+    const teamRes = await db.collection("teams").doc(teamId).get();
+    team = teamRes.data;
+  }
+
+  const memRes = await db.collection("members").where({ teamId }).get();
+  const members = memRes.data
+    .slice()
+    .sort((a, b) => {
+      if (a.role === "host") return -1;
+      if (b.role === "host") return 1;
+      return (a.joinedAt || 0) - (b.joinedAt || 0);
+    })
+    .map((m) => ({
+      _id: m._id,
+      openid: memberUid(m) || (m.role === "host" ? hostUid(team) : ""),
+      role: m.role,
+      nickName: m.nickName,
+      avatarUrl: m.avatarUrl,
+      joinedAt: m.joinedAt,
+    }));
+  const mine = members.find((m) => m.openid === openid);
+  const owner = await isTeamHost(team, openid, teamId, memRes.data);
+  const role = owner ? "host" : mine ? mine.role : null;
+  const displayStatus = resolveStatus(team, nowMs());
+  const showPwd = !!role && displayStatus !== "cancelled";
+
+  return ok({
+    team: stripSecret(team, showPwd),
+    members,
+    role,
+    openid,
+  });
+}
+
+async function listTeams() {
+  const now = nowMs();
+  let data = [];
+  try {
+    const res = await db
+      .collection("teams")
+      .where({
+        endAt: _.gt(now),
+      })
+      .orderBy("endAt", "asc")
+      .limit(50)
+      .get();
+    data = res.data;
+  } catch (e) {
+    const res = await db.collection("teams").limit(80).get();
+    data = res.data.filter((t) => teamEndAt(t) > now);
+  }
+  const list = data.filter(
+    (t) => t.status === "recruiting" || t.status === "full"
+  );
+  return ok({
+    list: list.map((t) => stripSecret(t, false)),
+  });
+}
+
+async function myTeams(openid) {
+  const mems = await findMembersByOpenid(openid);
+  if (!mems.length) {
+    return ok({ hosted: [], joined: [] });
+  }
+  const ids = mems.map((m) => m.teamId);
+  const teamList = await getTeamsByIds(ids);
+  const teamMap = {};
+  teamList.forEach((t) => {
+    teamMap[t._id] = stripSecret(t, false);
+  });
+  const hosted = [];
+  const joined = [];
+  mems
+    .slice()
+    .sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0))
+    .forEach((m) => {
+    const team = teamMap[m.teamId];
+    if (!team) return;
+    if (m.role === "host") hosted.push(team);
+    else joined.push(team);
+  });
+  return ok({ hosted, joined });
+}
+
+exports.main = async (event) => {
+  try {
+    await ensureCollections();
+    const openid = await getOpenid();
+    switch (event.type) {
+      case "saveProfile":
+        return await saveProfile(event, openid);
+      case "getProfile":
+        return await getProfile(openid);
+      case "createTeam":
+        return await createTeam(event, openid);
+      case "updateTeam":
+        return await updateTeam(event, openid);
+      case "cancelTeam":
+        return await cancelTeam(event, openid);
+      case "joinTeam":
+        return await joinTeam(event, openid);
+      case "leaveTeam":
+        return await leaveTeam(event, openid);
+      case "kickMember":
+        return await kickMember(event, openid);
+      case "getTeam":
+        return await getTeam(event, openid);
+      case "listTeams":
+        return await listTeams(event);
+      case "myTeams":
+        return await myTeams(openid);
+      default:
+        return fail("未知操作");
+    }
+  } catch (e) {
+    if (e.code === "NEED_PROFILE") {
+      return { ok: false, errMsg: e.message, code: "NEED_PROFILE" };
+    }
+    return fail(e.message || "服务异常");
+  }
+};

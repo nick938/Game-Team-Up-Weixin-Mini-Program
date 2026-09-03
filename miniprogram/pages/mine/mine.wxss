@@ -1,0 +1,42 @@
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  margin-bottom: 36rpx;
+}
+
+.avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 48rpx;
+  background: #eee;
+  margin-right: 20rpx;
+}
+
+.name {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.tip {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #8a8178;
+}
+
+.section-title {
+  margin: 8rpx 8rpx 16rpx;
+  font-size: 26rpx;
+  color: #8a8178;
+}
+
+.mini-empty {
+  padding: 12rpx 8rpx 32rpx;
+  color: #8a8178;
+  font-size: 26rpx;
+}

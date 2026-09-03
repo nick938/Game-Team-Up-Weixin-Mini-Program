@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="me card" bindtap="editProfile">
+    <image class="avatar" src="{{user.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
+    <view class="me-text">
+      <view class="name">{{user.nickName || '点这里设置头像昵称'}}</view>
+      <view class="tip">点击修改头像和昵称</view>
+    </view>
+  </view>
+
+  <view class="section-title">我发起的</view>
+  <team-card
+    wx:for="{{hosted}}"
+    wx:key="_id"
+    team="{{item}}"
+    mark="车头"
+    bind:tap="onOpen"
+  />
+  <view wx:if="{{!hosted.length}}" class="mini-empty">还没发过车</view>
+
+  <view class="section-title">我加入的</view>
+  <team-card
+    wx:for="{{joined}}"
+    wx:key="_id"
+    team="{{item}}"
+    mark="队员"
+    bind:tap="onOpen"
+  />
+  <view wx:if="{{!joined.length}}" class="mini-empty">还没加入过别人的车</view>
+
+  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
+</view>

@@ -1,0 +1,18 @@
+<view class="card" bindtap="onTap">
+  <view class="top">
+    <view class="game">{{team.gameName}}</view>
+    <view class="status status-{{team.displayStatus}}">{{statusText}}</view>
+  </view>
+  <view class="meta">
+    <text>{{timeText}}</text>
+    <text wx:if="{{team.soon}}" class="soon">即将开始</text>
+    <text wx:if="{{team.platform && team.platform !== '不限'}}"> · {{team.platform}}</text>
+    <text wx:if="{{team.server}}"> · {{team.server}}</text>
+  </view>
+  <view class="row">
+    <view class="count">{{team.memberCount}}/{{team.capacity}}</view>
+    <view class="need" wx:if="{{team.displayStatus === 'recruiting'}}">还差 {{team.needCount}} 人</view>
+    <view class="mark" wx:if="{{mark}}">{{mark}}</view>
+  </view>
+  <view class="room" wx:if="{{team.roomNo}}">{{team.roomNo}}</view>
+</view>

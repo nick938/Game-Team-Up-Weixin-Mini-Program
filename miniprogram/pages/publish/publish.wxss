@@ -1,0 +1,109 @@
+.block-card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 40rpx 32rpx;
+  margin-top: 24rpx;
+}
+
+.block-title {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.block-sub {
+  margin: 12rpx 0 36rpx;
+  color: #8a8178;
+  font-size: 26rpx;
+}
+
+.later {
+  margin-top: 16rpx;
+}
+
+.form {
+  padding-bottom: 40rpx;
+}
+
+.label {
+  margin: 32rpx 0 16rpx;
+  font-size: 26rpx;
+  color: #8a8178;
+}
+
+.games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.game {
+  padding: 12rpx 22rpx;
+  background: #fff;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+}
+
+.game-on {
+  background: #1a1714;
+  color: #fff;
+}
+
+.field-lg {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.field,
+.picker,
+.area {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 0 24rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  font-size: 30rpx;
+}
+
+.area {
+  min-height: 160rpx;
+  line-height: 1.6;
+  padding: 20rpx 24rpx;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.time-row {
+  display: flex;
+  gap: 16rpx;
+}
+
+.time-row .picker {
+  flex: 1;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  height: 88rpx;
+  width: 280rpx;
+}
+
+.step-btn {
+  width: 88rpx;
+  text-align: center;
+  font-size: 40rpx;
+  color: #e85d04;
+}
+
+.step-num {
+  flex: 1;
+  text-align: center;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.submit {
+  margin-top: 48rpx;
+}

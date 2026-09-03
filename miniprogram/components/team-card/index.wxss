@@ -1,0 +1,79 @@
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.status {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  color: #8a8178;
+  background: #f4f1ec;
+}
+
+.status-recruiting {
+  color: #e85d04;
+  background: #fff1e6;
+}
+
+.status-full {
+  color: #0d7377;
+  background: #e7f6f6;
+}
+
+.meta {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #8a8178;
+}
+
+.soon {
+  margin-left: 10rpx;
+  color: #e85d04;
+}
+
+.row {
+  margin-top: 20rpx;
+  display: flex;
+  align-items: baseline;
+}
+
+.count {
+  font-size: 40rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.need {
+  margin-left: 16rpx;
+  font-size: 26rpx;
+  color: #e85d04;
+}
+
+.mark {
+  margin-left: auto;
+  font-size: 22rpx;
+  color: #8a8178;
+}
+
+.room {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #1a1714;
+  background: #f4f1ec;
+  border-radius: 10rpx;
+  padding: 12rpx 16rpx;
+}

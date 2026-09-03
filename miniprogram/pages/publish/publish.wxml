@@ -1,0 +1,89 @@
+<view class="page">
+  <view wx:if="{{blockedTeam}}" class="block-card">
+    <view class="block-title">你已经有一趟进行中的局</view>
+    <view class="block-sub">{{blockedTeam.gameName}} · {{blockedTeam.timeText}} · {{blockedTeam.memberCount}}/{{blockedTeam.capacity}}</view>
+    <button class="btn-primary" bindtap="goBlocked">去看看</button>
+  </view>
+
+  <view wx:else class="form">
+    <view class="label">玩什么</view>
+    <input
+      class="field field-lg"
+      placeholder="CS2、三角洲行动、永劫无间…"
+      maxlength="40"
+      value="{{gameName}}"
+      bindinput="onGameName"
+      focus="{{!editingId}}"
+    />
+
+    <view class="label">平台</view>
+    <view class="games">
+      <view
+        class="game {{platform === item ? 'game-on' : ''}}"
+        wx:for="{{platforms}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickPlatform"
+      >{{item}}</view>
+    </view>
+
+    <view class="label">开始时间</view>
+    <view class="time-row">
+      <picker mode="date" value="{{startDate}}" start="{{minDate}}" bindchange="onStartDate">
+        <view class="picker">{{startDate}}</view>
+      </picker>
+      <picker mode="time" value="{{startTime}}" bindchange="onStartTime">
+        <view class="picker">{{startTime}}</view>
+      </picker>
+    </view>
+
+    <view class="label">结束时间</view>
+    <view class="time-row">
+      <picker mode="date" value="{{endDate}}" start="{{startDate}}" bindchange="onEndDate">
+        <view class="picker">{{endDate}}</view>
+      </picker>
+      <picker mode="time" value="{{endTime}}" bindchange="onEndTime">
+        <view class="picker">{{endTime}}</view>
+      </picker>
+    </view>
+
+    <view class="label">几个人（含你自己）</view>
+    <view class="stepper">
+      <view class="step-btn" bindtap="decCap">−</view>
+      <view class="step-num">{{capacity}}</view>
+      <view class="step-btn" bindtap="incCap">+</view>
+    </view>
+
+    <view class="label">怎么进（选填）</view>
+    <input class="field" placeholder="房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
+
+    <view class="label">进房密码（选填，仅队员可见）</view>
+    <input class="field" placeholder="没有就空着" maxlength="32" value="{{roomPwd}}" bindinput="onRoomPwd" />
+
+    <view class="label">服务器 / 区服（选填）</view>
+    <input class="field" placeholder="如 欧服、微信区、国服" maxlength="20" value="{{server}}" bindinput="onServer" />
+
+    <view class="label">语音</view>
+    <view class="games">
+      <view
+        class="game {{voice === item ? 'game-on' : ''}}"
+        wx:for="{{voices}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickVoice"
+      >{{item}}</view>
+    </view>
+
+    <view class="label">水平（选填）</view>
+    <input class="field" placeholder="如 娱乐局、上分、萌新友好" maxlength="20" value="{{rankReq}}" bindinput="onRank" />
+
+    <view class="label">备注（选填）</view>
+    <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="80" value="{{note}}" bindinput="onNote" />
+
+    <button class="btn-primary submit" loading="{{submitting}}" bindtap="onSubmit">
+      {{editingId ? '保存修改' : '发布组局'}}
+    </button>
+  </view>
+
+  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
+</view>

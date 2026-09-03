@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "组局",
+  "usingComponents": {
+    "profile-gate": "/components/profile-gate/index"
+  }
+}

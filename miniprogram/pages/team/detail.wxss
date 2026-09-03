@@ -1,0 +1,177 @@
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+}
+
+.hero .game {
+  margin-top: 16rpx;
+  font-size: 48rpx;
+  font-weight: 700;
+}
+
+.hero .time {
+  margin-top: 8rpx;
+  font-size: 30rpx;
+  color: #8a8178;
+}
+
+.hero .count {
+  margin-top: 20rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.need {
+  margin-left: 16rpx;
+  font-size: 26rpx;
+  font-weight: 400;
+  color: #e85d04;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.status {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  background: #f4f1ec;
+  color: #8a8178;
+}
+
+.status-recruiting {
+  color: #e85d04;
+  background: #fff1e6;
+}
+
+.status-full {
+  color: #0d7377;
+  background: #e7f6f6;
+}
+
+.soon {
+  font-size: 22rpx;
+  color: #e85d04;
+}
+
+.tags {
+  margin-top: 16rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.tags text {
+  font-size: 22rpx;
+  background: #f4f1ec;
+  padding: 6rpx 12rpx;
+  border-radius: 8rpx;
+  color: #5c564f;
+}
+
+.note {
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #3d3833;
+}
+
+.card-title {
+  font-size: 26rpx;
+  color: #8a8178;
+  margin-bottom: 16rpx;
+}
+
+.copy-row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+}
+
+.copy-label {
+  width: 180rpx;
+  color: #8a8178;
+  font-size: 26rpx;
+}
+
+.copy-val {
+  flex: 1;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.copy-btn {
+  font-size: 24rpx;
+  color: #e85d04;
+}
+
+.hint {
+  font-size: 24rpx;
+  color: #8a8178;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 0;
+}
+
+.avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 36rpx;
+  background: #f4f1ec;
+  margin-right: 16rpx;
+}
+
+.member-name {
+  flex: 1;
+  font-size: 28rpx;
+}
+
+.host-tag {
+  margin-left: 10rpx;
+  font-size: 20rpx;
+  color: #e85d04;
+}
+
+.kick {
+  font-size: 24rpx;
+  color: #c1121f;
+  padding: 8rpx 12rpx;
+}
+
+.actions {
+  margin-top: 12rpx;
+}
+
+.actions > button {
+  margin-top: 16rpx;
+}
+
+.actions > button:first-child {
+  margin-top: 0;
+}
+
+.share {
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  background: #1a1714;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 600;
+  border-radius: 16rpx;
+}
+
+.over-tip {
+  text-align: center;
+  color: #8a8178;
+  margin-bottom: 24rpx;
+  font-size: 28rpx;
+}
