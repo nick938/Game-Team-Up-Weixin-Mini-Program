@@ -31,7 +31,7 @@
       <view class="copy-btn" wx:if="{{team.roomPwd}}">复制</view>
     </view>
     <view class="hint" wx:if="{{!role && team.hasPwd}}">加入后可见进房密码</view>
-    <view class="hint" wx:if="{{!team.roomNo && !team.hasPwd}}">进房方式看备注，或进局后问局主</view>
+    <view class="hint" wx:if="{{!team.roomNo && !team.hasPwd}}">进房方式看备注，或上车后问车头</view>
   </view>
 
   <view class="card">
@@ -54,22 +54,22 @@
   </view>
 
   <view class="actions" wx:if="{{team.displayStatus === 'recruiting' || team.displayStatus === 'full'}}">
-    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">加入</button>
-    <button class="btn-ghost" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">已满员，看看别的局</button>
-    <button class="btn-ghost" wx:if="{{role === 'member'}}" bindtap="onLeave">退出组局</button>
-    <button class="share" open-type="share">分享给好友</button>
+    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">上车</button>
+    <button class="btn-ghost" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">满了，看看别的车</button>
+    <button class="btn-ghost" wx:if="{{role === 'member'}}" bindtap="onLeave">下车</button>
+    <button class="share" open-type="share">丢给好友</button>
     <button class="btn-ghost" wx:if="{{role === 'host'}}" bindtap="onEdit">编辑</button>
-    <button class="btn-ghost btn-danger" wx:if="{{role === 'host'}}" bindtap="onCancel">撤销组局</button>
+    <button class="btn-ghost btn-danger" wx:if="{{role === 'host'}}" bindtap="onCancel">散了这趟</button>
   </view>
 
   <view class="actions" wx:else>
     <view class="over-tip">
-      {{team.displayStatus === 'cancelled' ? '这趟局已关闭' : '已经结束，不能再加入'}}
+      {{team.displayStatus === 'cancelled' ? '这趟已经散了' : '已经结束，不能再上车'}}
     </view>
-    <button class="btn-primary" bindtap="goPlaza">看看别的局</button>
+    <button class="btn-primary" bindtap="goPlaza">看看别的车</button>
   </view>
 </view>
 
-<view class="empty" wx:elif="{{!loading}}">找不到这趟组队</view>
+<view class="empty" wx:elif="{{!loading}}">找不到这趟车</view>
 
 <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />

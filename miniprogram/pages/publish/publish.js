@@ -167,7 +167,7 @@ Page({
         }, 400);
       } else {
         const res = await callTeam("createTeam", { team });
-        wx.showToast({ title: "已发布", icon: "success" });
+        wx.showToast({ title: "已发车", icon: "success" });
         setTimeout(() => {
           wx.navigateTo({
             url: `/pages/team/detail?id=${res.teamId}`,

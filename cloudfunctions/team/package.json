@@ -1,7 +1,7 @@
 {
   "name": "team",
   "version": "1.0.0",
-      "description": "开一局组队服务",
+      "description": "来开黑组队服务",
   "main": "index.js",
   "dependencies": {
     "wx-server-sdk": "~2.6.3"

@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "组局",
+  "navigationBarTitleText": "发车",
   "usingComponents": {
     "profile-gate": "/components/profile-gate/index"
   }

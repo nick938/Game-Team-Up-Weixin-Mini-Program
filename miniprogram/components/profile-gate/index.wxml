@@ -1,7 +1,7 @@
 <view wx:if="{{show}}" class="mask" catchtouchmove="noop">
   <view class="sheet">
     <view class="title">怎么称呼你</view>
-    <view class="sub">选好头像和微信昵称后点保存，组局里别人才能认出你。</view>
+    <view class="sub">选好头像和微信昵称后点保存，开黑时别人才能认出你。</view>
     <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
       <image class="avatar" src="{{avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
       <view class="avatar-tip">点一下选头像</view>

@@ -75,7 +75,7 @@
     <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="80" value="{{note}}" bindinput="onNote" />
 
     <button class="btn-primary submit" loading="{{submitting}}" bindtap="onSubmit">
-      {{editingId ? '保存修改' : '发布组局'}}
+      {{editingId ? '保存修改' : '发车'}}
     </button>
   </view>
 

@@ -7,7 +7,7 @@
     </view>
   </view>
 
-  <view class="section-title">我发起的</view>
+  <view class="section-title">我发的车</view>
   <team-card
     wx:for="{{hosted}}"
     wx:key="_id"
@@ -17,7 +17,7 @@
   />
   <view wx:if="{{!hosted.length}}" class="mini-empty">还没发过车</view>
 
-  <view class="section-title">我加入的</view>
+  <view class="section-title">我上的车</view>
   <team-card
     wx:for="{{joined}}"
     wx:key="_id"
@@ -25,7 +25,7 @@
     mark="队员"
     bind:tap="onOpen"
   />
-  <view wx:if="{{!joined.length}}" class="mini-empty">还没加入过别人的车</view>
+  <view wx:if="{{!joined.length}}" class="mini-empty">还没上过别人的车</view>
 
   <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
 </view>

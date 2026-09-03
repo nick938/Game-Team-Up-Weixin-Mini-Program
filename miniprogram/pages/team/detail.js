@@ -27,10 +27,10 @@ Page({
   onShareAppMessage() {
     const team = this.data.team;
     if (!team) {
-      return { title: "开一局", path: "/pages/index/index" };
+      return { title: "来开黑", path: "/pages/index/index" };
     }
     const time = formatStartAt(team.startAt).replace(/今天 |今晚 |明天 /, "");
-    let title = `开一局｜${team.gameName}`;
+    let title = `来开黑｜${team.gameName}`;
     if (team.displayStatus === "recruiting") {
       title += ` 还差 ${team.needCount} 人 · ${time}`;
     } else if (team.displayStatus === "full") {
@@ -91,10 +91,10 @@ Page({
   },
 
   async onJoin() {
-    wx.showLoading({ title: "加入中" });
+    wx.showLoading({ title: "上车中" });
     try {
       await callTeam("joinTeam", { teamId: this.data.teamId });
-      wx.showToast({ title: "已加入", icon: "success" });
+        wx.showToast({ title: "已上车", icon: "success" });
       this.loadDetail();
     } catch (e) {
       wx.hideLoading();
@@ -108,13 +108,13 @@ Page({
 
   onLeave() {
     wx.showModal({
-      title: "退出这趟局？",
+      title: "下车？",
       success: async (res) => {
         if (!res.confirm) return;
-        wx.showLoading({ title: "退出中" });
+        wx.showLoading({ title: "下车中" });
         try {
           await callTeam("leaveTeam", { teamId: this.data.teamId });
-          wx.showToast({ title: "已退出", icon: "success" });
+          wx.showToast({ title: "已下车", icon: "success" });
           this.loadDetail();
         } catch (e) {
           wx.hideLoading();
@@ -127,7 +127,7 @@ Page({
   onKick(e) {
     const openid = e.currentTarget.dataset.openid;
     wx.showModal({
-      title: "踢出这名队员？",
+      title: "踢了这人？",
       success: async (res) => {
         if (!res.confirm) return;
         wx.showLoading({ title: "处理中" });
@@ -154,15 +154,15 @@ Page({
 
   onCancel() {
     wx.showModal({
-      title: "撤销这趟局？",
-      content: "撤销后不能再加入。",
+      title: "散了这趟？",
+      content: "散了之后不能再上车。",
       confirmColor: "#c1121f",
       success: async (res) => {
         if (!res.confirm) return;
-        wx.showLoading({ title: "撤销中" });
+        wx.showLoading({ title: "处理中" });
         try {
           await callTeam("cancelTeam", { teamId: this.data.teamId });
-          wx.showToast({ title: "已撤销", icon: "success" });
+          wx.showToast({ title: "已散", icon: "success" });
           this.loadDetail();
         } catch (e) {
           wx.hideLoading();

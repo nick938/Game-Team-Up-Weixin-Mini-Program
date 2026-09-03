@@ -1,16 +1,16 @@
 <view class="page">
   <view class="hero">
-    <view class="hero-title">找人开一局</view>
-    <view class="hero-sub">组局、分享、上车。到结束时间自动过期。</view>
+    <view class="hero-title">缺人就喊一声</view>
+    <view class="hero-sub">发车丢群，好友点卡片就能上车。到点自动散。</view>
   </view>
 
-  <view class="zone">游戏区</view>
+  <view class="zone">正在缺人</view>
 
-  <view wx:if="{{loading && !list.length}}" class="empty">正在拉组局…</view>
+  <view wx:if="{{loading && !list.length}}" class="empty">正在找车…</view>
   <view wx:elif="{{!list.length}}" class="empty">
-    <view>现在没有正在招募的局。</view>
-    <view>自己开一趟，把卡片丢进群里。</view>
-    <button class="btn-primary empty-btn" bindtap="goPublish">去组局</button>
+    <view>现在没车。</view>
+    <view>自己发一趟，把卡片丢进群。</view>
+    <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
   </view>
 
   <team-card

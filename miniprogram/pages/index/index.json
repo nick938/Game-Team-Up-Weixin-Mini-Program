@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "开一局",
+  "navigationBarTitleText": "来开黑",
   "enablePullDownRefresh": true,
   "usingComponents": {
     "team-card": "/components/team-card/index"

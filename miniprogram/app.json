@@ -9,7 +9,7 @@
     "backgroundColor": "#F4F1EC",
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#FFFFFF",
-    "navigationBarTitleText": "开一局",
+    "navigationBarTitleText": "来开黑",
     "navigationBarTextStyle": "black"
   },
   "tabBar": {
@@ -20,13 +20,13 @@
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "广场",
+        "text": "大厅",
         "iconPath": "images/tab-plaza.png",
         "selectedIconPath": "images/tab-plaza-active.png"
       },
       {
         "pagePath": "pages/publish/publish",
-        "text": "组局",
+        "text": "发车",
         "iconPath": "images/tab-plus.png",
         "selectedIconPath": "images/tab-plus-active.png"
       },
