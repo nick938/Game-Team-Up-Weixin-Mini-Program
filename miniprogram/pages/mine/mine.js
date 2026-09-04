@@ -1,11 +1,24 @@
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
+const { requestTeamNotify } = require("../../utils/subscribe");
+
+function splitTeams(list) {
+  const ongoing = [];
+  const past = [];
+  (list || []).forEach((t) => {
+    if (t.ongoing) ongoing.push(t);
+    else past.push(t);
+  });
+  return { ongoing, past };
+}
 
 Page({
   data: {
     user: {},
-    hosted: [],
-    joined: [],
+    hostedOngoing: [],
+    hostedPast: [],
+    joinedOngoing: [],
+    joinedPast: [],
     showProfile: false,
   },
 
@@ -23,10 +36,14 @@ Page({
       if (profile.user) {
         app.globalData.user = profile.user;
       }
+      const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
+      const joined = splitTeams((teams.joined || []).map(decorateTeam));
       this.setData({
         user: profile.user || {},
-        hosted: (teams.hosted || []).map(decorateTeam),
-        joined: (teams.joined || []).map(decorateTeam),
+        hostedOngoing: hosted.ongoing,
+        hostedPast: hosted.past,
+        joinedOngoing: joined.ongoing,
+        joinedPast: joined.past,
       });
     } catch (e) {
       showError(e);
@@ -47,9 +64,21 @@ Page({
     this.load();
   },
 
-  onOpen(e) {
+  async onOpen(e) {
+    const id = e.detail.id;
+    const isHosted = (this.data.hostedOngoing || []).some((t) => t._id === id);
+    if (isHosted) {
+      await requestTeamNotify();
+    }
     wx.navigateTo({
-      url: `/pages/team/detail?id=${e.detail.id}`,
+      url: `/pages/team/detail?id=${id}`,
+    });
+  },
+
+  openLegal(e) {
+    const type = e.currentTarget.dataset.type;
+    wx.navigateTo({
+      url: `/pages/legal/legal?type=${type}`,
     });
   },
 });

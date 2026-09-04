@@ -7,25 +7,51 @@
     </view>
   </view>
 
-  <view class="section-title">我发的车</view>
+  <view class="section-title">我发的车 · 进行中</view>
   <team-card
-    wx:for="{{hosted}}"
+    wx:for="{{hostedOngoing}}"
     wx:key="_id"
     team="{{item}}"
     mark="车头"
     bind:tap="onOpen"
   />
-  <view wx:if="{{!hosted.length}}" class="mini-empty">还没发过车</view>
+  <view wx:if="{{!hostedOngoing.length}}" class="mini-empty">没有正在进行的车</view>
 
-  <view class="section-title">我上的车</view>
+  <view class="section-title">我上的车 · 进行中</view>
   <team-card
-    wx:for="{{joined}}"
+    wx:for="{{joinedOngoing}}"
     wx:key="_id"
     team="{{item}}"
     mark="队员"
     bind:tap="onOpen"
   />
-  <view wx:if="{{!joined.length}}" class="mini-empty">还没上过别人的车</view>
+  <view wx:if="{{!joinedOngoing.length}}" class="mini-empty">没有正在上的车</view>
+
+  <view class="section-title">我发的车 · 已结束</view>
+  <team-card
+    wx:for="{{hostedPast}}"
+    wx:key="_id"
+    team="{{item}}"
+    mark="车头"
+    bind:tap="onOpen"
+  />
+  <view wx:if="{{!hostedPast.length}}" class="mini-empty">还没有结束的车</view>
+
+  <view class="section-title">我上的车 · 已结束</view>
+  <team-card
+    wx:for="{{joinedPast}}"
+    wx:key="_id"
+    team="{{item}}"
+    mark="队员"
+    bind:tap="onOpen"
+  />
+  <view wx:if="{{!joinedPast.length}}" class="mini-empty">还没上过别人的车</view>
+
+  <view class="legal">
+    <text data-type="agreement" bindtap="openLegal">用户协议</text>
+    <text class="dot">·</text>
+    <text data-type="privacy" bindtap="openLegal">隐私政策</text>
+  </view>
 
   <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
 </view>

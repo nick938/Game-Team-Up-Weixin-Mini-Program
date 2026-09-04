@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/publish/publish",
     "pages/mine/mine",
-    "pages/team/detail"
+    "pages/team/detail",
+    "pages/legal/legal"
   ],
   "window": {
     "backgroundColor": "#F4F1EC",

@@ -34,6 +34,12 @@
   background: #e7f6f6;
 }
 
+.status-cancelled,
+.status-expired {
+  color: #8a8178;
+  background: #f4f1ec;
+}
+
 .meta {
   margin-top: 12rpx;
   font-size: 26rpx;

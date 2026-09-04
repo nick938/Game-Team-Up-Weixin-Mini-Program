@@ -28,3 +28,28 @@
   margin-top: 32rpx;
   width: 280rpx;
 }
+
+.filters {
+  margin: -8rpx 0 24rpx;
+  white-space: nowrap;
+}
+
+.filters-inner {
+  display: inline-flex;
+  gap: 12rpx;
+  padding-bottom: 8rpx;
+}
+
+.filter {
+  flex-shrink: 0;
+  padding: 10rpx 22rpx;
+  background: #fff;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  color: #5c564f;
+}
+
+.filter-on {
+  background: #1a1714;
+  color: #fff;
+}

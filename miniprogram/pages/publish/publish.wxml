@@ -9,6 +9,7 @@
       bindinput="onGameName"
       focus="{{!editingId}}"
     />
+    <view class="from-last" wx:if="{{fromLast}}">已填入上一趟，时间改到最近</view>
 
     <view class="label">平台</view>
     <view class="games">

@@ -6,6 +6,7 @@ const {
   defaultEndAt,
 } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
+const { requestTeamNotify } = require("../../utils/subscribe");
 
 function emptyForm() {
   const startAt = defaultStartAt();
@@ -28,12 +29,13 @@ function emptyForm() {
     roomPwd: "",
     platform: "Steam",
     server: "",
-    voice: "不限",
+    voice: "KOOK",
     rankReq: "",
     note: "",
     submitting: false,
     showProfile: false,
     pendingAction: "",
+    fromLast: false,
   };
 }
 
@@ -48,7 +50,13 @@ Page({
       await this.loadEdit(editingId);
       return;
     }
-    if (this.data.editingId) {
+    const draft = app.globalData.republishTeam;
+    app.globalData.republishTeam = null;
+    if (draft) {
+      this.applyDraft(draft);
+      return;
+    }
+    if (this.data.editingId || this.data.fromLast) {
       this.setData(emptyForm());
     }
   },
@@ -60,6 +68,7 @@ Page({
       const team = res.team;
       const start = dateParts(team.startAt);
       const end = dateParts(team.endAt || team.expireAt || team.startAt);
+      const voice = team.voice === "Discord" ? "KOOK" : team.voice;
       this.setData({
         ...emptyForm(),
         editingId: id,
@@ -71,9 +80,9 @@ Page({
         capacity: team.capacity,
         roomNo: team.roomNo || "",
         roomPwd: team.roomPwd || "",
-        platform: team.platform || "Steam",
+        platform: PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : "Steam",
         server: team.server || "",
-        voice: team.voice || "不限",
+        voice: VOICES.indexOf(voice) >= 0 ? voice : "KOOK",
         rankReq: team.rankReq || "",
         note: team.note || "",
       });
@@ -82,6 +91,33 @@ Page({
     } finally {
       wx.hideLoading();
     }
+  },
+
+  applyDraft(draft) {
+    const startAt = defaultStartAt();
+    const endAt = defaultEndAt(startAt);
+    const start = dateParts(startAt);
+    const end = dateParts(endAt);
+    const today = dateParts(Date.now());
+    const voice = draft.voice === "Discord" ? "KOOK" : draft.voice;
+    this.setData({
+      ...emptyForm(),
+      fromLast: true,
+      gameName: draft.gameName || "",
+      startDate: start.date,
+      startTime: start.time,
+      endDate: end.date,
+      endTime: end.time,
+      minDate: today.date,
+      capacity: draft.capacity || 5,
+      roomNo: draft.roomNo || "",
+      roomPwd: draft.roomPwd || "",
+      platform: PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : "Steam",
+      server: draft.server || "",
+      voice: VOICES.indexOf(voice) >= 0 ? voice : "KOOK",
+      rankReq: draft.rankReq || "",
+      note: draft.note || "",
+    });
   },
 
   onGameName(e) {
@@ -157,6 +193,9 @@ Page({
     }
     this.setData({ submitting: true });
     try {
+      if (!this.data.editingId) {
+        await requestTeamNotify();
+      }
       if (this.data.editingId) {
         await callTeam("updateTeam", { teamId: this.data.editingId, team });
         wx.showToast({ title: "已保存", icon: "success" });

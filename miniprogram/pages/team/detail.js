@@ -1,5 +1,6 @@
 const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
+const { requestTeamNotify } = require("../../utils/subscribe");
 
 Page({
   data: {
@@ -36,7 +37,7 @@ Page({
     } else if (team.displayStatus === "full") {
       title += " 已满员";
     } else if (team.displayStatus === "cancelled") {
-      title += " 已关闭";
+      title += " 已散";
     } else {
       title += " 已结束";
     }
@@ -88,6 +89,14 @@ Page({
     const pwd = this.data.team && this.data.team.roomPwd;
     if (!pwd) return;
     wx.setClipboardData({ data: String(pwd) });
+  },
+
+  async onEnableNotify() {
+    const ok = await requestTeamNotify();
+    wx.showToast({
+      title: ok ? "开打前会提醒你" : "需要允许通知才能提醒",
+      icon: "none",
+    });
   },
 
   async onJoin() {
@@ -149,6 +158,24 @@ Page({
   onEdit() {
     const app = getApp();
     app.globalData.editingTeamId = this.data.teamId;
+    wx.switchTab({ url: "/pages/publish/publish" });
+  },
+
+  onRepublish() {
+    const team = this.data.team;
+    if (!team) return;
+    const app = getApp();
+    app.globalData.republishTeam = {
+      gameName: team.gameName,
+      capacity: team.capacity,
+      roomNo: team.roomNo,
+      roomPwd: team.roomPwd,
+      platform: team.platform,
+      server: team.server,
+      voice: team.voice,
+      rankReq: team.rankReq,
+      note: team.note,
+    };
     wx.switchTab({ url: "/pages/publish/publish" });
   },
 

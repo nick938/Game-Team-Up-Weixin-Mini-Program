@@ -40,3 +40,15 @@
   color: #8a8178;
   font-size: 26rpx;
 }
+
+.legal {
+  margin-top: 24rpx;
+  padding: 12rpx 8rpx 8rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #8a8178;
+}
+
+.legal .dot {
+  margin: 0 12rpx;
+}

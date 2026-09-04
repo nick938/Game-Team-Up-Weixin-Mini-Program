@@ -4,7 +4,19 @@
     <view class="hero-sub">发车丢群，好友点卡片就能上车。到点自动散。</view>
   </view>
 
-  <view class="zone">正在缺人</view>
+  <view class="zone">现在的车</view>
+
+  <scroll-view wx:if="{{games.length > 1}}" class="filters" scroll-x>
+    <view class="filters-inner">
+      <view
+        class="filter {{gameFilter === item ? 'filter-on' : ''}}"
+        wx:for="{{games}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickGame"
+      >{{item}}</view>
+    </view>
+  </scroll-view>
 
   <view wx:if="{{loading && !list.length}}" class="empty">正在找车…</view>
   <view wx:elif="{{!list.length}}" class="empty">
@@ -12,11 +24,16 @@
     <view>自己发一趟，把卡片丢进群。</view>
     <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
   </view>
+  <view wx:elif="{{!filtered.length}}" class="empty">
+    <view>这个游戏现在没车。</view>
+    <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
+  </view>
 
   <team-card
-    wx:for="{{list}}"
+    wx:for="{{filtered}}"
     wx:key="_id"
     team="{{item}}"
+    mark="{{item.mark}}"
     bind:tap="onOpen"
   />
 </view>

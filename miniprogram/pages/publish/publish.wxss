@@ -31,6 +31,12 @@
   font-weight: 600;
 }
 
+.from-last {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #e85d04;
+}
+
 .field,
 .picker,
 .area {

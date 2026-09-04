@@ -1,0 +1,21 @@
+.updated {
+  margin-bottom: 28rpx;
+  font-size: 24rpx;
+  color: #8a8178;
+}
+
+.block {
+  margin-bottom: 36rpx;
+}
+
+.heading {
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.body {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #3d3833;
+}

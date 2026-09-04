@@ -81,11 +81,14 @@ function statusText(status) {
 
 function decorateTeam(team) {
   if (!team) return team;
+  const displayStatus = team.displayStatus || team.status;
   return {
     ...team,
+    voice: team.voice === "Discord" ? "KOOK" : team.voice,
     timeText: formatTimeRange(team.startAt, teamEndAt(team)),
-    statusText: statusText(team.displayStatus || team.status),
+    statusText: statusText(displayStatus),
     soon: isSoon(team.startAt),
+    ongoing: displayStatus === "recruiting" || displayStatus === "full",
   };
 }
 
