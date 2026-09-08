@@ -1,5 +1,3 @@
-const { formatTimeRange, isSoon, statusText, teamEndAt } = require("../../utils/format");
-
 Component({
   properties: {
     team: {
@@ -9,22 +7,6 @@ Component({
     mark: {
       type: String,
       value: "",
-    },
-  },
-  data: {
-    timeText: "",
-    statusText: "",
-  },
-  observers: {
-    team(team) {
-      if (!team || !team._id) return;
-      this.setData({
-        timeText: formatTimeRange(team.startAt, teamEndAt(team)),
-        statusText: statusText(team.displayStatus || team.status),
-      });
-      if (team.soon === undefined) {
-        team.soon = isSoon(team.startAt);
-      }
     },
   },
   methods: {

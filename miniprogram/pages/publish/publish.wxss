@@ -1,93 +1,26 @@
-.form {
-  padding-bottom: 40rpx;
-}
+.form { margin-top: 28rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 28rpx; padding: 4rpx 28rpx 28rpx; }
+.label { margin: 28rpx 0 14rpx; color: #535b72; font-size: 25rpx; font-weight: 600; }
+.field, .picker, .area { border: 1rpx solid #e9ebf3; background: #f7f8fc; border-radius: 16rpx; box-sizing: border-box; font-size: 28rpx; color: #202438; }
+.field, .picker { height: 84rpx; line-height: 84rpx; padding: 0 20rpx; }
+.field-lg { font-size: 32rpx; font-weight: 600; }
+.games { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.game { padding: 15rpx 23rpx; background: #f5f6fa; color: #697188; border-radius: 14rpx; font-size: 25rpx; }
+.game-on { background: #eeecff; color: #6255e7; box-shadow: inset 0 0 0 1rpx #c8c1fb; }
+.time-row { display: flex; gap: 14rpx; }
+.time-row > picker { flex: 1; min-width: 0; }
+.time-row > picker:first-child { flex: 1.45; }
+.picker { padding: 0 8rpx; text-align: center; }
+.stepper { display: flex; align-items: center; border-radius: 16rpx; background: #f7f8fc; height: 84rpx; }
+.step-btn { width: 100rpx; line-height: 84rpx; text-align: center; color: #6255e7; font-size: 38rpx; }
+.step-num { flex: 1; text-align: center; font-weight: 700; font-size: 34rpx; }
+.area { width: 100%; min-height: 170rpx; padding: 20rpx; line-height: 1.6; }
+.from-last { color: #6255e7; font-size: 24rpx; margin-top: 12rpx; }
+button.more-toggle { width: 100% !important; margin-top: 28rpx; padding: 28rpx 0; border-top: 1rpx solid #eef0f6; display: flex; justify-content: space-between; align-items: center; font-size: 27rpx; text-align: left; }
+.more-hint { font-size: 22rpx; color: #777e92; }
+.submit { margin-top: 24rpx; }
 
-.label {
-  margin: 32rpx 0 16rpx;
-  font-size: 26rpx;
-  color: #8a8178;
-}
-
-.games {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.game {
-  padding: 12rpx 22rpx;
-  background: #fff;
-  border-radius: 12rpx;
-  font-size: 26rpx;
-}
-
-.game-on {
-  background: #1a1714;
-  color: #fff;
-}
-
-.field-lg {
-  font-size: 34rpx;
-  font-weight: 600;
-}
-
-.from-last {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #e85d04;
-}
-
-.field,
-.picker,
-.area {
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 0 24rpx;
-  min-height: 88rpx;
-  line-height: 88rpx;
-  font-size: 30rpx;
-}
-
-.area {
-  min-height: 160rpx;
-  line-height: 1.6;
-  padding: 20rpx 24rpx;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.time-row {
-  display: flex;
-  gap: 16rpx;
-}
-
-.time-row .picker {
-  flex: 1;
-}
-
-.stepper {
-  display: flex;
-  align-items: center;
-  background: #fff;
-  border-radius: 16rpx;
-  height: 88rpx;
-  width: 280rpx;
-}
-
-.step-btn {
-  width: 88rpx;
-  text-align: center;
-  font-size: 40rpx;
-  color: #e85d04;
-}
-
-.step-num {
-  flex: 1;
-  text-align: center;
-  font-size: 36rpx;
-  font-weight: 700;
-}
-
-.submit {
-  margin-top: 48rpx;
-}
+.publish-heading { display: flex; align-items: center; gap: 20rpx; }
+.publish-copy { flex: 1; min-width: 0; }
+.publish-heading .page-heading { font-size: 38rpx; }
+.publish-heading .page-caption { font-size: 24rpx; }
+.brand-avatar { width: 100rpx; height: 100rpx; border-radius: 28rpx; flex-shrink: 0; }

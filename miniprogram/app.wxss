@@ -1,65 +1,14 @@
-page {
-  background: #f4f1ec;
-  color: #1a1714;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
-    "Helvetica Neue", sans-serif;
-}
+page { background: #f5f6fa; color: #202438; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+button { margin: 0; padding: 0; background: transparent; font-size: inherit; line-height: inherit; border-radius: 0; }
+button::after { border: none; }
+.page { max-width: 960rpx; margin: 0 auto; padding: 28rpx 32rpx calc(40rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.page-heading { font-size: 44rpx; font-weight: 700; letter-spacing: -1rpx; line-height: 1.35; }
+.page-caption { margin-top: 10rpx; font-size: 26rpx; color: #777e92; line-height: 1.6; }
+.btn-primary, .btn-ghost { width: 100% !important; min-height: 88rpx; padding: 22rpx 20rpx; box-sizing: border-box; line-height: 44rpx; text-align: center; border-radius: 22rpx; font-size: 28rpx; font-weight: 600; }
+.btn-primary { background: #6255e7; color: #fff; }
+.btn-primary[disabled] { opacity: .45; }
+.btn-ghost { background: #eceafa; color: #5549c7; }
+.btn-danger { color: #c54d69; }
+.empty { padding: 80rpx 28rpx; text-align: center; color: #777e92; font-size: 28rpx; line-height: 1.8; }
 
-button {
-  background: initial;
-  padding: 0;
-  margin: 0;
-  line-height: inherit;
-  font-size: inherit;
-}
-
-button:focus {
-  outline: 0;
-}
-
-button::after {
-  border: none;
-}
-
-.page {
-  padding: 24rpx 28rpx 48rpx;
-  box-sizing: border-box;
-}
-
-.btn-primary {
-  height: 88rpx;
-  line-height: 88rpx;
-  text-align: center;
-  background: #e85d04;
-  color: #fff;
-  font-size: 32rpx;
-  font-weight: 600;
-  border-radius: 16rpx;
-}
-
-.btn-primary[disabled] {
-  opacity: 0.45;
-}
-
-.btn-ghost {
-  height: 88rpx;
-  line-height: 88rpx;
-  text-align: center;
-  background: #fff;
-  color: #1a1714;
-  font-size: 32rpx;
-  border-radius: 16rpx;
-  border: 2rpx solid #e6e0d8;
-}
-
-.btn-danger {
-  color: #c1121f;
-}
-
-.empty {
-  padding: 120rpx 40rpx;
-  text-align: center;
-  color: #8a8178;
-  font-size: 28rpx;
-  line-height: 1.7;
-}
+.empty-art { display: block; width: 340rpx; height: 280rpx; margin: 0 auto 20rpx; }

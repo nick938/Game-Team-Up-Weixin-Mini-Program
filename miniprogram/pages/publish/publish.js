@@ -36,6 +36,7 @@ function emptyForm() {
     showProfile: false,
     pendingAction: "",
     fromLast: false,
+    showMore: false,
   };
 }
 
@@ -72,6 +73,7 @@ Page({
       this.setData({
         ...emptyForm(),
         editingId: id,
+        showMore: true,
         gameName: team.gameName || "",
         startDate: start.date,
         startTime: start.time,
@@ -103,6 +105,7 @@ Page({
     this.setData({
       ...emptyForm(),
       fromLast: true,
+      showMore: true,
       gameName: draft.gameName || "",
       startDate: start.date,
       startTime: start.time,
@@ -118,6 +121,10 @@ Page({
       rankReq: draft.rankReq || "",
       note: draft.note || "",
     });
+  },
+
+  toggleMore() {
+    this.setData({ showMore: !this.data.showMore });
   },
 
   onGameName(e) {
@@ -182,6 +189,7 @@ Page({
   },
 
   async onSubmit() {
+    if (this.data.submitting) return;
     const team = this.buildTeam();
     if (!team.gameName) {
       wx.showToast({ title: "请填写玩什么", icon: "none" });
@@ -223,6 +231,8 @@ Page({
       this.setData({ submitting: false });
     }
   },
+
+  onProfileClose() { this.setData({ showProfile: false, pendingAction: "" }); },
 
   onProfileDone(e) {
     const user = (e && e.detail && e.detail.user) || {};

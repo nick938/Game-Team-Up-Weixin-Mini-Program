@@ -1,20 +1,33 @@
 const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
-const { requestTeamNotify } = require("../../utils/subscribe");
+const { requestTeamNotify, notifyPreferenceEnabled } = require("../../utils/subscribe");
 
 Page({
   data: {
     teamId: "",
     team: null,
     members: [],
+    seats: [],
+    showManage: false,
+    showMemberProfile: false,
+    memberProfileLoading: false,
+    memberProfile: null,
+    memberProfileError: "",
+    selectedMemberId: "",
     role: null,
     loading: true,
     showProfile: false,
     pendingAction: "",
+    notifyHint: "",
+    notifyAuthorized: false,
   },
 
   onLoad(options) {
     this.setData({ teamId: options.id || "" });
+  },
+
+  onPullDownRefresh() {
+    return this.loadDetail().finally(() => wx.stopPullDownRefresh());
   },
 
   onShow() {
@@ -51,22 +64,14 @@ Page({
     this.setData({ loading: true });
     try {
       const res = await callTeam("getTeam", { teamId: this.data.teamId });
-      let role = res.role;
-      if (!role) {
-        try {
-          const profile = await callTeam("getProfile");
-          const nick = profile.user && profile.user.nickName;
-          const host = (res.members || []).find((m) => m.role === "host");
-          if (nick && host && host.nickName === nick) {
-            role = "host";
-          }
-        } catch (err) {
-          // ignore
-        }
-      }
+      const role = res.role;
       this.setData({
         team: decorateTeam(res.team),
         members: res.members || [],
+        seats: Array.from({ length: res.team.capacity }, (_, i) => ({
+          key: i,
+          member: (res.members || [])[i] || null,
+        })),
         role,
         loading: false,
       });
@@ -77,6 +82,42 @@ Page({
       this.setData({ team: null, loading: false });
       showError(e);
     }
+  },
+
+  onMemberProfile(e) {
+    const memberId = e.currentTarget.dataset.memberid;
+    if (!memberId) return;
+    this.setData({ showMemberProfile: true, selectedMemberId: memberId, memberProfile: null });
+    this.loadMemberProfile();
+  },
+
+  async loadMemberProfile() {
+    const requestId = (this.memberProfileRequest || 0) + 1;
+    this.memberProfileRequest = requestId;
+    this.setData({ memberProfileLoading: true, memberProfileError: "" });
+    try {
+      const res = await callTeam("getPublicProfile", {
+        teamId: this.data.teamId,
+        memberId: this.data.selectedMemberId,
+      });
+      if (requestId !== this.memberProfileRequest) return;
+      this.setData({ memberProfile: res.profile, memberProfileLoading: false });
+    } catch (err) {
+      if (requestId !== this.memberProfileRequest) return;
+      this.setData({ memberProfileLoading: false, memberProfileError: err.message || "资料加载失败" });
+    }
+  },
+
+  closeMemberProfile() {
+    this.memberProfileRequest = (this.memberProfileRequest || 0) + 1;
+    this.setData({ showMemberProfile: false, memberProfile: null, selectedMemberId: "" });
+  },
+
+  copyPublicField(e) {
+    const field = e.currentTarget.dataset.field;
+    if (!["steamFriendCode", "gameId", "kookId"].includes(field)) return;
+    const value = this.data.memberProfile && this.data.memberProfile[field];
+    if (value) wx.setClipboardData({ data: String(value) });
   },
 
   copyRoom() {
@@ -92,18 +133,31 @@ Page({
   },
 
   async onEnableNotify() {
+    if (this.requestingNotify || this.data.notifyAuthorized) return;
+    if (!notifyPreferenceEnabled()) {
+      this.setData({ notifyHint: "组队提醒已关闭，可在「我的」中开启" });
+      return;
+    }
+    this.requestingNotify = true;
     const ok = await requestTeamNotify();
-    wx.showToast({
-      title: ok ? "开打前会提醒你" : "需要允许通知才能提醒",
-      icon: "none",
+    this.requestingNotify = false;
+    this.setData({
+      notifyAuthorized: ok,
+      notifyHint: ok
+        ? ""
+        : "未获得通知授权，可再次点击重试或检查微信订阅设置",
     });
   },
 
   async onJoin() {
-    wx.showLoading({ title: "上车中" });
+    if (this.joining) return;
+    this.joining = true;
     try {
+      await requestTeamNotify();
+      wx.showLoading({ title: "上车中" });
       await callTeam("joinTeam", { teamId: this.data.teamId });
-        wx.showToast({ title: "已上车", icon: "success" });
+      wx.hideLoading();
+      wx.showToast({ title: "已上车", icon: "success" });
       this.loadDetail();
     } catch (e) {
       wx.hideLoading();
@@ -112,6 +166,8 @@ Page({
       } else {
         showError(e);
       }
+    } finally {
+      this.joining = false;
     }
   },
 
@@ -153,6 +209,22 @@ Page({
         }
       },
     });
+  },
+
+  onManage() {
+    if (this.data.role !== "host") return;
+    this.setData({ showManage: true });
+  },
+
+  closeManage() { this.setData({ showManage: false }); },
+  stopManageTouch() {},
+
+  onManageAction(e) {
+    if (this.data.role !== "host") return;
+    const actions = { edit: "onEdit", republish: "onRepublish", cancel: "onCancel" };
+    const action = actions[e.currentTarget.dataset.action];
+    this.closeManage();
+    if (action) this[action]();
   },
 
   onEdit() {
@@ -202,6 +274,8 @@ Page({
   goPlaza() {
     wx.switchTab({ url: "/pages/index/index" });
   },
+
+  onProfileClose() { this.setData({ showProfile: false, pendingAction: "" }); },
 
   onProfileDone() {
     this.setData({ showProfile: false });

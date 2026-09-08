@@ -3,55 +3,37 @@
     <image class="avatar" src="{{user.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
     <view class="me-text">
       <view class="name">{{user.nickName || '点这里设置头像昵称'}}</view>
-      <view class="tip">点击修改头像和昵称</view>
+      <view class="tip">编辑资料 · Steam / 游戏 ID</view>
     </view>
   </view>
 
-  <view class="section-title">我发的车 · 进行中</view>
-  <team-card
-    wx:for="{{hostedOngoing}}"
-    wx:key="_id"
-    team="{{item}}"
-    mark="车头"
-    bind:tap="onOpen"
-  />
-  <view wx:if="{{!hostedOngoing.length}}" class="mini-empty">没有正在进行的车</view>
+  <button class="settings-row" bindtap="toggleSettings"><text>提醒设置</text><view class="settings-summary">{{preferenceLoaded ? (notifyEnabled ? '已开启提醒偏好' : '提醒已关闭') : '加载中'}} <text>{{showSettings ? '−' : '›'}}</text></view></button>
+  <view wx:if="{{showSettings}}" class="card notification-settings">
+    <view class="preference-row">
+      <view class="preference-copy">
+        <view class="preference-title">接收组队提醒</view>
+        <view class="tip">开打前 5 分钟、成员变化和散局通知</view>
+      </view>
+      <switch color="#6255e7" checked="{{notifyEnabled}}" disabled="{{notifySaving || !preferenceLoaded}}" bindchange="onNotifyChange" aria-label="接收组队提醒" />
+    </view>
+    <view class="preference-note">开启后，发车或上车时会向微信申请本次订阅，无需再点详情里的提醒。此开关不代表永久授权。</view>
+    <view class="preference-status">{{wechatNotifyStatus}}</view>
+    <view wx:if="{{notifyMessage}}" class="preference-status">{{notifyMessage}}</view>
+    <button class="settings-link" bindtap="openWechatNotifySettings">微信订阅设置 ›</button>
+  </view>
 
-  <view class="section-title">我上的车 · 进行中</view>
-  <team-card
-    wx:for="{{joinedOngoing}}"
-    wx:key="_id"
-    team="{{item}}"
-    mark="队员"
-    bind:tap="onOpen"
-  />
-  <view wx:if="{{!joinedOngoing.length}}" class="mini-empty">没有正在上的车</view>
-
-  <view class="section-title">我发的车 · 已结束</view>
-  <team-card
-    wx:for="{{hostedPast}}"
-    wx:key="_id"
-    team="{{item}}"
-    mark="车头"
-    bind:tap="onOpen"
-  />
-  <view wx:if="{{!hostedPast.length}}" class="mini-empty">还没有结束的车</view>
-
-  <view class="section-title">我上的车 · 已结束</view>
-  <team-card
-    wx:for="{{joinedPast}}"
-    wx:key="_id"
-    team="{{item}}"
-    mark="队员"
-    bind:tap="onOpen"
-  />
-  <view wx:if="{{!joinedPast.length}}" class="mini-empty">还没上过别人的车</view>
-
+  <view class="tabs">
+    <button size="mini" class="tab {{teamTab === 'hosted' ? 'tab-active' : ''}}" data-tab="hosted" bindtap="pickTeamTab">我发起的</button>
+    <button size="mini" class="tab {{teamTab === 'joined' ? 'tab-active' : ''}}" data-tab="joined" bindtap="pickTeamTab">我加入的</button>
+  </view>
+  <view class="list-head"><view class="phases"><button size="mini" class="phase {{phase === 'Ongoing' ? 'phase-active' : ''}}" data-phase="Ongoing" bindtap="pickPhase">进行中</button><button size="mini" class="phase {{phase === 'Past' ? 'phase-active' : ''}}" data-phase="Past" bindtap="pickPhase">历史</button></view><text class="list-total">{{visibleTeams.length}} 趟组队</text></view>
+  <team-card wx:for="{{visibleTeams}}" wx:key="_id" team="{{item}}" mark="{{teamTab === 'hosted' ? '车头' : '队员'}}" bind:tap="onOpen" />
+  <view wx:if="{{!visibleTeams.length}}" class="empty"><image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" /><view>{{phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'}}</view><view class="empty-sub">{{phase === 'Past' ? '结束的组队会留在这里' : '发起一局，或去大厅找队友'}}</view><button wx:if="{{phase === 'Ongoing'}}" class="btn-ghost" bindtap="goPlaza">去大厅看看</button></view>
   <view class="legal">
     <text data-type="agreement" bindtap="openLegal">用户协议</text>
     <text class="dot">·</text>
     <text data-type="privacy" bindtap="openLegal">隐私政策</text>
   </view>
 
-  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
+  <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
 </view>

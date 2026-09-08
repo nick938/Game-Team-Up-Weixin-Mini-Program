@@ -1,55 +1,18 @@
-.hero {
-  padding: 12rpx 8rpx 20rpx;
-}
+.hero { display: flex; align-items: center; justify-content: space-between; margin: 8rpx 0 36rpx; gap: 16rpx; }
+.hero-title { font-size: 46rpx; font-weight: 700; letter-spacing: -1rpx; }
+.hero-sub { margin-top: 10rpx; color: #777e92; font-size: 25rpx; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24rpx; }
+.zone { font-size: 29rpx; font-weight: 600; }
+.section-meta { font-size: 23rpx; color: #777e92; }
+.filters { white-space: nowrap; margin-bottom: 24rpx; }
+.filters-inner { display: inline-flex; gap: 12rpx; }
+.filter { padding: 16rpx 26rpx; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 32rpx; color: #737a90; font-size: 25rpx; }
+.filter-on { background: #6255e7; color: #fff; border-color: #6255e7; }
+.empty-btn { width: 300rpx; margin: 28rpx auto 0; }
 
-.hero-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  letter-spacing: 1rpx;
-}
-
-.hero-sub {
-  margin-top: 8rpx;
-  color: #8a8178;
-  font-size: 26rpx;
-}
-
-.zone {
-  display: inline-flex;
-  margin-bottom: 24rpx;
-  padding: 8rpx 18rpx;
-  border-radius: 8rpx;
-  background: #1a1714;
-  color: #fff;
-  font-size: 22rpx;
-}
-
-.empty-btn {
-  margin-top: 32rpx;
-  width: 280rpx;
-}
-
-.filters {
-  margin: -8rpx 0 24rpx;
-  white-space: nowrap;
-}
-
-.filters-inner {
-  display: inline-flex;
-  gap: 12rpx;
-  padding-bottom: 8rpx;
-}
-
-.filter {
-  flex-shrink: 0;
-  padding: 10rpx 22rpx;
-  background: #fff;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  color: #5c564f;
-}
-
-.filter-on {
-  background: #1a1714;
-  color: #fff;
-}
+.hero-copy { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.hero-title { font-size: 40rpx; line-height: 1.4; }
+.hero-sub { font-size: 24rpx; line-height: 1.6; }
+.hero-art { width: 280rpx; height: 230rpx; flex-shrink: 0; border-radius: 24rpx; }
+button.hero-create { margin: 16rpx 0 0; padding: 10rpx 18rpx; width: auto; line-height: 36rpx; font-size: 24rpx; color: #6255e7; background: #eeecff; border-radius: 12rpx; }
+.empty { padding-top: 24rpx; }

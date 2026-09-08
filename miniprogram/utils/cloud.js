@@ -1,4 +1,17 @@
+// 仅合并同时发生的相同读取；完成后即清除，组队状态始终重新读取。
+const pendingReads = new Map();
+const READ_TYPES = new Set(["getProfile", "getPublicProfile", "getTeam", "listTeams", "myTeams"]);
+
 function callTeam(type, data = {}) {
+  if (!READ_TYPES.has(type)) return invokeTeam(type, data);
+  const key = JSON.stringify([type, data]);
+  if (pendingReads.has(key)) return pendingReads.get(key);
+  const request = invokeTeam(type, data).finally(() => pendingReads.delete(key));
+  pendingReads.set(key, request);
+  return request;
+}
+
+function invokeTeam(type, data = {}) {
   return wx.cloud
     .callFunction({
       name: "team",

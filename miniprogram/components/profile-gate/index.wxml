@@ -1,20 +1,26 @@
 <view wx:if="{{show}}" class="mask" catchtouchmove="noop">
   <view class="sheet">
-    <view class="title">怎么称呼你</view>
-    <view class="sub">选好头像和微信昵称后点保存，开黑时别人才能认出你。</view>
-    <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-      <image class="avatar" src="{{avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
-      <view class="avatar-tip">点一下选头像</view>
-    </button>
-    <view wx:if="{{nickName}}" class="current">已选昵称：{{nickName}}</view>
-    <input
-      class="nick"
-      type="nickname"
-      placeholder="点这里选择微信昵称"
-      bindblur="onNickname"
-      bindinput="onNickname"
-      bindchange="onNickname"
-    />
-    <button class="btn-primary submit" bindtap="onSave">保存</button>
+    <view class="sheet-heading"><view class="title">个人资料</view><button size="mini" class="close" bindtap="close" aria-label="关闭个人资料">×</button></view>
+    <scroll-view class="profile-scroll" scroll-y>
+      <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar" disabled="{{saving}}">
+        <image class="avatar" src="{{avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
+        <view class="avatar-tip">点击更换头像</view>
+      </button>
+      <view class="field-label">昵称</view>
+      <input class="nick" type="nickname" maxlength="32" value="{{nickName}}" placeholder="填写或选择微信昵称" bindblur="onNickname" bindinput="onNickname" bindchange="onNickname" disabled="{{saving}}" />
+      <button class="expand" bindtap="toggleGameFields">公开游戏资料（选填） {{showGameFields ? '−' : '＋'}}</button>
+      <view hidden="{{!showGameFields}}">
+        <view class="sub">房间里的访客可点击你的头像查看以下资料。只填写你愿意公开的信息，清空后保存即可移除。</view>
+        <view class="field-label">Steam 好友代码</view>
+        <input class="nick" type="number" maxlength="20" value="{{steamFriendCode}}" placeholder="输入数字好友代码" data-field="steamFriendCode" bindinput="onPublicField" disabled="{{saving}}" />
+        <view class="field-label">游戏内 ID</view>
+        <input class="nick" maxlength="40" value="{{gameId}}" placeholder="如：三角洲 · 你的游戏昵称" data-field="gameId" bindinput="onPublicField" disabled="{{saving}}" />
+        <view class="field-label">KOOK ID</view>
+        <input class="nick" maxlength="40" value="{{kookId}}" placeholder="你的 KOOK 用户 ID" data-field="kookId" bindinput="onPublicField" disabled="{{saving}}" />
+        <view class="field-label">个人简介</view>
+        <textarea class="bio" maxlength="80" value="{{bio}}" placeholder="常玩的游戏、上线时间、开黑风格…" data-field="bio" bindinput="onPublicField" disabled="{{saving}}" />
+      </view>
+    </scroll-view>
+    <button class="submit" loading="{{saving}}" disabled="{{saving}}" bindtap="onSave">保存资料</button>
   </view>
 </view>

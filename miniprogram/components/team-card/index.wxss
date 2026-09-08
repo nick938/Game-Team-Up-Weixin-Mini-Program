@@ -1,85 +1,18 @@
-.card {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx;
-  margin-bottom: 20rpx;
-}
-
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.game {
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
-.status {
-  font-size: 22rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 8rpx;
-  color: #8a8178;
-  background: #f4f1ec;
-}
-
-.status-recruiting {
-  color: #e85d04;
-  background: #fff1e6;
-}
-
-.status-full {
-  color: #0d7377;
-  background: #e7f6f6;
-}
-
-.status-cancelled,
-.status-expired {
-  color: #8a8178;
-  background: #f4f1ec;
-}
-
-.meta {
-  margin-top: 12rpx;
-  font-size: 26rpx;
-  color: #8a8178;
-}
-
-.soon {
-  margin-left: 10rpx;
-  color: #e85d04;
-}
-
-.row {
-  margin-top: 20rpx;
-  display: flex;
-  align-items: baseline;
-}
-
-.count {
-  font-size: 40rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-}
-
-.need {
-  margin-left: 16rpx;
-  font-size: 26rpx;
-  color: #e85d04;
-}
-
-.mark {
-  margin-left: auto;
-  font-size: 22rpx;
-  color: #8a8178;
-}
-
-.room {
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  color: #1a1714;
-  background: #f4f1ec;
-  border-radius: 10rpx;
-  padding: 12rpx 16rpx;
-}
+.card { padding: 30rpx; margin-bottom: 20rpx; background: #fff; border-radius: 28rpx; border: 1rpx solid #e9ebf3; }
+.card-pressed { background: #f0efff; }
+.top { display: flex; align-items: flex-start; gap: 20rpx; }
+.game { flex: 1; min-width: 0; font-size: 36rpx; font-weight: 700; line-height: 1.4; word-break: break-all; }
+.status { padding: 6rpx 14rpx; border-radius: 10rpx; font-size: 22rpx; background: #f0f1f6; color: #777e92; flex-shrink: 0; margin-top: 6rpx; }
+.status-recruiting { background: #eeecff; color: #6255e7; }
+.status-full { background: #e9f7f3; color: #21876f; }
+.meta { font-size: 27rpx; line-height: 1.6; margin-top: 10rpx; color: #535b72; }
+.tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 18rpx; }
+.tags text { font-size: 22rpx; padding: 5rpx 12rpx; border-radius: 8rpx; background: #f5f6fa; color: #777e92; word-break: break-all; }
+.tags .soon { color: #21876f; background: #e9f7f3; }
+.bottom { margin-top: 24rpx; padding-top: 22rpx; border-top: 1rpx solid #f0f1f6; display: flex; align-items: center; flex-wrap: wrap; gap: 12rpx; }
+.count-current { font-size: 44rpx; font-weight: 700; color: #343950; }
+.count-total { font-size: 24rpx; color: #777e92; }
+.need { font-size: 24rpx; color: #6255e7; }
+.mark { font-size: 21rpx; color: #777e92; margin-left: auto; }
+.arrow { margin-left: auto; color: #b0b5c6; font-size: 34rpx; }
+.mark + .arrow { margin-left: 0; }

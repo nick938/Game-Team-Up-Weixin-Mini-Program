@@ -1,3 +1,5 @@
+const { callTeam } = require("./utils/cloud");
+
 App({
   onLaunch: function () {
     this.globalData = {
@@ -14,5 +16,8 @@ App({
       env: this.globalData.env,
       traceUser: true,
     });
+    this.profileReady = callTeam("getProfile").then((res) => {
+      this.globalData.user = res.user;
+    }).catch((err) => console.warn("读取提醒偏好失败", err.message));
   },
 });

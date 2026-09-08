@@ -7,35 +7,35 @@
     "pages/legal/legal"
   ],
   "window": {
-    "backgroundColor": "#F4F1EC",
+    "backgroundColor": "#F5F6FA",
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#FFFFFF",
+    "navigationBarBackgroundColor": "#F5F6FA",
     "navigationBarTitleText": "来开黑",
     "navigationBarTextStyle": "black"
   },
   "tabBar": {
-    "color": "#8A8178",
-    "selectedColor": "#E85D04",
+    "color": "#858BA0",
+    "selectedColor": "#6255E7",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/index/index",
         "text": "大厅",
-        "iconPath": "images/tab-plaza.png",
-        "selectedIconPath": "images/tab-plaza-active.png"
+        "iconPath": "images/fresh-plaza.png",
+        "selectedIconPath": "images/fresh-plaza-active.png"
       },
       {
         "pagePath": "pages/publish/publish",
         "text": "发车",
-        "iconPath": "images/tab-plus.png",
-        "selectedIconPath": "images/tab-plus-active.png"
+        "iconPath": "images/fresh-plus.png",
+        "selectedIconPath": "images/fresh-plus-active.png"
       },
       {
         "pagePath": "pages/mine/mine",
         "text": "我的",
-        "iconPath": "images/tab-user.png",
-        "selectedIconPath": "images/tab-user-active.png"
+        "iconPath": "images/fresh-user.png",
+        "selectedIconPath": "images/fresh-user-active.png"
       }
     ]
   },

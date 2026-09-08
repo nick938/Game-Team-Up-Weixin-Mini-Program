@@ -1,10 +1,10 @@
 <view class="page">
   <view class="hero">
-    <view class="hero-title">缺人就喊一声</view>
-    <view class="hero-sub">发车丢群，好友点卡片就能上车。到点自动散。</view>
+    <view class="hero-copy"><view class="hero-title">找队友，开一局</view><view class="hero-sub">好玩的局，就差一个你。</view><button size="mini" class="hero-create" bindtap="goPublish">发起组队 ＋</button></view>
+    <image class="hero-art" src="/images/brand/lobby-v1.jpg" mode="aspectFit" aria-hidden="true" />
   </view>
 
-  <view class="zone">现在的车</view>
+  <view class="section-head"><view class="zone">现在的车</view><text class="section-meta">{{total}} 趟 · 下拉刷新</text></view>
 
   <scroll-view wx:if="{{games.length > 1}}" class="filters" scroll-x>
     <view class="filters-inner">
@@ -18,13 +18,15 @@
     </view>
   </scroll-view>
 
-  <view wx:if="{{loading && !list.length}}" class="empty">正在找车…</view>
-  <view wx:elif="{{!list.length}}" class="empty">
-    <view>现在没车。</view>
+  <view wx:if="{{loading && !total}}" class="empty">正在找车…</view>
+  <view wx:elif="{{!total}}" class="empty">
+    <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />
+    <view>队友还在路上</view>
     <view>自己发一趟，把卡片丢进群。</view>
     <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
   </view>
   <view wx:elif="{{!filtered.length}}" class="empty">
+    <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />
     <view>这个游戏现在没车。</view>
     <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
   </view>

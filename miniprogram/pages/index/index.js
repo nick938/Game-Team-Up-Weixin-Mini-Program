@@ -1,6 +1,5 @@
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
-const { requestTeamNotify } = require("../../utils/subscribe");
 
 function uniqueGames(list) {
   const seen = {};
@@ -21,7 +20,7 @@ function applyFilter(list, gameFilter) {
 
 Page({
   data: {
-    list: [],
+    total: 0,
     filtered: [],
     games: ["全部"],
     gameFilter: "全部",
@@ -41,11 +40,12 @@ Page({
     try {
       const res = await callTeam("listTeams");
       const list = (res.list || []).map(decorateTeam);
+      this.teams = list;
       const games = uniqueGames(list);
       let gameFilter = this.data.gameFilter;
       if (games.indexOf(gameFilter) < 0) gameFilter = "全部";
       this.setData({
-        list,
+        total: list.length,
         games,
         gameFilter,
         filtered: applyFilter(list, gameFilter),
@@ -61,16 +61,12 @@ Page({
     const gameFilter = e.currentTarget.dataset.name;
     this.setData({
       gameFilter,
-      filtered: applyFilter(this.data.list, gameFilter),
+      filtered: applyFilter(this.teams, gameFilter),
     });
   },
 
-  async onOpen(e) {
+  onOpen(e) {
     const id = e.detail.id;
-    const team = (this.data.filtered || []).find((t) => t._id === id);
-    if (team && team.mark === "我发的") {
-      await requestTeamNotify();
-    }
     wx.navigateTo({
       url: `/pages/team/detail?id=${id}`,
     });

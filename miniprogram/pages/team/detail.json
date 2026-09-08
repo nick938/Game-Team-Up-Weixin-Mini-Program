@@ -3,5 +3,6 @@
   "enableShareAppMessage": true,
   "usingComponents": {
     "profile-gate": "/components/profile-gate/index"
-  }
+  },
+  "enablePullDownRefresh": true
 }

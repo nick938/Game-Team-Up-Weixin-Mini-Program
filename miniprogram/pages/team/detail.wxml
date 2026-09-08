@@ -6,6 +6,13 @@
     </view>
     <view class="game">{{team.gameName}}</view>
     <view class="time">{{team.timeText}}</view>
+    <view wx:if="{{role && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}" class="notify-row">
+      <button size="mini" class="notify-link {{notifyAuthorized ? 'notify-authorized' : ''}}" bindtap="onEnableNotify">
+        <text>{{notifyAuthorized ? '已授权本次提醒' : '开打前 5 分钟提醒我'}}</text>
+        <text wx:if="{{!notifyAuthorized}}" class="notify-arrow">›</text>
+      </button>
+      <view wx:if="{{notifyHint}}" class="notify-hint">{{notifyHint}}</view>
+    </view>
     <view class="count">{{team.memberCount}}/{{team.capacity}}
       <text class="need" wx:if="{{team.displayStatus === 'recruiting'}}">还差 {{team.needCount}} 人</text>
     </view>
@@ -18,11 +25,6 @@
     <view class="note" wx:if="{{team.note}}">{{team.note}}</view>
   </view>
 
-  <view
-    wx:if="{{role && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}"
-    class="notify-bar"
-    bindtap="onEnableNotify"
-  >开打前微信提醒我</view>
 
   <view class="card" wx:if="{{team.roomNo || role}}">
     <view class="card-title">怎么进</view>
@@ -41,43 +43,62 @@
   </view>
 
   <view class="card">
-    <view class="card-title">成员 {{members.length}}/{{team.capacity}}</view>
-    <view class="members">
-      <view class="member" wx:for="{{members}}" wx:key="_id">
-        <image class="avatar" src="{{item.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
-        <view class="member-name">
-          {{item.nickName || '玩家'}}
-          <text class="host-tag" wx:if="{{item.role === 'host'}}">车头</text>
-        </view>
-        <view
-          wx:if="{{role === 'host' && item.role !== 'host' && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}"
-          class="kick"
-          data-openid="{{item.openid}}"
-          catchtap="onKick"
-        >踢出</view>
+    <view class="members-heading"><view class="card-title">这局的队友</view><text class="member-total">{{members.length}} / {{team.capacity}} 人</text></view>
+    <view class="member-profile-tip">点头像，查看队友的游戏资料</view>
+    <view class="seats">
+      <view class="seat" wx:for="{{seats}}" wx:key="key">
+        <block wx:if="{{item.member}}">
+          <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" /></button>
+          <view class="seat-name">{{item.member.nickName || '玩家'}}</view>
+          <text class="host-tag" wx:if="{{item.member.role === 'host'}}">车头</text>
+          <button wx:elif="{{role === 'host' && team.ongoing}}" class="kick" data-openid="{{item.member.openid}}" bindtap="onKick">移出</button>
+        </block>
+        <block wx:else><view class="seat-empty">＋</view><view class="seat-name seat-wait">{{team.ongoing ? '等队友' : '空位'}}</view></block>
       </view>
     </view>
   </view>
 
-  <view class="actions" wx:if="{{team.displayStatus === 'recruiting' || team.displayStatus === 'full'}}">
-    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">上车</button>
-    <button class="btn-ghost" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">满了，看看别的车</button>
-    <button class="btn-ghost" wx:if="{{role === 'member'}}" bindtap="onLeave">下车</button>
-    <button class="share" open-type="share">丢给好友</button>
-    <button class="btn-ghost" wx:if="{{role === 'host'}}" bindtap="onEdit">编辑</button>
-    <button class="btn-ghost" wx:if="{{role === 'host'}}" bindtap="onRepublish">再发一趟</button>
-    <button class="btn-ghost btn-danger" wx:if="{{role === 'host'}}" bindtap="onCancel">散了这趟</button>
+  <view class="actions" wx:if="{{team.ongoing}}">
+    <button class="btn-ghost compact-action" wx:if="{{role === 'host'}}" bindtap="onManage">管理</button>
+    <button class="btn-ghost compact-action" wx:if="{{role === 'member'}}" bindtap="onLeave">下车</button>
+    <button class="{{role ? 'btn-primary' : 'btn-ghost compact-action'}}" open-type="share">邀请好友</button>
+    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">上车 · 还差 {{team.needCount}} 人</button>
+    <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">已满员，看看别的局</button>
   </view>
-
   <view class="actions" wx:else>
-    <view class="over-tip">
-      {{team.displayStatus === 'cancelled' ? '这趟已经散了' : '已经结束，不能再上车'}}
-    </view>
+    <view class="over-tip">{{team.displayStatus === 'cancelled' ? '这趟已经散了' : '这局已结束，下次再一起玩'}}</view>
+    <button class="btn-ghost" bindtap="goPlaza">回大厅</button>
     <button class="btn-primary" wx:if="{{role === 'host'}}" bindtap="onRepublish">再发一趟</button>
-    <button class="{{role === 'host' ? 'btn-ghost' : 'btn-primary'}}" bindtap="goPlaza">看看别的车</button>
   </view>
 </view>
 
 <view class="empty" wx:elif="{{!loading}}">找不到这趟车</view>
 
-<profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
+<profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+
+<view wx:if="{{showManage && role === 'host'}}" class="manage-mask" bindtap="closeManage" catchtouchmove="stopManageTouch">
+  <view class="manage-sheet" catchtap="stopManageTouch">
+    <button class="manage-item" data-action="edit" bindtap="onManageAction">编辑组队</button>
+    <button class="manage-item" data-action="republish" bindtap="onManageAction">再发一趟</button>
+    <button class="manage-item manage-danger" data-action="cancel" bindtap="onManageAction">散了这趟</button>
+    <button class="manage-item manage-dismiss" bindtap="closeManage">取消</button>
+  </view>
+</view>
+
+<view wx:if="{{showMemberProfile}}" class="manage-mask" bindtap="closeMemberProfile" catchtouchmove="stopManageTouch">
+  <view class="public-profile-sheet" catchtap="stopManageTouch">
+    <view class="public-profile-heading"><text>公开资料</text><button size="mini" class="public-close" bindtap="closeMemberProfile" aria-label="关闭公开资料">×</button></view>
+    <scroll-view class="public-profile-content" scroll-y>
+      <view wx:if="{{memberProfileLoading}}" class="profile-placeholder">正在加载队友资料…</view>
+      <view wx:elif="{{memberProfileError}}" class="profile-placeholder"><view>{{memberProfileError}}</view><button class="profile-retry" bindtap="loadMemberProfile">重新加载</button></view>
+      <view wx:elif="{{memberProfile}}">
+        <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
+        <view class="public-bio" wx:if="{{memberProfile.bio}}">{{memberProfile.bio}}</view>
+        <button class="public-field" wx:if="{{memberProfile.steamFriendCode}}" data-field="steamFriendCode" bindtap="copyPublicField"><view class="public-field-label">Steam 好友代码</view><view class="public-field-value"><text selectable>{{memberProfile.steamFriendCode}}</text><text class="public-copy">复制</text></view></button>
+        <button class="public-field" wx:if="{{memberProfile.gameId}}" data-field="gameId" bindtap="copyPublicField"><view class="public-field-label">游戏内 ID</view><view class="public-field-value"><text selectable>{{memberProfile.gameId}}</text><text class="public-copy">复制</text></view></button>
+        <button class="public-field" wx:if="{{memberProfile.kookId}}" data-field="kookId" bindtap="copyPublicField"><view class="public-field-label">KOOK ID</view><view class="public-field-value"><text selectable>{{memberProfile.kookId}}</text><text class="public-copy">复制</text></view></button>
+        <view wx:if="{{!memberProfile.steamFriendCode && !memberProfile.gameId && !memberProfile.kookId && !memberProfile.bio}}" class="profile-placeholder">这位队友还没有填写公开游戏资料</view>
+      </view>
+    </scroll-view>
+  </view>
+</view>

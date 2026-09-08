@@ -1,4 +1,5 @@
 <view class="page">
+  <view class="publish-heading"><view class="publish-copy"><view class="page-heading">{{editingId ? '调整这趟车' : '喊上好友，开一局'}}</view><view class="page-caption">先定游戏和时间，发车后分享给好友。</view></view><image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="来开黑" /></view>
   <view class="form">
     <view class="label">玩什么</view>
     <input
@@ -7,7 +8,6 @@
       maxlength="40"
       value="{{gameName}}"
       bindinput="onGameName"
-      focus="{{!editingId}}"
     />
     <view class="from-last" wx:if="{{fromLast}}">已填入上一趟，时间改到最近</view>
 
@@ -49,6 +49,8 @@
       <view class="step-btn" bindtap="incCap">+</view>
     </view>
 
+    <button class="more-toggle" bindtap="toggleMore"><text>更多设置</text><text class="more-hint">房间、语音、备注 {{showMore ? '−' : '＋'}}</text></button>
+    <view hidden="{{!showMore}}" class="more-fields">
     <view class="label">怎么进（选填）</view>
     <input class="field" placeholder="房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
 
@@ -74,11 +76,12 @@
 
     <view class="label">备注（选填）</view>
     <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="80" value="{{note}}" bindinput="onNote" />
+    </view>
 
-    <button class="btn-primary submit" loading="{{submitting}}" bindtap="onSubmit">
-      {{editingId ? '保存修改' : '发车'}}
+    <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">
+      {{editingId ? '保存修改' : '发车 · 共 ' + capacity + ' 人'}}
     </button>
   </view>
 
-  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" />
+  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
 </view>

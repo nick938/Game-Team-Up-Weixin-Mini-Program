@@ -66,6 +66,7 @@ function isOngoing(team, now) {
 
 function stripSecret(team, showPwd) {
   const copy = { ...team };
+  delete copy.startRemindedOpenids;
   if (!showPwd) {
     copy.roomPwd = "";
     copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
@@ -93,8 +94,11 @@ function subscribeTime(ts) {
 }
 
 async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
-  if (!SUBSCRIBE_TMPL_ID || !touser) return;
+  if (!SUBSCRIBE_TMPL_ID || !touser) return false;
   try {
+    const user = await getUser(touser, { strict: true });
+    // 偏好关闭即停止发送；它与微信侧的订阅授权是两个独立条件。
+    if (user && user.notifyEnabled === false) return false;
     await cloud.openapi.subscribeMessage.send({
       touser,
       templateId: SUBSCRIBE_TMPL_ID,
@@ -105,8 +109,10 @@ async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
         thing11: { value: clipThing(statusText, 20) },
       },
     });
+    return true;
   } catch (e) {
     console.error("subscribe send fail", (e && (e.errCode || e.message)) || e);
+    return false;
   }
 }
 
@@ -125,7 +131,7 @@ async function notifyMany(openids, teamId, team, statusText) {
   );
 }
 
-const START_REMIND_BEFORE_MS = 15 * 60 * 1000;
+const START_REMIND_BEFORE_MS = 5 * 60 * 1000;
 const START_REMIND_GRACE_MS = 2 * 60 * 1000;
 
 async function remindStartingTeams() {
@@ -151,7 +157,7 @@ async function remindStartingTeams() {
   }
   const targets = data.filter(
     (t) =>
-      (t.status === "recruiting" || t.status === "full") && !t.startRemindedAt
+      isOngoing(t, now) && !t.startRemindedAt
   );
   let reminded = 0;
   for (let i = 0; i < targets.length; i += 1) {
@@ -165,7 +171,22 @@ async function remindStartingTeams() {
         .filter(Boolean);
       const host = hostUid(team);
       if (host) ids.push(host);
-      await notifyMany(ids, teamId, team, "即将开打，请准时上线");
+      // 按收件人保存成功结果；下一轮仅补发失败的收件人。
+      const sent = new Set(team.startRemindedOpenids || []);
+      const recipients = [...new Set(ids)];
+      for (const uid of recipients) {
+        if (sent.has(uid)) continue;
+        const delivered = await sendSubscribe(
+          uid, teamId, team.gameName, "即将开打，请准时上线", team.startAt
+        );
+        if (delivered) {
+          sent.add(uid);
+          await db.collection("teams").doc(teamId).update({
+            data: { startRemindedOpenids: [...sent] },
+          });
+        }
+      }
+      if (!recipients.length || !recipients.every((uid) => sent.has(uid))) continue;
       await db.collection("teams").doc(teamId).update({
         data: { startRemindedAt: now },
       });
@@ -191,11 +212,11 @@ function memberKey(m, team) {
   const hid = hostUid(team);
   if (
     hid &&
-    (m.role === "host" || (team.hostNickName && m.nickName === team.hostNickName))
+    m.role === "host"
   ) {
     return "id:" + hid;
   }
-  return "anon:" + (m.nickName || "") + "|" + (m.avatarUrl || "");
+  return "anon:" + m._id;
 }
 
 async function persistHostOpenid(teamId, openid) {
@@ -207,7 +228,7 @@ async function persistHostOpenid(teamId, openid) {
 
 async function isTeamHost(team, openid, teamId, members) {
   if (!team || !openid) return false;
-  if (hostUid(team) === openid) return true;
+  if (hostUid(team)) return hostUid(team) === openid;
 
   const id = teamId || team._id;
   let hostMem = null;
@@ -226,17 +247,7 @@ async function isTeamHost(team, openid, teamId, members) {
     team.openid = openid;
     return true;
   }
-  if (hostUid(team)) return false;
-
-  const user = await getUser(openid);
-  const nick = (user && user.nickName) || "";
-  const nickMatch =
-    !!nick &&
-    (nick === team.hostNickName || (hostMem && nick === hostMem.nickName));
-  if (!nickMatch) return false;
-  await persistHostOpenid(id, openid);
-  team.openid = openid;
-  return true;
+  return false;
 }
 
 async function findMembersByOpenid(openid) {
@@ -284,10 +295,10 @@ async function getOpenid() {
   return wxContext.OPENID;
 }
 
-async function getUser(openid) {
+async function getUser(openid, { strict = false } = {}) {
   try {
     const res = await db.collection("users").doc(openid).get();
-    if (res.data && (res.data.nickName || res.data.avatarUrl)) {
+    if (res.data) {
       return { _id: openid, ...res.data };
     }
   } catch (e) {
@@ -301,6 +312,7 @@ async function getUser(openid) {
       .get();
     return res.data[0] || null;
   } catch (e) {
+    if (strict) throw e;
     return null;
   }
 }
@@ -387,25 +399,89 @@ function validateTeamInput(input, { isCreate }) {
   };
 }
 
+const PUBLIC_PROFILE_FIELDS = {
+  steamFriendCode: { max: 20, label: "Steam 好友代码" },
+  gameId: { max: 40, label: "游戏内 ID" },
+  kookId: { max: 40, label: "KOOK ID" },
+  bio: { max: 80, label: "个人简介" },
+};
+
+function validatePublicProfile(event) {
+  const value = {};
+  for (const [key, rule] of Object.entries(PUBLIC_PROFILE_FIELDS)) {
+    // 老版本只保存昵称头像时，保留已填写的公开资料；空字符串表示主动清空。
+    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
+    if (typeof event[key] !== "string") return { error: `${rule.label}格式不正确` };
+    const text = event[key].trim();
+    if (text.length > rule.max) return { error: `${rule.label}最多 ${rule.max} 字` };
+    if (key === "steamFriendCode" && text && !/^\d+$/.test(text)) {
+      return { error: "Steam 好友代码请填写数字" };
+    }
+    if (key !== "steamFriendCode" && BAD.test(text)) return { error: `${rule.label}包含不支持的内容` };
+    value[key] = text;
+  }
+  return { value };
+}
+
+function publicProfile(user, member) {
+  // 仅返回明确公开的字段，不透传 OpenID、提醒偏好或其他账户信息。
+  const profile = {
+    nickName: (user && user.nickName) || member.nickName || "玩家",
+    avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
+  };
+  for (const key of Object.keys(PUBLIC_PROFILE_FIELDS)) {
+    profile[key] = (user && typeof user[key] === "string") ? user[key] : "";
+  }
+  return profile;
+}
+
+async function getPublicProfile(event) {
+  const { teamId, memberId } = event;
+  if (typeof teamId !== "string" || !teamId || typeof memberId !== "string" || !memberId) {
+    return fail("缺少队伍或成员");
+  }
+  const team = (await db.collection("teams").doc(teamId).get()).data;
+  if (!teamExists(team)) return fail("队伍不存在");
+  const member = (await db.collection("members").doc(memberId).get()).data;
+  if (!member || member.teamId !== teamId) return fail("该成员已不在这趟车上");
+  const uid = memberUid(member) || (member.role === "host" ? hostUid(team) : "");
+  const user = uid ? await getUser(uid, { strict: true }) : null;
+  return ok({ profile: publicProfile(user, member) });
+}
+
 async function saveProfile(event, openid) {
   const nickName = trim(event.nickName, 32);
   const avatarUrl = trim(event.avatarUrl, 1000);
   if (!nickName) return fail("请填写昵称");
+  const checked = validatePublicProfile(event);
+  if (checked.error) return fail(checked.error);
   const existed = await getUser(openid);
   const payload = {
+    ...checked.value,
     nickName,
     avatarUrl: avatarUrl || (existed && existed.avatarUrl) || "",
     updatedAt: nowMs(),
   };
-  await db.collection("users").doc(openid).set({
-    data: {
-      ...payload,
-      _openid: openid,
-    },
-  });
-  return ok({
-    user: { _id: openid, _openid: openid, ...payload },
-  });
+  const id = existed ? existed._id : openid;
+  if (existed) {
+    await db.collection("users").doc(id).update({ data: payload });
+  } else {
+    await db.collection("users").doc(id).set({ data: { ...payload, _openid: openid } });
+  }
+  return ok({ user: { ...existed, ...payload, _id: id, _openid: openid } });
+}
+
+async function saveNotifyPreference(event, openid) {
+  if (typeof event.enabled !== "boolean") return fail("提醒设置无效");
+  const existed = await getUser(openid);
+  const id = existed ? existed._id : openid;
+  const payload = { notifyEnabled: event.enabled, updatedAt: nowMs() };
+  if (existed) {
+    await db.collection("users").doc(id).update({ data: payload });
+  } else {
+    await db.collection("users").doc(id).set({ data: { ...payload, _openid: openid } });
+  }
+  return ok({ user: { ...existed, ...payload, _id: id, _openid: openid } });
 }
 
 async function getProfile(openid) {
@@ -681,7 +757,7 @@ async function backfillMemberOpenid(members, team) {
       const uid =
         memberUid(m) ||
         (team &&
-        (m.role === "host" || m.nickName === team.hostNickName)
+        m.role === "host"
           ? hostUid(team)
           : "");
       if (!uid) return null;
@@ -772,7 +848,7 @@ async function getTeam(event, openid) {
     }));
   const mine = members.find((m) => m.openid === openid);
   const owner = await isTeamHost(team, openid, teamId, memList);
-  const role = owner ? "host" : mine ? mine.role : null;
+  const role = owner ? "host" : mine ? "member" : null;
   const displayStatus = resolveStatus(team, nowMs());
   const showPwd = owner || (!!mine && displayStatus !== "cancelled");
 
@@ -861,6 +937,10 @@ exports.main = async (event) => {
     switch (event.type) {
       case "saveProfile":
         return await saveProfile(event, openid);
+      case "saveNotifyPreference":
+        return await saveNotifyPreference(event, openid);
+      case "getPublicProfile":
+        return await getPublicProfile(event);
       case "getProfile":
         return await getProfile(openid);
       case "createTeam":
