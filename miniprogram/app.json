@@ -1,4 +1,7 @@
 {
+  "mp-weixin": {
+    "enableShareTimeline": true
+  },
   "pages": [
     "pages/index/index",
     "pages/publish/publish",

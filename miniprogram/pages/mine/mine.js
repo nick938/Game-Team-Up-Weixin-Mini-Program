@@ -169,4 +169,18 @@ Page({
   openFeedback() {
     wx.navigateTo({ url: "/pages/feedback/feedback" });
   },
+
+  onShareAppMessage() {
+    return {
+      title: "来开黑 - 一起组队开黑",
+      path: "/pages/index/index",
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: "来开黑 - 一起组队开黑",
+      path: "/pages/index/index",
+    };
+  },
 });

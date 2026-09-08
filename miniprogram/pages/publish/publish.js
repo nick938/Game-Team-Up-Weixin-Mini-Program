@@ -251,4 +251,18 @@ Page({
       this.onSubmit();
     }
   },
+
+  onShareAppMessage() {
+    return {
+      title: "来开黑 - 发起组队",
+      path: "/pages/index/index",
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: "来开黑 - 发起组队",
+      path: "/pages/index/index",
+    };
+  },
 });

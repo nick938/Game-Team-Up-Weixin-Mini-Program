@@ -60,6 +60,28 @@ Page({
     };
   },
 
+  onShareTimeline() {
+    const team = this.data.team;
+    if (!team) {
+      return { title: "来开黑", path: "/pages/index/index" };
+    }
+    const time = formatStartAt(team.startAt).replace(/今天 |今晚 |明天 /, "");
+    let title = `来开黑｜${team.gameName}`;
+    if (team.displayStatus === "recruiting") {
+      title += ` 还差 ${team.needCount} 人 · ${time}`;
+    } else if (team.displayStatus === "full") {
+      title += " 已满员";
+    } else if (team.displayStatus === "cancelled") {
+      title += " 已散";
+    } else {
+      title += " 已结束";
+    }
+    return {
+      title,
+      path: `/pages/team/detail?id=${this.data.teamId}`,
+    };
+  },
+
   async loadDetail() {
     this.setData({ loading: true });
     try {
