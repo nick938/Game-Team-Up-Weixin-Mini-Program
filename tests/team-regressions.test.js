@@ -297,7 +297,7 @@ test('room profile returns only current public fields and rejects unrelated memb
   const ctx = backend({ teams: [{ _id: 't', gameName: 'CS2' }], members: [{ _id: 'm', teamId: 't', openid: 'u', nickName: '旧昵称' }, { _id: 'other', teamId: 'another', openid: 'u' }], users });
   const result = await ctx.getPublicProfile({ teamId: 't', memberId: 'm' });
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'bio', 'gameId', 'kookId', 'nickName', 'steamFriendCode'].sort());
+  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarBase64', 'bio', 'gameId', 'kookId', 'nickName', 'steamFriendCode'].sort());
   assert.equal(result.profile.nickName, '最新昵称');
   assert.equal(result.profile.steamFriendCode, '00123');
   users[0].steamFriendCode = '';

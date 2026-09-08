@@ -95,9 +95,12 @@ function clipThing(s, max) {
 function subscribeTime(ts) {
   const d = new Date(Number(ts) || nowMs());
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  // 强制使用 UTC+8 时区，避免云函数环境时区不一致
+  const offset = 8 * 60 * 60 * 1000;
+  const local = new Date(d.getTime() + offset);
+  return `${local.getUTCFullYear()}年${local.getUTCMonth() + 1}月${local.getUTCDate()}日 ${pad(
+    local.getUTCHours()
+  )}:${pad(local.getUTCMinutes())}`;
 }
 
 async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
@@ -435,6 +438,7 @@ function publicProfile(user, member) {
   const profile = {
     nickName: (user && user.nickName) || member.nickName || "玩家",
     avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
+    avatarBase64: (user && user.avatarBase64) || "",
   };
   for (const key of Object.keys(PUBLIC_PROFILE_FIELDS)) {
     profile[key] = (user && typeof user[key] === "string") ? user[key] : "";
@@ -459,6 +463,7 @@ async function getPublicProfile(event) {
 async function saveProfile(event, openid) {
   const nickName = trim(event.nickName, 32);
   const avatarUrl = trim(event.avatarUrl, 1000);
+  const avatarBase64 = typeof event.avatarBase64 === "string" ? event.avatarBase64 : "";
   if (!nickName) return fail("请填写昵称");
   const checked = validatePublicProfile(event);
   if (checked.error) return fail(checked.error);
@@ -467,6 +472,7 @@ async function saveProfile(event, openid) {
     ...checked.value,
     nickName,
     avatarUrl: avatarUrl || (existed && existed.avatarUrl) || "",
+    avatarBase64: avatarBase64 || (existed && existed.avatarBase64) || "",
     updatedAt: nowMs(),
   };
   const id = existed ? existed._id : openid;
@@ -838,21 +844,28 @@ async function getTeam(event, openid) {
     team = teamRes.data;
   }
 
-  const members = memList
-    .slice()
-    .sort((a, b) => {
-      if (a.role === "host") return -1;
-      if (b.role === "host") return 1;
-      return (a.joinedAt || 0) - (b.joinedAt || 0);
-    })
-    .map((m) => ({
-      _id: m._id,
-      openid: memberUid(m) || (m.role === "host" ? hostUid(team) : ""),
-      role: m.role,
-      nickName: m.nickName,
-      avatarUrl: m.avatarUrl,
-      joinedAt: m.joinedAt,
-    }));
+  const members = await Promise.all(
+    memList
+      .slice()
+      .sort((a, b) => {
+        if (a.role === "host") return -1;
+        if (b.role === "host") return 1;
+        return (a.joinedAt || 0) - (b.joinedAt || 0);
+      })
+      .map(async (m) => {
+        const uid = memberUid(m) || (m.role === "host" ? hostUid(team) : "");
+        const user = uid ? await getUser(uid) : null;
+        return {
+          _id: m._id,
+          openid: uid,
+          role: m.role,
+          nickName: (user && user.nickName) || m.nickName || "玩家",
+          avatarUrl: (user && user.avatarUrl) || m.avatarUrl || "",
+          avatarBase64: (user && user.avatarBase64) || "",
+          joinedAt: m.joinedAt,
+        };
+      })
+  );
   const mine = members.find((m) => m.openid === openid);
   const owner = await isTeamHost(team, openid, teamId, memList);
   const role = owner ? "host" : mine ? "member" : null;

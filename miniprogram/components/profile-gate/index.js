@@ -74,17 +74,17 @@ Component({
       this.setData({ saving: true });
       wx.showLoading({ title: "保存中", mask: true });
       try {
+        let avatarBase64 = "";
         let avatarUrl = this.data.avatarUrl || "";
-        if (avatarUrl && !avatarUrl.startsWith("cloud://")) {
-          const up = await wx.cloud.uploadFile({
-            cloudPath: `avatars/${Date.now()}-${Math.floor(Math.random() * 10000)}.jpg`,
-            filePath: avatarUrl,
-          });
-          avatarUrl = up.fileID;
+        if (avatarUrl && !avatarUrl.startsWith("cloud://") && !avatarUrl.startsWith("data:")) {
+          const fs = wx.getFileSystemManager();
+          const data = fs.readFileSync(avatarUrl);
+          avatarBase64 = data.toString("base64");
         }
         const res = await callTeam("saveProfile", {
           nickName,
           avatarUrl,
+          avatarBase64,
           steamFriendCode,
           gameId: this.data.gameId.trim(),
           kookId: this.data.kookId.trim(),

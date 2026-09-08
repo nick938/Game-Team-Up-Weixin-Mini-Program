@@ -48,7 +48,7 @@
     <view class="seats">
       <view class="seat" wx:for="{{seats}}" wx:key="key">
         <block wx:if="{{item.member}}">
-          <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" /></button>
+          <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarBase64 ? 'data:image/jpeg;base64,' + item.member.avatarBase64 : (item.member.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /></button>
           <view class="seat-name">{{item.member.nickName || '玩家'}}</view>
           <text class="host-tag" wx:if="{{item.member.role === 'host'}}">车头</text>
           <button wx:elif="{{role === 'host' && team.ongoing}}" class="kick" data-openid="{{item.member.openid}}" bindtap="onKick">移出</button>
@@ -93,7 +93,7 @@
       <view wx:if="{{memberProfileLoading}}" class="profile-placeholder">正在加载队友资料…</view>
       <view wx:elif="{{memberProfileError}}" class="profile-placeholder"><view>{{memberProfileError}}</view><button class="profile-retry" bindtap="loadMemberProfile">重新加载</button></view>
       <view wx:elif="{{memberProfile}}">
-        <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
+        <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarBase64 ? 'data:image/jpeg;base64,' + memberProfile.avatarBase64 : (memberProfile.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
         <view class="public-bio" wx:if="{{memberProfile.bio}}">{{memberProfile.bio}}</view>
         <button class="public-field" wx:if="{{memberProfile.steamFriendCode}}" data-field="steamFriendCode" bindtap="copyPublicField"><view class="public-field-label">Steam 好友代码</view><view class="public-field-value"><text selectable>{{memberProfile.steamFriendCode}}</text><text class="public-copy">复制</text></view></button>
         <button class="public-field" wx:if="{{memberProfile.gameId}}" data-field="gameId" bindtap="copyPublicField"><view class="public-field-label">游戏内 ID</view><view class="public-field-value"><text selectable>{{memberProfile.gameId}}</text><text class="public-copy">复制</text></view></button>
