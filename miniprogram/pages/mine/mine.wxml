@@ -36,6 +36,8 @@
     <text class="dot">·</text>
     <text data-type="community" bindtap="openLegal">社区公约</text>
   </view>
+  <button class="feedback-link" bindtap="openFeedback">意见反馈</button>
+  <view class="version">{{versionText}}</view>
 
   <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
   <welcome-letter />

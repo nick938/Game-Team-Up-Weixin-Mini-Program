@@ -4,7 +4,8 @@
     "pages/publish/publish",
     "pages/mine/mine",
     "pages/team/detail",
-    "pages/legal/legal"
+    "pages/legal/legal",
+    "pages/feedback/feedback"
   ],
   "window": {
     "backgroundColor": "#F5F6FA",

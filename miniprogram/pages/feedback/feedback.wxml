@@ -1,0 +1,51 @@
+<view class="page">
+  <view class="page-heading">写给我们</view>
+  <view class="page-caption">按模板填就行。发送后会送到开发者邮箱，我们会认真看。</view>
+
+  <view class="form">
+    <view class="label">这是什么</view>
+    <view class="games">
+      <view
+        class="game {{kind === item ? 'game-on' : ''}}"
+        wx:for="{{kinds}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickKind"
+      >{{item}}</view>
+    </view>
+
+    <view class="label">发生在哪</view>
+    <view class="games">
+      <view
+        class="game {{pageName === item ? 'game-on' : ''}}"
+        wx:for="{{pages}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickPage"
+      >{{item}}</view>
+    </view>
+
+    <view class="label">反馈内容</view>
+    <textarea
+      class="area"
+      maxlength="800"
+      value="{{content}}"
+      bindinput="onContent"
+      placeholder="按模板填写"
+    />
+    <view class="hint">已经填好模板，直接在空行里写就行。</view>
+
+    <view class="label">方便的话留个联系方式（选填）</view>
+    <input
+      class="field"
+      maxlength="40"
+      value="{{contact}}"
+      bindinput="onContact"
+      placeholder="微信号或邮箱"
+    />
+
+    <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">发送到邮箱</button>
+  </view>
+
+  <view class="version">当前版本 {{versionText}}</view>
+</view>

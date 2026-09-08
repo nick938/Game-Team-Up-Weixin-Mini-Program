@@ -2,6 +2,7 @@ const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
 const { SUBSCRIBE_TMPL_ID } = require("../../utils/constants");
+const { getAppVersion } = require("../../utils/version");
 
 function splitTeams(list) {
   const ongoing = [];
@@ -30,10 +31,12 @@ Page({
     preferenceLoaded: false,
     notifyMessage: "",
     wechatNotifyStatus: "微信授权状态待确认",
+    versionText: "",
 
   },
 
   onShow() {
+    this.setData({ versionText: getAppVersion().text });
     this.load();
     this.refreshWechatNotify();
   },
@@ -161,5 +164,9 @@ Page({
     wx.navigateTo({
       url: `/pages/legal/legal?type=${type}`,
     });
+  },
+
+  openFeedback() {
+    wx.navigateTo({ url: "/pages/feedback/feedback" });
   },
 });

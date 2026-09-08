@@ -1,9 +1,10 @@
 {
   "name": "team",
   "version": "1.0.0",
-      "description": "来开黑组队服务",
+  "description": "来开黑组队服务",
   "main": "index.js",
   "dependencies": {
+    "nodemailer": "^6.10.1",
     "wx-server-sdk": "~2.6.3"
   }
 }

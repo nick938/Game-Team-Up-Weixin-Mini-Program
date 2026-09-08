@@ -27,3 +27,5 @@ button.phase { width: auto; min-width: 0; font-size: 24rpx; padding: 12rpx 20rpx
 .legal { margin-top: 36rpx; text-align: center; color: #858ba0; font-size: 23rpx; }
 .legal text { display: inline-block; padding: 20rpx 0; }
 .dot { margin: 0 16rpx; }
+button.feedback-link { margin-top: 8rpx; font-size: 23rpx; color: #6255e7; }
+.version { margin-top: 8rpx; text-align: center; font-size: 22rpx; color: #a0a6b8; }

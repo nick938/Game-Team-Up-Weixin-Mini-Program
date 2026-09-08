@@ -19,6 +19,12 @@ const CAP_MAX = 20;
 const MAX_TEAM_MS = 24 * 60 * 60 * 1000;
 const BAD =
   /微信群|加微|加v|加V|vx\s*:|代练|外挂|脚本|出租账号|买号|卖号|色情|赌博/i;
+const FEEDBACK_TO = "liuyi4781@foxmail.com";
+const FEEDBACK_KINDS = ["遇到问题", "功能建议", "体验吐槽", "其他"];
+const FEEDBACK_PAGES = ["大厅", "发车", "组队详情", "我的", "其他"];
+const FEEDBACK_MAX = 800;
+const FEEDBACK_CONTACT_MAX = 40;
+const FEEDBACK_COOLDOWN_MS = 2 * 60 * 1000;
 
 const PLATFORMS = ["Steam", "手游", "端游", "主机"];
 const VOICES = ["不限", "KOOK", "游戏内语音", "开麦"];
@@ -278,7 +284,7 @@ async function findMembersByOpenid(openid) {
 
 async function ensureCollections() {
   if (collectionsReady) return;
-  for (const name of ["users", "teams", "members"]) {
+  for (const name of ["users", "teams", "members", "feedback"]) {
     try {
       await db.createCollection(name);
     } catch (e) {
@@ -928,6 +934,157 @@ async function myTeams(openid) {
   return ok({ hosted, joined });
 }
 
+function readEnv(name) {
+  try {
+    return String((process.env || {})[name] || "");
+  } catch (e) {
+    return "";
+  }
+}
+
+function loadMailSecrets() {
+  let local = {};
+  try {
+    const loaded = require("./mail.local");
+    if (loaded && typeof loaded === "object" && !loaded.database) local = loaded;
+  } catch (e) {
+    // 没有本地密钥文件就只用环境变量
+  }
+  return {
+    to: (readEnv("FEEDBACK_TO") || local.FEEDBACK_TO || FEEDBACK_TO).trim(),
+    host: (readEnv("SMTP_HOST") || local.SMTP_HOST || "smtp.qq.com").trim(),
+    port: Number(readEnv("SMTP_PORT") || local.SMTP_PORT || 465),
+    user: (readEnv("SMTP_USER") || local.SMTP_USER || FEEDBACK_TO).trim().toLowerCase(),
+    pass: String(readEnv("SMTP_PASS") || local.SMTP_PASS || "").replace(/\s+/g, ""),
+  };
+}
+
+function feedbackFilled(text) {
+  const stripped = String(text || "")
+    .replace(/【我遇到的情况】/g, "")
+    .replace(/【我希望怎样】/g, "")
+    .replace(/\s/g, "");
+  return stripped.length >= 4;
+}
+
+function explainMailError(err) {
+  const msg = String((err && (err.response || err.message)) || err || "");
+  if (/535|authentication failed|Invalid login/i.test(msg)) {
+    return "邮箱认证失败。SMTP_PASS 必须是 QQ 邮箱生成的授权码，不是登录密码。在 foxmail.com 设置里开启 SMTP 后重新上传云函数。";
+  }
+  if (/ETIMEDOUT|ECONNECTION|ESOCKET|timeout/i.test(msg)) {
+    return "云函数连不上 QQ 发信服务器，请确认已上传 mail.local.js 并勾选云端安装依赖。";
+  }
+  return msg.slice(0, 120) || "发信失败";
+}
+
+function createMailTransport(nodemailer, mail) {
+  return nodemailer.createTransport({
+    host: mail.host,
+    port: mail.port,
+    secure: mail.port === 465,
+    requireTLS: mail.port === 587,
+    tls: { minVersion: "TLSv1.2" },
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 15000,
+    auth: { user: mail.user, pass: mail.pass },
+  });
+}
+
+async function sendFeedbackMail({ kind, page, content, contact, nickName, version, envVersion, openid }) {
+  const mail = loadMailSecrets();
+  if (!mail.pass || !mail.user || !mail.host) {
+    return { status: "skipped", error: "未配置发信授权码。请在 mail.local.js 填写 QQ 邮箱授权码后重新上传云函数。" };
+  }
+  let nodemailer;
+  try {
+    nodemailer = require("nodemailer");
+  } catch (e) {
+    return { status: "skipped", error: "云函数未安装发信组件。请右键 team → 上传并部署：云端安装依赖。" };
+  }
+  if (!nodemailer || typeof nodemailer.createTransport !== "function") {
+    return { status: "skipped", error: "云函数未安装发信组件。请右键 team → 上传并部署：云端安装依赖。" };
+  }
+  const lines = [
+    `类型：${kind}`,
+    `页面：${page}`,
+    `版本：${version || "未知"}${envVersion ? ` · ${envVersion}` : ""}`,
+    `昵称：${nickName || "未填写"}`,
+    `OpenID：${openid}`,
+    contact ? `联系方式：${contact}` : "联系方式：未填",
+    "",
+    content,
+  ];
+  try {
+    await createMailTransport(nodemailer, mail).sendMail({
+      from: `"来开黑反馈" <${mail.user}>`,
+      to: mail.to,
+      subject: `【来开黑反馈】${kind} · ${nickName || "未命名用户"}`,
+      text: lines.join("\n"),
+    });
+    return { status: "sent" };
+  } catch (e) {
+    console.error("feedback mail fail", (e && (e.code || e.message)) || e);
+    return { status: "failed", error: explainMailError(e) };
+  }
+}
+
+async function submitFeedback(event, openid) {
+  const kind = FEEDBACK_KINDS.includes(event.kind) ? event.kind : "";
+  const page = FEEDBACK_PAGES.includes(event.page) ? event.page : "";
+  const content = trim(event.content, FEEDBACK_MAX);
+  const contact = trim(event.contact, FEEDBACK_CONTACT_MAX);
+  const version = trim(event.version, 20);
+  const envVersion = trim(event.envVersion, 20);
+  if (!kind) return fail("请选择反馈类型");
+  if (!page) return fail("请选择发生页面");
+  if (!feedbackFilled(content)) return fail("请把遇到的情况写具体一点");
+  if (BAD.test(`${content}${contact}`)) return fail("内容包含不允许提交的信息");
+
+  try {
+    const recent = await db
+      .collection("feedback")
+      .where({ _openid: openid })
+      .limit(20)
+      .get();
+    const last = (recent.data || [])
+      .slice()
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))[0];
+    if (last && nowMs() - Number(last.createdAt || 0) < FEEDBACK_COOLDOWN_MS) {
+      return fail("刚刚已经收到一封，请稍后再写");
+    }
+  } catch (e) {
+    // 集合尚未建好时继续提交
+  }
+
+  const user = await getUser(openid);
+  const payload = {
+    openid,
+    _openid: openid,
+    kind,
+    page,
+    content,
+    contact,
+    nickName: (user && user.nickName) || "",
+    version,
+    envVersion,
+    createdAt: nowMs(),
+    mailed: false,
+    mailError: "",
+  };
+  let result = { status: "skipped", error: "未尝试发信" };
+  try {
+    result = await sendFeedbackMail({ ...payload, nickName: payload.nickName });
+  } catch (e) {
+    result = { status: "failed", error: explainMailError(e) };
+  }
+  payload.mailed = result.status === "sent";
+  payload.mailError = result.error || "";
+  await db.collection("feedback").add({ data: payload });
+  return ok({ mailed: payload.mailed, mailError: payload.mailError });
+}
+
 exports.main = async (event) => {
   try {
     await ensureCollections();
@@ -962,6 +1119,8 @@ exports.main = async (event) => {
         return await listTeams(event, openid);
       case "myTeams":
         return await myTeams(openid);
+      case "submitFeedback":
+        return await submitFeedback(event, openid);
       default:
         return fail("未知操作");
     }

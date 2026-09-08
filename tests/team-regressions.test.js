@@ -5,26 +5,47 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], send = async () => {} } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], send = async () => {}, env = {}, sendMail } = {}) {
+  const tables = { teams, members, users, feedback };
   const db = {
     command: { gte: () => ({ and: () => ({}) }), lte: () => ({}) },
     collection(name) {
+      const rows = tables[name] || (tables[name] = []);
       return {
-        where() { return this; }, limit() { return this; },
-        async get() { return { data: name === 'teams' ? teams : name === 'users' ? users : members }; },
+        where() { return this; }, limit() { return this; }, orderBy() { return this; },
+        async get() { return { data: rows }; },
+        async add({ data }) {
+          const _id = `${name}_${rows.length + 1}`;
+          rows.push({ _id, ...data });
+          return { _id };
+        },
         doc(id) {
-          const rows = name === 'teams' ? teams : name === 'users' ? users : members;
           return {
             async get() { return { data: rows.find(x => x._id === id) }; },
-            async update({ data }) { Object.assign(rows.find(x => x._id === id), data); },
-            async set({ data }) { rows.push({ _id: id, ...data }); },
+            async update({ data }) { Object.assign(rows.find(x => x._id === id) || {}, data); },
+            async set({ data }) {
+              const found = rows.find(x => x._id === id);
+              if (found) Object.assign(found, data);
+              else rows.push({ _id: id, ...data });
+            },
           };
         },
       };
     },
   };
   const cloud = { init() {}, database: () => db, openapi: { subscribeMessage: { send } } };
-  const ctx = { require: () => cloud, exports: {}, console: { error() {} } };
+  const ctx = {
+    require: (id) => {
+      if (id === "nodemailer") {
+        return { createTransport: () => ({ sendMail: sendMail || (async () => ({})) }) };
+      }
+      if (String(id).includes("mail.local")) throw new Error("no local mail");
+      return cloud;
+    },
+    exports: {},
+    console: { error() {} },
+    process: { env: env || {} },
+  };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'cloudfunctions/team/index.js'), 'utf8'), ctx);
   return ctx;
@@ -369,4 +390,81 @@ test('welcome letter shows once then stays dismissed', () => {
   Object.assign(other, comp.methods, { lifetimes: comp.lifetimes, pageLifetimes: comp.pageLifetimes });
   other.pageLifetimes.show.call(other);
   assert.equal(other.data.show, false);
+});
+
+test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {
+  const feedback = [];
+  const mails = [];
+  const ctx = backend({
+    feedback,
+    env: { SMTP_PASS: 'app-password' },
+    sendMail: async (msg) => { mails.push(msg); },
+  });
+  assert.equal((await ctx.submitFeedback({
+    kind: '遇到问题', page: '大厅', content: '【我遇到的情况】\n\n【我希望怎样】\n',
+  }, 'u')).ok, false);
+  const res = await ctx.submitFeedback({
+    kind: '功能建议',
+    page: '发车',
+    content: '【我遇到的情况】发车页时间选不了\n【我希望怎样】能选到明天',
+    contact: 'me@test.com',
+    version: '0.6.0',
+    envVersion: '开发版',
+  }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(res.mailed, true);
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0].kind, '功能建议');
+  assert.equal(mails.length, 1);
+  assert.match(mails[0].subject, /功能建议/);
+  assert.match(mails[0].text, /发车页时间选不了/);
+  assert.equal((await ctx.submitFeedback({
+    kind: '功能建议', page: '发车', content: '再来一条补充说明一下',
+  }, 'u')).ok, false);
+});
+
+test('feedback is stored even if mail is not configured', async () => {
+  const feedback = [];
+  const ctx = backend({ feedback });
+  const res = await ctx.submitFeedback({
+    kind: '其他', page: '我的', content: '界面很好看想说一声',
+  }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(res.mailed, false);
+  assert.match(res.mailError, /未配置发信授权码/);
+  assert.equal(feedback.length, 1);
+});
+
+test('feedback keeps the record and returns SMTP auth errors', async () => {
+  const feedback = [];
+  const ctx = backend({
+    feedback,
+    env: { SMTP_PASS: 'wrong-pass' },
+    sendMail: async () => {
+      const err = new Error('Invalid login: 535 5.7.8 Error: authentication failed');
+      err.code = 'EAUTH';
+      throw err;
+    },
+  });
+  const res = await ctx.submitFeedback({
+    kind: '其他', page: '我的', content: '界面很好看想说一声',
+  }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(res.mailed, false);
+  assert.match(res.mailError, /认证失败/);
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0].mailed, false);
+});
+
+test('app version falls back to local build and labels env', () => {
+  let info = { envVersion: 'develop', version: '' };
+  const mod = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
+    require: () => ({ APP_VERSION: '0.6.0' }),
+    module: mod,
+    wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
+  });
+  assert.equal(mod.exports.getAppVersion().text, 'v0.6.0 · 开发版');
+  info = { envVersion: 'release', version: '1.2.0' };
+  assert.equal(mod.exports.getAppVersion().text, 'v1.2.0');
 });
