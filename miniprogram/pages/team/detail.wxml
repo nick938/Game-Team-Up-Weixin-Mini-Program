@@ -75,6 +75,7 @@
 <view class="empty" wx:elif="{{!loading}}">找不到这趟车</view>
 
 <profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+<welcome-letter />
 
 <view wx:if="{{showManage && role === 'host'}}" class="manage-mask" bindtap="closeManage" catchtouchmove="stopManageTouch">
   <view class="manage-sheet" catchtap="stopManageTouch">

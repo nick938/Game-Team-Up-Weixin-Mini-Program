@@ -33,7 +33,10 @@
     <text data-type="agreement" bindtap="openLegal">用户协议</text>
     <text class="dot">·</text>
     <text data-type="privacy" bindtap="openLegal">隐私政策</text>
+    <text class="dot">·</text>
+    <text data-type="community" bindtap="openLegal">社区公约</text>
   </view>
 
   <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+  <welcome-letter />
 </view>

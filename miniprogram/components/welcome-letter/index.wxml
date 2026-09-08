@@ -1,0 +1,17 @@
+<view wx:if="{{show}}" class="mask" catchtouchmove="noop">
+  <view class="letter" catchtap="noop">
+    <image class="stamp" src="/images/brand/avatar-v1.jpg" mode="aspectFill" aria-hidden="true" />
+    <view class="kicker">来开黑 · 给上车的你</view>
+    <view class="title">一起玩，好好玩</view>
+    <view class="body">嘿，欢迎上车。这里是给游戏好友发车组队用的。车上都是真人，请友好相处。</view>
+    <view class="rules">
+      <view>准时来；来不了就提前下车。</view>
+      <view>说话友善，别阴阳、别骂人、别骚扰。</view>
+      <view>不发外挂、代练、买卖账号，也不诱导加微信。</view>
+      <view>房间号和密码只给这局里的人用。</view>
+    </view>
+    <view class="sign">点下面，即表示你愿意遵守社区公约。玩得开心。</view>
+    <button class="agree" bindtap="dismiss">好的，开黑去</button>
+    <button class="rules-link" bindtap="openRules">看看社区公约</button>
+  </view>
+</view>

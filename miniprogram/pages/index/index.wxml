@@ -38,4 +38,5 @@
     mark="{{item.mark}}"
     bind:tap="onOpen"
   />
+  <welcome-letter />
 </view>

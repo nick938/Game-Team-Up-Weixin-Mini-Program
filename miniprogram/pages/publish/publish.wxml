@@ -41,6 +41,7 @@
         <view class="picker">{{endTime}}</view>
       </picker>
     </view>
+    <view class="time-hint">一局最长 24 小时，到点自动散</view>
 
     <view class="label">几个人（含你自己）</view>
     <view class="stepper">
@@ -84,4 +85,5 @@
   </view>
 
   <profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+  <welcome-letter />
 </view>

@@ -41,5 +41,8 @@
   },
   "sitemapLocation": "sitemap.json",
   "style": "v2",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "usingComponents": {
+    "welcome-letter": "/components/welcome-letter/index"
+  }
 }

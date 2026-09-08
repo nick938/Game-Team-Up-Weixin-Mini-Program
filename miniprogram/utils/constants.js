@@ -1,5 +1,6 @@
 const PLATFORMS = ["Steam", "手游", "端游", "主机"];
 const VOICES = ["不限", "KOOK", "游戏内语音", "开麦"];
+const MAX_TEAM_HOURS = 24;
 
 const STATUS_TEXT = {
   recruiting: "缺人",
@@ -17,4 +18,5 @@ module.exports = {
   VOICES,
   STATUS_TEXT,
   SUBSCRIBE_TMPL_ID,
+  MAX_TEAM_HOURS,
 };

@@ -1,0 +1,95 @@
+.mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 200;
+  background: rgba(24, 26, 40, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 40rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.letter {
+  position: relative;
+  width: 100%;
+  max-width: 640rpx;
+  padding: 48rpx 40rpx 32rpx;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 32rpx;
+  box-shadow: 0 24rpx 80rpx rgba(48, 42, 96, 0.18);
+}
+
+.stamp {
+  position: absolute;
+  top: 36rpx;
+  right: 36rpx;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 24rpx;
+}
+
+.kicker {
+  font-size: 22rpx;
+  color: #6255e7;
+  letter-spacing: 1rpx;
+}
+
+.title {
+  margin-top: 16rpx;
+  padding-right: 108rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #202438;
+  line-height: 1.35;
+}
+
+.body {
+  margin-top: 24rpx;
+  font-size: 27rpx;
+  line-height: 1.7;
+  color: #535b72;
+}
+
+.rules {
+  margin-top: 20rpx;
+  padding: 20rpx 24rpx;
+  background: #f5f6fa;
+  border-radius: 20rpx;
+  font-size: 25rpx;
+  line-height: 1.75;
+  color: #3d4458;
+}
+
+.sign {
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #858ba0;
+}
+
+button.agree {
+  width: 100% !important;
+  margin-top: 32rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #6255e7;
+  color: #fff;
+  border-radius: 22rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+button.rules-link {
+  width: 100% !important;
+  margin-top: 8rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: transparent;
+  color: #6255e7;
+  font-size: 25rpx;
+}

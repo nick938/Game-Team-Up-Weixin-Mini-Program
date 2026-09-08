@@ -16,6 +16,7 @@ const SERVER_MAX = 20;
 const RANK_MAX = 20;
 const CAP_MIN = 2;
 const CAP_MAX = 20;
+const MAX_TEAM_MS = 24 * 60 * 60 * 1000;
 const BAD =
   /微信群|加微|加v|加V|vx\s*:|代练|外挂|脚本|出租账号|买号|卖号|色情|赌博/i;
 
@@ -94,11 +95,11 @@ function subscribeTime(ts) {
 }
 
 async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
-  if (!SUBSCRIBE_TMPL_ID || !touser) return false;
+  if (!SUBSCRIBE_TMPL_ID || !touser) return "skipped";
   try {
     const user = await getUser(touser, { strict: true });
     // 偏好关闭即停止发送；它与微信侧的订阅授权是两个独立条件。
-    if (user && user.notifyEnabled === false) return false;
+    if (user && user.notifyEnabled === false) return "skipped";
     await cloud.openapi.subscribeMessage.send({
       touser,
       templateId: SUBSCRIBE_TMPL_ID,
@@ -109,10 +110,10 @@ async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
         thing11: { value: clipThing(statusText, 20) },
       },
     });
-    return true;
+    return "sent";
   } catch (e) {
     console.error("subscribe send fail", (e && (e.errCode || e.message)) || e);
-    return false;
+    return "failed";
   }
 }
 
@@ -171,15 +172,15 @@ async function remindStartingTeams() {
         .filter(Boolean);
       const host = hostUid(team);
       if (host) ids.push(host);
-      // 按收件人保存成功结果；下一轮仅补发失败的收件人。
+      // 按收件人保存已处理结果（发送成功或按偏好跳过）；下一轮仅补发失败的收件人。
       const sent = new Set(team.startRemindedOpenids || []);
       const recipients = [...new Set(ids)];
       for (const uid of recipients) {
         if (sent.has(uid)) continue;
-        const delivered = await sendSubscribe(
+        const outcome = await sendSubscribe(
           uid, teamId, team.gameName, "即将开打，请准时上线", team.startAt
         );
-        if (delivered) {
+        if (outcome !== "failed") {
           sent.add(uid);
           await db.collection("teams").doc(teamId).update({
             data: { startRemindedOpenids: [...sent] },
@@ -370,8 +371,8 @@ function validateTeamInput(input, { isCreate }) {
   if (endAt <= nowMs()) {
     return { error: "结束时间必须晚于现在" };
   }
-  if (endAt - startAt > 12 * 60 * 60 * 1000) {
-    return { error: "一局最长 12 小时" };
+  if (endAt - startAt > MAX_TEAM_MS) {
+    return { error: "一局最长 24 小时" };
   }
   const text = `${gameName}${roomNo}${roomPwd}${server}${rankReq}${note}`;
   if (BAD.test(text)) {

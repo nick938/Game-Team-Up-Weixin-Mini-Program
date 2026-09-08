@@ -1,4 +1,5 @@
-const { PLATFORMS, VOICES } = require("../../utils/constants");
+const { PLATFORMS, VOICES, MAX_TEAM_HOURS } = require("../../utils/constants");
+const MAX_TEAM_MS = MAX_TEAM_HOURS * 60 * 60 * 1000;
 const {
   dateParts,
   combineDateTime,
@@ -197,6 +198,10 @@ Page({
     }
     if (team.endAt <= team.startAt) {
       wx.showToast({ title: "结束时间要晚于开始", icon: "none" });
+      return;
+    }
+    if (team.endAt - team.startAt > MAX_TEAM_MS) {
+      wx.showToast({ title: `一局最长 ${MAX_TEAM_HOURS} 小时`, icon: "none" });
       return;
     }
     this.setData({ submitting: true });

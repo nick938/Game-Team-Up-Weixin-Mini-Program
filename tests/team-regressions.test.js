@@ -57,6 +57,27 @@ test('reminder retries failed recipients without resending successful ones', asy
   assert.equal(ctx.stripSecret(team, false).startRemindedOpenids, undefined);
 });
 
+test('disabled notify preference does not block start reminder completion', async () => {
+  const team = { _id: 't', gameName: 'CS2', startAt: Date.now() + 240000, endAt: Date.now() + 7200000, status: 'recruiting', openid: 'host' };
+  const users = [
+    { _id: 'host', notifyEnabled: true },
+    { _id: 'guest', notifyEnabled: false },
+  ];
+  const calls = [];
+  const ctx = backend({
+    teams: [team],
+    members: [{ openid: 'host' }, { openid: 'guest' }],
+    users,
+    send: async ({ touser }) => { calls.push(touser); },
+  });
+  await ctx.remindStartingTeams();
+  assert.ok(team.startRemindedAt);
+  assert.deepEqual(calls, ['host']);
+  assert.deepEqual([...team.startRemindedOpenids].sort(), ['guest', 'host']);
+  await ctx.remindStartingTeams();
+  assert.deepEqual(calls, ['host']);
+});
+
 test('expired teams do not receive start reminders', async () => {
   let calls = 0;
   const ctx = backend({ teams: [{ _id: 't', status: 'recruiting', startAt: Date.now(), endAt: Date.now() - 1 }], send: async () => { calls++; } });
@@ -290,4 +311,62 @@ test('switching or closing member card ignores stale responses and copies ID int
   await closed;
   assert.equal(page.data.memberProfile, null);
   assert.equal(page.data.showMemberProfile, false);
+});
+
+test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
+  const ctx = backend();
+  const startAt = Date.now() + 60 * 1000;
+  const tooLong = ctx.validateTeamInput({
+    gameName: 'CS2',
+    capacity: 5,
+    startAt,
+    endAt: startAt + 24 * 60 * 60 * 1000 + 1,
+    platform: 'Steam',
+    voice: 'KOOK',
+  }, { isCreate: true });
+  assert.equal(tooLong.error, '一局最长 24 小时');
+  const ok = ctx.validateTeamInput({
+    gameName: 'CS2',
+    capacity: 5,
+    startAt,
+    endAt: startAt + 24 * 60 * 60 * 1000,
+    platform: 'Steam',
+    voice: 'KOOK',
+  }, { isCreate: true });
+  assert.equal(ok.error, undefined);
+  assert.equal(ok.value.endAt - ok.value.startAt, 24 * 60 * 60 * 1000);
+});
+
+test('welcome letter shows once then stays dismissed', () => {
+  const store = {};
+  const navigated = [];
+  const tabBar = [];
+  let comp;
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
+    Component: value => { comp = value; },
+    wx: {
+      getStorageSync: key => store[key],
+      setStorageSync: (key, value) => { store[key] = value; },
+      navigateTo: ({ url }) => navigated.push(url),
+      hideTabBar: () => tabBar.push('hide'),
+      showTabBar: () => tabBar.push('show'),
+    },
+  });
+  comp.data = { show: false };
+  comp.setData = patch => Object.assign(comp.data, patch);
+  Object.assign(comp, comp.methods);
+  comp.lifetimes.attached.call(comp);
+  assert.equal(comp.data.show, true);
+  assert.deepEqual(tabBar, ['hide']);
+  comp.openRules();
+  assert.equal(store.welcomeLetterV1, 1);
+  assert.equal(comp.data.show, false);
+  assert.deepEqual(navigated, ['/pages/legal/legal?type=community']);
+  assert.deepEqual(tabBar, ['hide', 'show']);
+  comp.lifetimes.attached.call(comp);
+  assert.equal(comp.data.show, false);
+  const other = { data: { show: true }, setData: patch => Object.assign(other.data, patch) };
+  Object.assign(other, comp.methods, { lifetimes: comp.lifetimes, pageLifetimes: comp.pageLifetimes });
+  other.pageLifetimes.show.call(other);
+  assert.equal(other.data.show, false);
 });
