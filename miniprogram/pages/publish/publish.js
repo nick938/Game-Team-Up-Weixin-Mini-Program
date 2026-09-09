@@ -47,19 +47,17 @@ Page({
   async onShow() {
     const app = getApp();
     const editingId = app.globalData.editingTeamId;
-    app.globalData.editingTeamId = null;
+    const draft = app.globalData.republishTeam;
     if (editingId) {
+      app.globalData.editingTeamId = null;
+      app.globalData.republishTeam = null;
+      if (this.data.editingId === editingId) return;
       await this.loadEdit(editingId);
       return;
     }
-    const draft = app.globalData.republishTeam;
-    app.globalData.republishTeam = null;
     if (draft) {
+      app.globalData.republishTeam = null;
       this.applyDraft(draft);
-      return;
-    }
-    if (this.data.editingId || this.data.fromLast) {
-      this.setData(emptyForm());
     }
   },
 
@@ -190,7 +188,7 @@ Page({
   },
 
   async onSubmit() {
-    if (this.data.submitting) return;
+    if (this.submitting || this.data.submitting) return;
     const team = this.buildTeam();
     if (!team.gameName) {
       wx.showToast({ title: "请填写玩什么", icon: "none" });
@@ -204,21 +202,25 @@ Page({
       wx.showToast({ title: `一局最长 ${MAX_TEAM_HOURS} 小时`, icon: "none" });
       return;
     }
+    const editingId = this.data.editingId;
+    this.submitting = true;
     this.setData({ submitting: true });
     try {
-      if (!this.data.editingId) {
+      if (!editingId) {
         await requestTeamNotify();
       }
-      if (this.data.editingId) {
-        await callTeam("updateTeam", { teamId: this.data.editingId, team });
+      if (editingId) {
+        await callTeam("updateTeam", { teamId: editingId, team });
+        this.setData(emptyForm());
         wx.showToast({ title: "已保存", icon: "success" });
         setTimeout(() => {
           wx.navigateTo({
-            url: `/pages/team/detail?id=${this.data.editingId}`,
+            url: `/pages/team/detail?id=${editingId}`,
           });
         }, 400);
       } else {
         const res = await callTeam("createTeam", { team });
+        this.setData(emptyForm());
         wx.showToast({ title: "已发车", icon: "success" });
         setTimeout(() => {
           wx.navigateTo({
@@ -233,6 +235,7 @@ Page({
         showError(e);
       }
     } finally {
+      this.submitting = false;
       this.setData({ submitting: false });
     }
   },

@@ -380,7 +380,7 @@ test('welcome letter shows once then stays dismissed', () => {
   assert.equal(comp.data.show, true);
   assert.deepEqual(tabBar, ['hide']);
   comp.openRules();
-  assert.equal(store.welcomeLetterV1, 1);
+  assert.equal(store.welcomeLetterV2, 1);
   assert.equal(comp.data.show, false);
   assert.deepEqual(navigated, ['/pages/legal/legal?type=community']);
   assert.deepEqual(tabBar, ['hide', 'show']);
@@ -390,6 +390,115 @@ test('welcome letter shows once then stays dismissed', () => {
   Object.assign(other, comp.methods, { lifetimes: comp.lifetimes, pageLifetimes: comp.pageLifetimes });
   other.pageLifetimes.show.call(other);
   assert.equal(other.data.show, false);
+});
+
+test('welcome letter can open feedback', () => {
+  const store = {};
+  const navigated = [];
+  let comp;
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
+    Component: value => { comp = value; },
+    wx: {
+      getStorageSync: key => store[key],
+      setStorageSync: (key, value) => { store[key] = value; },
+      navigateTo: ({ url }) => navigated.push(url),
+      hideTabBar() {},
+      showTabBar() {},
+    },
+  });
+  comp.data = { show: true };
+  comp.setData = patch => Object.assign(comp.data, patch);
+  Object.assign(comp, comp.methods);
+  comp.openFeedback();
+  assert.equal(store.welcomeLetterV2, 1);
+  assert.equal(comp.data.show, false);
+  assert.deepEqual(navigated, ['/pages/feedback/feedback']);
+});
+
+function publishPage() {
+  let page;
+  const app = { globalData: { editingTeamId: null, republishTeam: null } };
+  const calls = [];
+  const now = Date.now();
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/publish/publish.js'), 'utf8'), {
+    Page: value => { page = value; },
+    getApp: () => app,
+    require: (name) => {
+      if (name.endsWith('/constants')) return { PLATFORMS: ['Steam', '手游'], VOICES: ['KOOK', '开麦'], MAX_TEAM_HOURS: 24 };
+      if (name.endsWith('/format')) {
+        return {
+          dateParts: (ts) => {
+            const t = Number(ts) || now;
+            return { date: '2026-09-09', time: t > now + 1800000 ? '22:00' : '21:00' };
+          },
+          combineDateTime: (date, time) => time === '22:00' ? now + 7200000 : now + 3600000,
+          defaultStartAt: () => now + 60000,
+          defaultEndAt: (start) => start + 3600000,
+        };
+      }
+      if (name.endsWith('/cloud')) {
+        return {
+          callTeam: async (type, data) => {
+            calls.push([type, data]);
+            if (type === 'getTeam') {
+              return {
+                team: {
+                  gameName: 'CS2',
+                  startAt: now + 60000,
+                  endAt: now + 7200000,
+                  capacity: 5,
+                  platform: 'Steam',
+                  voice: 'KOOK',
+                  roomNo: '',
+                  roomPwd: '',
+                  server: '',
+                  rankReq: '',
+                  note: '',
+                },
+              };
+            }
+            return { teamId: 'created' };
+          },
+          showError() {},
+        };
+      }
+      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
+      return {};
+    },
+    wx: {
+      showLoading() {},
+      hideLoading() {},
+      showToast() {},
+      navigateTo() {},
+    },
+  });
+  page.setData = (patch) => Object.assign(page.data, patch);
+  return { page, app, calls };
+}
+
+test('editing a team survives a second onShow and updates instead of creating', async () => {
+  const { page, app, calls } = publishPage();
+  app.globalData.editingTeamId = 'team-1';
+  await page.onShow();
+  assert.equal(page.data.editingId, 'team-1');
+  app.globalData.editingTeamId = null;
+  await page.onShow();
+  assert.equal(page.data.editingId, 'team-1');
+  page.data.gameName = 'CS2';
+  await page.onSubmit();
+  assert.deepEqual(calls.map((item) => item[0]), ['getTeam', 'updateTeam']);
+  assert.equal(calls[1][1].teamId, 'team-1');
+  assert.equal(page.data.editingId, '');
+});
+
+test('successful create clears the form so a second submit does not post again', async () => {
+  const { page, calls } = publishPage();
+  page.data.gameName = 'CS2';
+  await page.onSubmit();
+  assert.equal(calls[0][0], 'createTeam');
+  assert.equal(page.data.gameName, '');
+  await page.onSubmit();
+  assert.equal(calls.length, 1);
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {

@@ -1,4 +1,4 @@
-const STORAGE_KEY = "welcomeLetterV1";
+const STORAGE_KEY = "welcomeLetterV2";
 
 function hasReadLetter() {
   try {
@@ -59,6 +59,11 @@ Component({
     openRules() {
       this.dismiss();
       wx.navigateTo({ url: "/pages/legal/legal?type=community" });
+    },
+
+    openFeedback() {
+      this.dismiss();
+      wx.navigateTo({ url: "/pages/feedback/feedback" });
     },
   },
 });
