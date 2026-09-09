@@ -10,9 +10,12 @@
       <view>不发外挂、代练、买卖账号，也不诱导加微信。</view>
       <view>房间号和密码只给这局里的人用。</view>
     </view>
-    <view class="sign">点下面，即表示你愿意遵守社区公约。玩得开心。遇到问题或有想法，随时去「我的 → 意见反馈」告诉我们。</view>
+    <view class="sign">点下面，即表示你愿意遵守社区公约。玩得开心。</view>
     <button class="agree" bindtap="dismiss">好的，开黑去</button>
-    <button class="rules-link" bindtap="openRules">看看社区公约</button>
-    <button class="rules-link" bindtap="openFeedback">去意见反馈</button>
+    <view class="links">
+      <button class="rules-link" bindtap="openRules">社区公约</button>
+      <view class="links-dot">·</view>
+      <button class="rules-link" bindtap="openFeedback">意见反馈</button>
+    </view>
   </view>
 </view>

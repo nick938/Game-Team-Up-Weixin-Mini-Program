@@ -84,9 +84,24 @@ button.agree {
   font-weight: 600;
 }
 
-button.rules-link {
-  width: 100% !important;
+.links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 8rpx;
+}
+
+.links-dot {
+  padding: 0 8rpx;
+  color: #c5c9d6;
+  font-size: 24rpx;
+  line-height: 72rpx;
+}
+
+button.rules-link {
+  width: auto !important;
+  margin: 0;
+  padding: 0 12rpx;
   height: 72rpx;
   line-height: 72rpx;
   background: transparent;
