@@ -9,6 +9,7 @@
 .tags { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 18rpx; }
 .tags text { font-size: 22rpx; padding: 5rpx 12rpx; border-radius: 8rpx; background: #f5f6fa; color: #777e92; word-break: break-all; }
 .tags .soon { color: #21876f; background: #e9f7f3; }
+.tags .started { color: #6255e7; background: #eeecff; }
 .bottom { margin-top: 24rpx; padding-top: 22rpx; border-top: 1rpx solid #f0f1f6; display: flex; align-items: center; flex-wrap: wrap; gap: 12rpx; }
 .count-current { font-size: 44rpx; font-weight: 700; color: #343950; }
 .count-total { font-size: 24rpx; color: #777e92; }

@@ -6,6 +6,7 @@
 .status-recruiting { background: #6255e7; color: #fff; }
 .status-full { color: #21876f; background: #e9f7f3; }
 .soon { font-size: 23rpx; color: #6255e7; }
+.started { font-size: 23rpx; padding: 6rpx 16rpx; border-radius: 10rpx; color: #6255e7; background: #eeecff; }
 .game { margin-top: 22rpx; font-size: 52rpx; font-weight: 700; line-height: 1.3; word-break: break-all; }
 .time { margin-top: 16rpx; font-size: 29rpx; font-weight: 500; color: #535b72; line-height: 1.6; }
 .count { margin-top: 16rpx; font-size: 40rpx; font-weight: 700; }

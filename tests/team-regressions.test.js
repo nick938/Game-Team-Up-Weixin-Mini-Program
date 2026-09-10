@@ -570,6 +570,28 @@ test('feedback keeps the record and returns SMTP auth errors', async () => {
   assert.equal(feedback[0].mailed, false);
 });
 
+test('started teams stay visible but are flagged and sink below upcoming ones', async () => {
+  const now = Date.now();
+  const startedTeam = {
+    _id: 'started', gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting',
+    openid: 'h1', startAt: now - 60000, endAt: now + 3600000,
+  };
+  const upcomingTeam = {
+    _id: 'upcoming', gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting',
+    openid: 'h2', startAt: now + 60000, endAt: now + 7200000,
+  };
+  const ctx = backend({ teams: [startedTeam, upcomingTeam] });
+  assert.equal(ctx.stripSecret(startedTeam, false).started, true);
+  assert.equal(ctx.stripSecret(upcomingTeam, false).started, false);
+  const list = (await ctx.listTeams({}, '')).list;
+  assert.equal(list.length, 2);
+  // 已开始的车仍在列表中，但排在未开始的车后面。
+  assert.deepEqual(list.map((t) => t._id), ['upcoming', 'started']);
+  // 已取消 / 已过期不算「进行中」。
+  assert.equal(ctx.stripSecret({ ...startedTeam, status: 'cancelled' }, false).started, false);
+  assert.equal(ctx.stripSecret({ ...startedTeam, endAt: now - 1 }, false).started, false);
+});
+
 test('app version falls back to local build and labels env', () => {
   let info = { envVersion: 'develop', version: '' };
   const mod = { exports: {} };

@@ -189,8 +189,15 @@ function stripSecret(team, showPwd) {
     copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
   }
   if (copy.voice === "Discord") copy.voice = "KOOK";
-  copy.displayStatus = resolveStatus(team, nowMs());
+  const now = nowMs();
+  copy.displayStatus = resolveStatus(team, now);
   copy.needCount = Math.max(0, (team.capacity || 0) - (team.memberCount || 0));
+  // 已过开始时间、仍在进行中：不隐藏（允许「现在开打」和长局），但标记出来，避免冒充招募中。
+  copy.started =
+    copy.displayStatus !== "expired" &&
+    copy.displayStatus !== "cancelled" &&
+    Number(team.startAt || 0) > 0 &&
+    now >= Number(team.startAt);
   return copy;
 }
 
@@ -1035,7 +1042,9 @@ async function listTeams(event, openid) {
       else if (role) row.mark = "已上车";
       return row;
     });
+  // 未开始的先于已开始的；各自内部缺人先于满员，再按结束时间。已开始的车沉底但仍可见。
   list.sort((a, b) => {
+    if (a.started !== b.started) return a.started ? 1 : -1;
     const ar = a.displayStatus === "recruiting" ? 0 : 1;
     const br = b.displayStatus === "recruiting" ? 0 : 1;
     if (ar !== br) return ar - br;
