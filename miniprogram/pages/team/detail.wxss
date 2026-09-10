@@ -60,3 +60,4 @@ button.public-field { width: 100% !important; margin: 16rpx 0; padding: 20rpx 24
 .public-copy { flex-shrink: 0; font-size: 24rpx; color: #6255e7; }
 .profile-placeholder { padding: 50rpx 8rpx; color: #777e92; font-size: 26rpx; line-height: 1.6; text-align: center; }
 button.profile-retry { margin: 24rpx auto 0; color: #6255e7; font-size: 26rpx; background: #eeecff; }
+.report-entry { margin: 40rpx 0 120rpx; text-align: center; color: #969cb0; font-size: 23rpx; text-decoration: underline; }

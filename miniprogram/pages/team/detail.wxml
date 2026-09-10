@@ -70,6 +70,10 @@
     <button class="btn-ghost" bindtap="goPlaza">回大厅</button>
     <button class="btn-primary" wx:if="{{role === 'host'}}" bindtap="onRepublish">再发一趟</button>
   </view>
+
+  <view class="report-entry" wx:if="{{role !== 'host'}}">
+    <text bindtap="onReport">举报这趟车</text>
+  </view>
 </view>
 
 <view class="empty" wx:elif="{{!loading}}">找不到这趟车</view>
@@ -80,7 +84,6 @@
 <view wx:if="{{showManage && role === 'host'}}" class="manage-mask" bindtap="closeManage" catchtouchmove="stopManageTouch">
   <view class="manage-sheet" catchtap="stopManageTouch">
     <button class="manage-item" data-action="edit" bindtap="onManageAction">编辑组队</button>
-    <button class="manage-item" data-action="republish" bindtap="onManageAction">再发一趟</button>
     <button class="manage-item manage-danger" data-action="cancel" bindtap="onManageAction">散了这趟</button>
     <button class="manage-item manage-dismiss" bindtap="closeManage">取消</button>
   </view>

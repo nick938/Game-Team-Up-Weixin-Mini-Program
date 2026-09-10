@@ -24,7 +24,7 @@ Page({
     joinedPast: [],
     showProfile: false,
     versionText: "",
-
+    isAdmin: false,
   },
 
   onShow() {
@@ -46,10 +46,12 @@ Page({
       if (profile.user) {
         app.globalData.user = profile.user;
       }
+      app.globalData.isAdmin = !!profile.isAdmin;
       const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
       const joined = splitTeams((teams.joined || []).map(decorateTeam));
       this.setData({
         user: profile.user || {},
+        isAdmin: !!profile.isAdmin,
         hostedOngoing: hosted.ongoing,
         hostedPast: hosted.past,
         joinedOngoing: joined.ongoing,
@@ -106,6 +108,16 @@ Page({
 
   openFeedback() {
     wx.navigateTo({ url: "/pages/feedback/feedback" });
+  },
+
+  openBug() {
+    const app = getApp();
+    const errorMsg = encodeURIComponent((app.globalData && app.globalData.lastError) || "");
+    wx.navigateTo({ url: `/pages/bug/bug?page=我的&errorMsg=${errorMsg}` });
+  },
+
+  openAdmin() {
+    wx.navigateTo({ url: "/pages/admin/admin" });
   },
 
   onShareAppMessage() {

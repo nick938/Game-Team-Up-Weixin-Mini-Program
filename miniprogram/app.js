@@ -18,6 +18,16 @@ App({
     });
     this.profileReady = callTeam("getProfile").then((res) => {
       this.globalData.user = res.user;
+      this.globalData.isAdmin = !!res.isAdmin;
     }).catch((err) => console.warn("读取用户资料失败", err.message));
+  },
+
+  // 捕获未处理的前端异常，留给「报个错」页面预填，方便用户一键上报。
+  onError(error) {
+    try {
+      this.globalData.lastError = String(error || "").slice(0, 500);
+    } catch (e) {
+      // 忽略
+    }
   },
 });

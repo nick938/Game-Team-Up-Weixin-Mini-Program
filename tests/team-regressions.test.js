@@ -5,11 +5,11 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
-  const tables = { teams, members, users, feedback };
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
+  const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins };
   const deleted = [];
   const db = {
-    command: { gte: () => ({ and: () => ({}) }), lte: () => ({}) },
+    command: { gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
     collection(name) {
       const rows = tables[name] || (tables[name] = []);
       return {
@@ -254,7 +254,7 @@ test('mine tabs keep hosted/joined and ongoing/history lists separate', () => {
   assert.deepEqual(page.data.visibleTeams, ['h-old']);
 });
 
-test('manage menu is host-only and dispatches selected operation', () => {
+test('manage menu is host-only, drops republish, and dispatches edit/cancel', () => {
   let page;
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
     Page: value => { page = value; }, require: () => ({}),
@@ -267,10 +267,18 @@ test('manage menu is host-only and dispatches selected operation', () => {
   page.onManage();
   assert.equal(page.data.showManage, true);
   let selected;
-  page.onRepublish = () => { selected = 'republish'; };
-  page.onManageAction({ currentTarget: { dataset: { action: 'republish' } } });
-  assert.equal(selected, 'republish');
+  page.onEdit = () => { selected = 'edit'; };
+  page.onCancel = () => { selected = 'cancel'; };
+  let republished = false;
+  page.onRepublish = () => { republished = true; };
+  page.onManageAction({ currentTarget: { dataset: { action: 'edit' } } });
+  assert.equal(selected, 'edit');
   assert.equal(page.data.showManage, false);
+  // 「再发一趟」已从管理菜单移除，不会再被派发。
+  page.data.showManage = true;
+  page.onManageAction({ currentTarget: { dataset: { action: 'republish' } } });
+  assert.equal(republished, false);
+  assert.equal(selected, 'edit');
 });
 
 test('public profile saves string IDs, preserves omitted fields and allows explicit clearing', async () => {
@@ -592,17 +600,21 @@ test('started teams stay visible but are flagged and sink below upcoming ones', 
   assert.equal(ctx.stripSecret({ ...startedTeam, endAt: now - 1 }, false).started, false);
 });
 
-test('app version falls back to local build and labels env', () => {
+test('app version always comes from the build and only the env label varies', () => {
   let info = { envVersion: 'develop', version: '' };
   const mod = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
-    require: () => ({ APP_VERSION: '0.6.0' }),
+    require: () => ({ APP_VERSION: '0.7.0' }),
     module: mod,
     wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
   });
-  assert.equal(mod.exports.getAppVersion().text, 'v0.6.0 · 开发版');
+  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 开发版');
+  assert.equal(mod.exports.getAppVersion().version, '0.7.0');
+  // 正式版忽略后台上传版本号，仍显示代码里的版本，保证开发版/正式版一致。
   info = { envVersion: 'release', version: '1.2.0' };
-  assert.equal(mod.exports.getAppVersion().text, 'v1.2.0');
+  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 正式版');
+  info = { envVersion: 'trial', version: '0.7.0' };
+  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 体验版');
 });
 
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
@@ -774,4 +786,254 @@ test('leaving a cancelled team reports it is dissolved, not merely ended', async
     members: [{ _id: 'm1', teamId: 't', openid: 'host', role: 'host' }, { _id: 'm2', teamId: 't', openid: 'guest', role: 'member' }],
   });
   assert.match((await ctx.leaveTeam({ teamId: 't' }, 'guest')).errMsg, /散了/);
+});
+
+test('createTeam is rate limited after the configured burst', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const teams = [];
+  const ctx = backend({ users, teams });
+  const payload = {
+    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+  };
+  const limit = 8; // RATE_LIMITS.createTeam.max
+  for (let i = 0; i < limit; i += 1) {
+    assert.equal((await ctx.createTeam(payload, 'u')).ok, true);
+  }
+  const blocked = await ctx.createTeam(payload, 'u');
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.errMsg, /频繁/);
+  assert.equal(teams.length, limit);
+});
+
+test('joinTeam is rate limited independently of creates', async () => {
+  const now = Date.now();
+  const limit = 6; // RATE_LIMITS.joinTeam.max
+  // 同一用户短时间内连上多趟车：第 7 次被拦。每个上下文一所独立的车，共享限流记录。
+  const rateLimits = [];
+  const outcomes = [];
+  for (let i = 0; i <= limit; i += 1) {
+    const ctx = backend({
+      users: [{ _id: 'u', nickName: '玩家' }],
+      teams: [{ _id: `t${i}`, gameName: 'CS2', capacity: 5, memberCount: 1, status: 'recruiting', openid: `host${i}`, startAt: now, endAt: now + 3600000 }],
+      members: [],
+      rateLimits,
+    });
+    outcomes.push(await ctx.joinTeam({ teamId: `t${i}` }, 'u'));
+  }
+  assert.equal(outcomes.slice(0, limit).every((r) => r.ok), true);
+  assert.equal(outcomes[limit].ok, false);
+  assert.match(outcomes[limit].errMsg, /频繁/);
+});
+
+test('bug reports are stored, validated and limited', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const reports = [];
+  const ctx = backend({ users, reports });
+  assert.equal((await ctx.submitBug({ page: '大厅', content: '【我做了什么】\n\n【出现了什么】\n' }, 'u')).ok, false);
+  assert.equal((await ctx.submitBug({ page: '', content: '页面点不动' }, 'u')).ok, false);
+  const res = await ctx.submitBug({ page: '发车', content: '发车时时间选不了', errorMsg: 'TypeError', version: '0.7.0' }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].kind, 'bug');
+  assert.equal(reports[0].page, '发车');
+  assert.equal(reports[0].status, 'open');
+  // 3 条/5 分钟：前三次通过，第四次被拦。
+  assert.equal((await ctx.submitBug({ page: '发车', content: '还有一个小问题' }, 'u')).ok, true);
+  assert.equal((await ctx.submitBug({ page: '发车', content: '再来一条补充说明' }, 'u')).ok, true);
+  const blocked = await ctx.submitBug({ page: '发车', content: '这条应该被限流拦下' }, 'u');
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.errMsg, /稍后/);
+});
+
+test('reports require a real target, a valid reason and reject duplicates', async () => {
+  const reports = [];
+  const teams = [{ _id: 't', gameName: 'CS2', openid: 'host', status: 'recruiting', startAt: Date.now(), endAt: Date.now() + 3600000 }];
+  const ctx = backend({ reports, teams });
+  assert.equal((await ctx.submitReport({ targetType: 'team', targetId: 't', reason: '乱写' }, 'u')).ok, false);
+  assert.equal((await ctx.submitReport({ targetType: 'team', targetId: 'missing', reason: '广告营销' }, 'u')).ok, false);
+  const first = await ctx.submitReport({ targetType: 'team', targetId: 't', reason: '广告营销', content: '在群里发广告' }, 'u');
+  assert.equal(first.ok, true);
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].targetName, 'CS2');
+  assert.equal(reports[0].hostOpenid, 'host');
+  const dup = await ctx.submitReport({ targetType: 'team', targetId: 't', reason: '广告营销' }, 'u');
+  assert.equal(dup.ok, false);
+  assert.match(dup.errMsg, /举报过/);
+  assert.equal(reports.length, 1);
+});
+
+test('admin endpoints are gated and expose aggregated stats', async () => {
+  const now = Date.now();
+  const teams = [
+    { _id: 't1', gameName: 'CS2', platform: 'Steam', status: 'recruiting', memberCount: 2, capacity: 5, startAt: now, endAt: now + 3600000, createdAt: now },
+    { _id: 't2', gameName: 'CS2', platform: 'Steam', status: 'full', memberCount: 5, capacity: 5, startAt: now, endAt: now + 3600000, createdAt: now },
+    { _id: 't3', gameName: '永劫无间', platform: '端游', status: 'cancelled', memberCount: 1, capacity: 5, startAt: now, endAt: now + 3600000, createdAt: now },
+  ];
+  const reports = [
+    { _id: 'r1', kind: 'report', status: 'open', createdAt: now },
+    { _id: 'r2', kind: 'bug', status: 'handled', createdAt: now },
+  ];
+  const ctx = backend({ teams, reports, users: [{ _id: 'a', nickName: 'A' }] });
+
+  assert.equal((await ctx.adminOverview('nobody')).ok, false);
+
+  const adminCtx = backend({ teams, reports, users: [{ _id: 'a', nickName: 'A' }], env: { ADMIN_OPENIDS: 'a, b' } });
+  const res = await adminCtx.adminOverview('a');
+  assert.equal(res.ok, true);
+  assert.equal(res.stats.teams.total, 3);
+  assert.equal(res.stats.teams.active, 2);
+  assert.equal(res.stats.teams.recruiting, 1);
+  assert.equal(res.stats.reports.open, 1);
+  assert.equal(res.stats.reports.bug, 1);
+  assert.equal(res.stats.topGames[0].gameName, 'CS2');
+  assert.equal(res.stats.topGames[0].teams, 2);
+  assert.equal(res.stats.trend.length, 7);
+  assert.equal(res.stats.platforms.find((p) => p.platform === 'Steam').count, 2);
+
+  const bugs = await adminCtx.adminReports({ kind: 'bug' }, 'a');
+  assert.equal(bugs.list.length, 1);
+  assert.equal(bugs.list[0]._id, 'r2');
+  const openOnly = await adminCtx.adminReports({ status: 'open' }, 'a');
+  assert.equal(openOnly.list.length, 1);
+  assert.equal(openOnly.list[0]._id, 'r1');
+
+  await adminCtx.adminHandleReport({ reportId: 'r1', status: 'handled' }, 'a');
+  assert.equal(reports.find((r) => r._id === 'r1').status, 'handled');
+  assert.equal((await adminCtx.adminHandleReport({ reportId: 'missing' }, 'a')).ok, false);
+});
+
+test('admin can be granted through the admins collection too', async () => {
+  const ctx = backend({ admins: [{ _id: 'boss' }], teams: [], reports: [] });
+  assert.equal((await ctx.adminOverview('boss')).ok, true);
+  assert.equal((await ctx.adminReports({}, 'not-boss')).ok, false);
+});
+
+test('admin team list returns ongoing teams and force-close cancels a team', async () => {
+  const now = Date.now();
+  const teams = [
+    { _id: 'live', gameName: 'CS2', hostNickName: '车头A', memberCount: 2, capacity: 5, status: 'recruiting', openid: 'h1', startAt: now + 60000, endAt: now + 3600000 },
+    { _id: 'dead', gameName: 'CS2', status: 'cancelled', memberCount: 1, capacity: 5, openid: 'h2', startAt: now, endAt: now + 3600000 },
+    { _id: 'gone', gameName: 'CS2', status: 'recruiting', memberCount: 1, capacity: 5, openid: 'h3', startAt: now - 7200000, endAt: now - 3600000 },
+  ];
+  const members = [
+    { _id: 'm1', teamId: 'live', openid: 'h1', role: 'host' },
+    { _id: 'm2', teamId: 'live', openid: 'guest', role: 'member' },
+  ];
+  const sends = [];
+  const ctx = backend({ teams, members, env: { ADMIN_OPENIDS: 'admin' }, send: async ({ touser }) => { sends.push(touser); } });
+
+  const list = await ctx.adminTeams({}, 'admin');
+  assert.deepEqual(list.list.map((t) => t._id), ['live']);
+  assert.equal((await ctx.adminTeams({}, 'nobody')).ok, false);
+
+  const res = await ctx.adminCancelTeam({ teamId: 'live' }, 'admin');
+  assert.equal(res.ok, true);
+  assert.equal(teams.find((t) => t._id === 'live').status, 'cancelled');
+  assert.equal(teams.find((t) => t._id === 'live').cancelledBy, 'admin');
+  // 管理端关闭会通知车上所有人（含车头）。
+  assert.deepEqual([...sends].sort(), ['guest', 'h1']);
+  assert.equal((await ctx.adminCancelTeam({ teamId: 'live' }, 'admin')).ok, false);
+  assert.equal((await ctx.adminCancelTeam({ teamId: 'gone' }, 'admin')).ok, false);
+});
+
+test('force-closing is admin-only and never bypasses the host on cancelTeam', async () => {
+  const now = Date.now();
+  const teams = [{ _id: 't', gameName: 'CS2', status: 'recruiting', memberCount: 1, capacity: 5, openid: 'host', startAt: now, endAt: now + 3600000 }];
+  const ctx = backend({ teams, env: { ADMIN_OPENIDS: 'admin' } });
+  // 非管理员不能强制关闭。
+  assert.equal((await ctx.adminCancelTeam({ teamId: 't' }, 'host')).ok, false);
+  // 普通 cancelTeam 仍只允许车头。
+  assert.equal((await ctx.cancelTeam({ teamId: 't' }, 'guest')).ok, false);
+  assert.equal(ctx.hostUid(teams[0]), 'host');
+});
+
+test('getProfile reports admin status for the current user', async () => {
+  const users = [{ _id: 'a', _openid: 'a', nickName: 'A' }];
+  const plain = backend({ users });
+  assert.equal((await plain.getProfile('a')).isAdmin, false);
+  const admin = backend({ users, env: { ADMIN_OPENIDS: 'a' } });
+  assert.equal((await admin.getProfile('a')).isAdmin, true);
+});
+
+test('admin can ban and unban a user, with guards for self and admins', async () => {
+  const users = [{ _id: 'trouble', openid: 'trouble', nickName: '捣乱的' }];
+  const ctx = backend({ users, env: { ADMIN_OPENIDS: 'admin, boss' } });
+
+  // 非管理员不能操作。
+  assert.equal((await ctx.adminSetBan({ userId: 'trouble', banned: true }, 'stranger')).ok, false);
+  // 不能封禁自己，也不能封禁管理员。
+  assert.equal((await ctx.adminSetBan({ userId: 'admin', banned: true }, 'admin')).ok, false);
+  assert.equal((await ctx.adminSetBan({ userId: 'boss', banned: true }, 'admin')).ok, false);
+  // 目标不存在（用一个空用户表的上下文验证）。
+  const empty = backend({ users: [], env: { ADMIN_OPENIDS: 'admin' } });
+  assert.equal((await empty.adminSetBan({ userId: 'ghost', banned: true }, 'admin')).ok, false);
+
+  const banned = await ctx.adminSetBan({ userId: 'trouble', banned: true, reason: '刷广告' }, 'admin');
+  assert.equal(banned.ok, true);
+  assert.equal(users[0].banned, true);
+  assert.equal(users[0].banReason, '刷广告');
+  assert.ok(users[0].bannedAt);
+
+  await ctx.adminSetBan({ userId: 'trouble', banned: false }, 'admin');
+  assert.equal(users[0].banned, false);
+  assert.equal(users[0].banReason, '');
+});
+
+test('a banned account cannot write but can still browse', async () => {
+  const now = Date.now();
+  const users = [{ _id: 'bad', openid: 'bad', nickName: '违规用户', banned: true }];
+  const teams = [{ _id: 't', gameName: 'CS2', capacity: 5, memberCount: 1, status: 'recruiting', openid: 'host', startAt: now, endAt: now + 3600000 }];
+  const members = [{ _id: 'm1', teamId: 't', openid: 'host', role: 'host' }];
+  const ctx = backend({ users, teams, members });
+  await assert.rejects(() => ctx.requireProfile('bad'), (e) => e.code === 'BANNED');
+  await assert.rejects(() => ctx.saveProfile({ nickName: '改名' }, 'bad'), (e) => e.code === 'BANNED');
+  await assert.rejects(() => ctx.submitFeedback({ kind: '其他', page: '我的', content: '随便说说' }, 'bad'), (e) => e.code === 'BANNED');
+  await assert.rejects(() => ctx.submitBug({ page: '大厅', content: '页面点不动' }, 'bad'), (e) => e.code === 'BANNED');
+  await assert.rejects(() => ctx.submitReport({ targetType: 'team', targetId: 't', reason: '广告营销' }, 'bad'), (e) => e.code === 'BANNED');
+  // 浏览接口不受影响。
+  assert.equal((await ctx.getTeam({ teamId: 't' }, 'bad')).ok, true);
+  assert.equal((await ctx.listTeams({}, 'bad')).ok, true);
+});
+
+test('admin user list aggregates activity and supports filters', async () => {
+  const now = Date.now();
+  const users = [
+    { _id: 'u1', openid: 'u1', nickName: '小明', banned: false, updatedAt: now },
+    { _id: 'u2', openid: 'u2', nickName: '广告号', banned: true, banReason: '刷广告', updatedAt: now - 1000 },
+  ];
+  const teams = [{ _id: 't1', gameName: 'CS2', status: 'recruiting', memberCount: 2, capacity: 5, openid: 'u1', startAt: now, endAt: now + 3600000 }];
+  const members = [
+    { _id: 'm1', teamId: 't1', openid: 'u1', role: 'host' },
+    { _id: 'm2', teamId: 't1', openid: 'u2', role: 'member' },
+  ];
+  const ctx = backend({ users, teams, members, env: { ADMIN_OPENIDS: 'admin' } });
+
+  assert.equal((await ctx.adminUsers({}, 'nobody')).ok, false);
+  const all = await ctx.adminUsers({}, 'admin');
+  assert.equal(all.total, 2);
+  assert.equal(all.list.find((u) => u._id === 'u1').hosted, 1);
+  assert.equal(all.list.find((u) => u._id === 'u2').joined, 1);
+  // 已封禁的排前面。
+  assert.equal(all.list[0]._id, 'u2');
+  const banned = await ctx.adminUsers({ bannedOnly: true }, 'admin');
+  assert.deepEqual(banned.list.map((u) => u._id), ['u2']);
+  const searched = await ctx.adminUsers({ keyword: '广告' }, 'admin');
+  assert.deepEqual(searched.list.map((u) => u._id), ['u2']);
+});
+
+test('myTeams never returns teams that merely share a partial identity', async () => {
+  const ctx = backend({
+    members: [
+      { _id: 'mine', teamId: 'a', openid: 'me', role: 'member' },
+      { _id: 'theirs', teamId: 'b', _openid: 'someone-else', role: 'member' },
+    ],
+    teams: [
+      { _id: 'a', gameName: 'CS2', status: 'recruiting', memberCount: 2, capacity: 5, openid: 'h1', startAt: Date.now(), endAt: Date.now() + 3600000 },
+      { _id: 'b', gameName: 'DOTA', status: 'recruiting', memberCount: 2, capacity: 5, openid: 'h2', startAt: Date.now(), endAt: Date.now() + 3600000 },
+    ],
+  });
+  const res = await ctx.myTeams('me');
+  assert.equal(res.joined.length, 1);
+  assert.equal(res.joined[0]._id, 'a');
+  assert.equal(res.hosted.length, 0);
 });

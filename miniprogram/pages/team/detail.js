@@ -217,7 +217,7 @@ Page({
 
   onManageAction(e) {
     if (this.data.role !== "host") return;
-    const actions = { edit: "onEdit", republish: "onRepublish", cancel: "onCancel" };
+    const actions = { edit: "onEdit", cancel: "onCancel" };
     const action = actions[e.currentTarget.dataset.action];
     this.closeManage();
     if (action) this[action]();
@@ -269,6 +269,15 @@ Page({
 
   goPlaza() {
     wx.switchTab({ url: "/pages/index/index" });
+  },
+
+  onReport() {
+    const team = this.data.team;
+    if (!team) return;
+    const name = encodeURIComponent(team.gameName || "");
+    wx.navigateTo({
+      url: `/pages/report/report?teamId=${this.data.teamId}&name=${name}`,
+    });
   },
 
   onProfileClose() { this.setData({ showProfile: false, pendingAction: "" }); },

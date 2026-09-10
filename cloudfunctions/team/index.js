@@ -24,6 +24,27 @@ const FEEDBACK_KINDS = ["遇到问题", "功能建议", "体验吐槽", "其他"
 const FEEDBACK_PAGES = ["大厅", "发车", "组队详情", "我的", "其他"];
 const FEEDBACK_MAX = 800;
 const FEEDBACK_COOLDOWN_MS = 2 * 60 * 1000;
+// 举报 / 报错共用 reports 集合，用 kind 区分：report=举报他人他队，bug=用户报错。
+const REPORT_MAX = 500;
+const BUG_MAX = 800;
+const BUG_ERR_MAX = 500;
+const REPORT_REASONS = [
+  "广告营销",
+  "色情低俗",
+  "辱骂骚扰",
+  "虚假信息",
+  "违法违规",
+  "其他",
+];
+// 同一用户对同一目标 24 小时内只记一次举报，避免刷屏。
+const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
+// 防刷：按 (动作 + 用户) 记录时间窗内的调用次数，超限直接拒绝。写库失败不影响主流程。
+const RATE_LIMITS = {
+  createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
+  joinTeam: { windowMs: 60 * 1000, max: 6, message: "上车太频繁，稍等一下再试" },
+  submitReport: { windowMs: 10 * 60 * 1000, max: 5, message: "举报太频繁，请稍后再试" },
+  submitBug: { windowMs: 5 * 60 * 1000, max: 3, message: "刚刚已经收到，请稍后再报" },
+};
 // 头像以 base64 内联进 getTeam 响应；单张上限约 150KB 图片，避免多人时撑爆云函数返回体。
 const AVATAR_BASE64_MAX = 200000;
 
@@ -411,15 +432,17 @@ async function findMembersByOpenid(openid) {
       out.push(m);
     });
   };
+  // 兜底按身份再过滤一次：老数据只有 _openid、新数据只有 openid，查询命中的记录必须真的属于这个人。
+  const mine = (list) => (list || []).filter((m) => memberUid(m) === openid);
   try {
     const a = await db.collection("members").where({ _openid: openid }).get();
-    pushAll(a.data);
+    pushAll(mine(a.data));
   } catch (e) {
     // ignore
   }
   try {
     const b = await db.collection("members").where({ openid }).get();
-    pushAll(b.data);
+    pushAll(mine(b.data));
   } catch (e) {
     // ignore
   }
@@ -428,7 +451,15 @@ async function findMembersByOpenid(openid) {
 
 async function ensureCollections() {
   if (collectionsReady) return;
-  for (const name of ["users", "teams", "members", "feedback"]) {
+  for (const name of [
+    "users",
+    "teams",
+    "members",
+    "feedback",
+    "reports",
+    "rate_limits",
+    "admins",
+  ]) {
     try {
       await db.createCollection(name);
     } catch (e) {
@@ -468,14 +499,111 @@ async function getUser(openid, { strict = false } = {}) {
   }
 }
 
+function bannedError() {
+  const err = new Error("账号已被封禁，只能浏览，不能发车、上车或提交内容");
+  err.code = "BANNED";
+  return err;
+}
+
 async function requireProfile(openid) {
   const user = await getUser(openid);
+  if (user && user.banned) throw bannedError();
   if (!user || !user.nickName) {
     const err = new Error("请先填写头像和昵称");
     err.code = "NEED_PROFILE";
     throw err;
   }
   return user;
+}
+
+// 反馈 / 报错 / 举报不要求先填资料，但同样要挡住被封禁的账号。
+async function requireNotBanned(openid) {
+  const user = await getUser(openid);
+  if (user && user.banned) throw bannedError();
+  return user;
+}
+
+// 防刷：读一份 (动作, 用户) 的时间窗记录，超限返回提示文案，否则返回 null。
+// 用 doc(id) 而不是 where，避免依赖集合索引，也便于本地测试。
+async function readRateHits(openid, action) {
+  const rule = RATE_LIMITS[action];
+  if (!rule || !openid) return { rule: null, hits: [] };
+  const id = `${action}_${openid}`;
+  let hits = [];
+  try {
+    const res = await db.collection("rate_limits").doc(id).get();
+    if (res && res.data && Array.isArray(res.data.hits)) hits = res.data.hits;
+  } catch (e) {
+    // 首次调用没有记录
+  }
+  const now = nowMs();
+  return { rule, hits: hits.filter((t) => now - Number(t) < rule.windowMs) };
+}
+
+async function rateLimitExceeded(openid, action) {
+  const { rule, hits } = await readRateHits(openid, action);
+  if (!rule) return null;
+  if (hits.length >= rule.max) return rule.message || "操作太频繁，请稍后再试";
+  return null;
+}
+
+async function recordAction(openid, action) {
+  const { rule, hits } = await readRateHits(openid, action);
+  if (!rule || !openid) return;
+  const id = `${action}_${openid}`;
+  const next = [...hits, nowMs()];
+  try {
+    await db.collection("rate_limits").doc(id).set({
+      data: { openid, action, hits: next, updatedAt: nowMs() },
+    });
+  } catch (e) {
+    console.error("rate limit write fail", (e && e.message) || e);
+  }
+}
+
+// 管理端身份：优先取环境变量 ADMIN_OPENIDS（逗号分隔），也支持 admins 集合里以 OpenID 为 _id 的记录。
+function adminOpenids() {
+  return readEnv("ADMIN_OPENIDS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function isAdmin(openid) {
+  if (!openid) return false;
+  if (adminOpenids().includes(openid)) return true;
+  try {
+    const res = await db.collection("admins").doc(openid).get();
+    return !!(res && res.data);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function adminGuard(openid) {
+  return (await isAdmin(openid)) ? null : fail("没有管理权限");
+}
+
+async function fetchRecent(name, cap) {
+  try {
+    const res = await db
+      .collection(name)
+      .limit(Math.min(cap || 500, 1000))
+      .get();
+    return res.data || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// 统计按 UTC+8 归日，避免云函数环境时区不一致把今天的车算到昨天。
+function dayKey(ts) {
+  const d = new Date(Number(ts) || 0);
+  const local = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(
+    local.getUTCDate()
+  )}`;
 }
 
 async function getTeamsByIds(ids) {
@@ -612,6 +740,7 @@ async function saveProfile(event, openid) {
   const checked = validatePublicProfile(event);
   if (checked.error) return fail(checked.error);
   const existed = await getUser(openid);
+  if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
   const profileFields = ["gameId", "kookId", "bio", "steamFriendCode"];
   const nickChanged = !existed || existed.nickName !== nickName;
@@ -673,7 +802,7 @@ async function getProfile(openid) {
       user.avatarUrl = withTempAvatar(avatarMap, raw);
     }
   }
-  return ok({ user: user || null });
+  return ok({ user: user || null, isAdmin: await isAdmin(openid) });
 }
 
 function teamVisibleTexts(team) {
@@ -682,6 +811,8 @@ function teamVisibleTexts(team) {
 
 async function createTeam(event, openid) {
   const user = await requireProfile(openid);
+  const limited = await rateLimitExceeded(openid, "createTeam");
+  if (limited) return fail(limited);
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
   const textError = await textSafeError(
@@ -718,6 +849,7 @@ async function createTeam(event, openid) {
     });
   });
 
+  await recordAction(openid, "createTeam");
   return ok({ teamId });
 }
 
@@ -760,6 +892,22 @@ async function updateTeam(event, openid) {
   return ok();
 }
 
+// 散局共用逻辑：标记取消并通知车上除操作者外的人。车头散局和管理端强制关闭都走这里。
+async function dissolveTeam(team, teamId, actorOpenid, extra) {
+  await db.collection("teams").doc(teamId).update({
+    data: { status: "cancelled", ...(extra || {}) },
+  });
+  try {
+    const memRes = await db.collection("members").where({ teamId }).get();
+    const others = (memRes.data || [])
+      .map((m) => memberUid(m))
+      .filter((id) => id && id !== actorOpenid);
+    await notifyMany(others, teamId, team, "这趟已经散了");
+  } catch (e) {
+    // 通知失败不影响散局
+  }
+}
+
 async function cancelTeam(event, openid) {
   const teamId = event.teamId;
   const teamRes = await db.collection("teams").doc(teamId).get();
@@ -771,25 +919,150 @@ async function cancelTeam(event, openid) {
   if (team.status === "cancelled") return fail("已经散了");
   if (nowMs() >= teamEndAt(team)) return fail("已经结束，不用散");
 
-  await db.collection("teams").doc(teamId).update({
-    data: { status: "cancelled" },
-  });
-  try {
-    const memRes = await db.collection("members").where({ teamId }).get();
-    const others = (memRes.data || [])
-      .map((m) => memberUid(m))
-      .filter((id) => id && id !== openid);
-    await notifyMany(others, teamId, team, "这趟已经散了");
-  } catch (e) {
-    // 通知失败不影响散局
-  }
+  await dissolveTeam(team, teamId, openid);
   return ok();
+}
+
+// 管理端强制关闭：管理员可关任意进行中的队伍，不受车头身份限制。
+async function adminCancelTeam(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const teamId = trim(event.teamId, 80);
+  if (!teamId) return fail("缺少队伍");
+  let team = null;
+  try {
+    team = (await db.collection("teams").doc(teamId).get()).data;
+  } catch (e) {
+    team = null;
+  }
+  if (!teamExists(team)) return fail("队伍不存在");
+  if (team.status === "cancelled") return fail("已经散了");
+  if (nowMs() >= teamEndAt(team)) return fail("已经结束，不用散");
+  // 通知车上所有人（含车头），因为关闭动作来自管理端而非车头本人。
+  await dissolveTeam(team, teamId, "", {
+    cancelledBy: "admin",
+    cancelledAt: nowMs(),
+  });
+  return ok();
+}
+
+// 管理端用户列表：默认按昵称/OpenID 搜，可只看已封禁。聚合每人的发车数与上车数。
+async function adminUsers(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const keyword = trim(event.keyword, 40).toLowerCase();
+  const bannedOnly = !!event.bannedOnly;
+  const [users, teams, members] = await Promise.all([
+    fetchRecent("users", 1000),
+    fetchRecent("teams", 1000),
+    fetchRecent("members", 1000),
+  ]);
+  const hostCount = {};
+  teams.forEach((t) => {
+    const uid = hostUid(t);
+    if (uid) hostCount[uid] = (hostCount[uid] || 0) + 1;
+  });
+  const joinCount = {};
+  members.forEach((m) => {
+    const uid = memberUid(m);
+    if (uid) joinCount[uid] = (joinCount[uid] || 0) + 1;
+  });
+  const list = users
+    .map((u) => ({
+      _id: u._id,
+      openid: u._id,
+      nickName: u.nickName || "未填写昵称",
+      banned: !!u.banned,
+      banReason: u.banReason || "",
+      bannedAt: u.bannedAt || 0,
+      hosted: hostCount[u._id] || 0,
+      joined: joinCount[u._id] || 0,
+      updatedAt: u.updatedAt || 0,
+    }))
+    .filter((u) => !bannedOnly || u.banned)
+    .filter(
+      (u) =>
+        !keyword ||
+        u.nickName.toLowerCase().includes(keyword) ||
+        u.openid.toLowerCase().includes(keyword)
+    )
+    .sort((a, b) => {
+      if (a.banned !== b.banned) return a.banned ? -1 : 1;
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+  return ok({ list: list.slice(0, 200), total: users.length });
+}
+
+// 封禁 / 解封。封禁只影响写操作，浏览仍然可用，避免彻底锁死账号。
+async function adminSetBan(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const target = trim(event.userId, 60) || trim(event.targetOpenid, 60);
+  if (!target) return fail("缺少用户");
+  if (target === openid) return fail("不能封禁自己");
+  if (adminOpenids().includes(target)) return fail("不能封禁管理员");
+  const banned = !!event.banned;
+  const reason = trim(event.reason, 100);
+  let existed = null;
+  try {
+    existed = (await db.collection("users").doc(target).get()).data;
+  } catch (e) {
+    existed = null;
+  }
+  if (!existed) {
+    const found = await getUser(target);
+    if (!found) return fail("用户不存在");
+    existed = found;
+  }
+  await db.collection("users").doc(target).update({
+    data: {
+      banned,
+      banReason: banned ? reason : "",
+      bannedAt: banned ? nowMs() : 0,
+      updatedAt: nowMs(),
+    },
+  });
+  return ok({ banned });
+}
+
+// 管理端组队列表：只列进行中的，供管理员定位并强制关闭。
+async function adminTeams(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const now = nowMs();
+  const teams = await fetchRecent("teams", 1000);
+  const filterStatus = event.status === "recruiting" ? "recruiting" : "";
+  const list = teams
+    .filter((t) => isOngoing(t, now) && (!filterStatus || resolveStatus(t, now) === filterStatus))
+    .map((t) => ({
+      _id: t._id,
+      gameName: t.gameName || "未命名",
+      hostNickName: t.hostNickName || "车头",
+      memberCount: t.memberCount || 0,
+      capacity: t.capacity || 0,
+      displayStatus: resolveStatus(t, now),
+      started: Number(t.startAt || 0) > 0 && now >= Number(t.startAt),
+      startAt: t.startAt || 0,
+      endAt: teamEndAt(t),
+      platform: t.platform || "",
+      createdAt: t.createdAt || 0,
+    }))
+    .sort((a, b) => {
+      if (a.started !== b.started) return a.started ? 1 : -1;
+      const ar = a.displayStatus === "recruiting" ? 0 : 1;
+      const br = b.displayStatus === "recruiting" ? 0 : 1;
+      if (ar !== br) return ar - br;
+      return a.endAt - b.endAt;
+    });
+  return ok({ list: list.slice(0, 200) });
 }
 
 async function joinTeam(event, openid) {
   const user = await requireProfile(openid);
   const teamId = event.teamId;
   if (!teamId) return fail("缺少队伍");
+  const limited = await rateLimitExceeded(openid, "joinTeam");
+  if (limited) return fail(limited);
   try {
     const peek = await db.collection("teams").doc(teamId).get();
     if (peek.data && (await isTeamHost(peek.data, openid, teamId))) {
@@ -838,6 +1111,7 @@ async function joinTeam(event, openid) {
     return fail(e.message || "上车失败");
   }
   // 不再发送「有人上车 / 人齐了」：一次性订阅每局只保证一条，额度留给开打提醒。
+  await recordAction(openid, "joinTeam");
   return ok();
 }
 
@@ -1173,6 +1447,7 @@ async function sendFeedbackMail({ kind, page, content, nickName, version, envVer
 }
 
 async function submitFeedback(event, openid) {
+  await requireNotBanned(openid);
   const kind = FEEDBACK_KINDS.includes(event.kind) ? event.kind : "";
   const page = FEEDBACK_PAGES.includes(event.page) ? event.page : "";
   const content = trim(event.content, FEEDBACK_MAX);
@@ -1227,6 +1502,269 @@ async function submitFeedback(event, openid) {
   return ok({ mailed: payload.mailed, mailError: payload.mailError });
 }
 
+// 用户报错：记录页面、现象、错误信息与版本，供管理端排查。同样过内容安全检测与限流。
+async function submitBug(event, openid) {
+  await requireNotBanned(openid);
+  const page = FEEDBACK_PAGES.includes(event.page) ? event.page : "";
+  const content = trim(event.content, BUG_MAX);
+  const errorMsg = trim(event.errorMsg, BUG_ERR_MAX);
+  const systemInfo = trim(event.systemInfo, 200);
+  const version = trim(event.version, 20);
+  const envVersion = trim(event.envVersion, 20);
+  if (!page) return fail("请选择出问题的页面");
+  // 前端预填了模板，剔除模板标题后再判断是否真的写了内容。
+  const filled = content
+    .replace(/【我做了什么】/g, "")
+    .replace(/【出现了什么】/g, "")
+    .replace(/\s/g, "");
+  if (filled.length < 4) return fail("请简单说说发生了什么");
+  if (BAD.test(`${content}${errorMsg}`)) return fail("内容包含不允许提交的信息");
+  const textError = await textSafeError(
+    openid,
+    [content, errorMsg],
+    "内容包含不允许提交的信息"
+  );
+  if (textError) return fail(textError);
+  const limited = await rateLimitExceeded(openid, "submitBug");
+  if (limited) return fail(limited);
+
+  const user = await getUser(openid);
+  await db.collection("reports").add({
+    data: {
+      openid,
+      _openid: openid,
+      kind: "bug",
+      page,
+      content,
+      errorMsg,
+      systemInfo,
+      nickName: (user && user.nickName) || "",
+      version,
+      envVersion,
+      status: "open",
+      createdAt: nowMs(),
+      handledAt: 0,
+    },
+  });
+  await recordAction(openid, "submitBug");
+  return ok();
+}
+
+// 举报：目前只支持举报队伍。校验目标存在、理由合法、24 小时内不重复举报同一目标。
+async function submitReport(event, openid) {
+  await requireNotBanned(openid);
+  const targetType = event.targetType === "team" ? "team" : "";
+  const targetId = trim(event.targetId, 60);
+  const reason = REPORT_REASONS.includes(event.reason) ? event.reason : "";
+  const content = trim(event.content, REPORT_MAX);
+  const version = trim(event.version, 20);
+  const envVersion = trim(event.envVersion, 20);
+  if (!targetType || !targetId) return fail("缺少举报对象");
+  if (!reason) return fail("请选择举报理由");
+  if (BAD.test(content)) return fail("内容包含不允许提交的信息");
+
+  let targetName = "";
+  let hostOpenid = "";
+  if (targetType === "team") {
+    let team = null;
+    try {
+      team = (await db.collection("teams").doc(targetId).get()).data;
+    } catch (e) {
+      team = null;
+    }
+    if (!teamExists(team)) return fail("举报对象不存在或已结束");
+    targetName = trim(team.gameName, 60);
+    hostOpenid = hostUid(team);
+  }
+
+  const textError = await textSafeError(openid, [content], "内容包含不允许提交的信息");
+  if (textError) return fail(textError);
+  const limited = await rateLimitExceeded(openid, "submitReport");
+  if (limited) return fail(limited);
+
+  try {
+    const mine = await db.collection("reports").where({ _openid: openid }).get();
+    const dup = (mine.data || []).some(
+      (r) =>
+        r._openid === openid &&
+        r.kind === "report" &&
+        r.targetId === targetId &&
+        nowMs() - Number(r.createdAt || 0) < REPORT_DUPLICATE_MS
+    );
+    if (dup) return fail("你已经举报过这趟了，我们会尽快处理");
+  } catch (e) {
+    // 集合尚未就绪时继续
+  }
+
+  const user = await getUser(openid);
+  await db.collection("reports").add({
+    data: {
+      openid,
+      _openid: openid,
+      kind: "report",
+      targetType,
+      targetId,
+      targetName,
+      hostOpenid,
+      reason,
+      content,
+      nickName: (user && user.nickName) || "",
+      version,
+      envVersion,
+      status: "open",
+      createdAt: nowMs(),
+      handledAt: 0,
+    },
+  });
+  await recordAction(openid, "submitReport");
+  return ok();
+}
+
+// 管理端数据统计：总量、进行中、举报/报错/反馈待办、游戏活跃度排行、平台分布与 7 天发车趋势。
+async function adminOverview(openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const now = nowMs();
+  const [teams, users, members, reports, feedback] = await Promise.all([
+    fetchRecent("teams", 1000),
+    fetchRecent("users", 1000),
+    fetchRecent("members", 1000),
+    fetchRecent("reports", 1000),
+    fetchRecent("feedback", 1000),
+  ]);
+
+  const nameOf = (t) => (t && t.gameName ? String(t.gameName).trim() : "") || "未命名";
+  const gameMap = {};
+  teams.forEach((t) => {
+    const name = nameOf(t);
+    const row = gameMap[name] || (gameMap[name] = { gameName: name, teams: 0, active: 0, members: 0 });
+    row.teams += 1;
+    if (isOngoing(t, now)) row.active += 1;
+  });
+  const teamGame = {};
+  teams.forEach((t) => {
+    teamGame[t._id] = nameOf(t);
+  });
+  members.forEach((m) => {
+    const name = teamGame[m.teamId];
+    if (name && gameMap[name]) gameMap[name].members += 1;
+  });
+  const topGames = Object.values(gameMap)
+    .map((g) => ({
+      ...g,
+      // 活跃度打分：进行中权重最高，其次总场次，再次乘客数。
+      score: g.active * 3 + g.teams + Math.round(g.members / 2),
+    }))
+    .sort(
+      (a, b) =>
+        b.score - a.score || b.active - a.active || b.teams - a.teams
+    )
+    .slice(0, 10);
+
+  const platformMap = {};
+  teams.forEach((t) => {
+    const p = t.platform || "未填";
+    platformMap[p] = (platformMap[p] || 0) + 1;
+  });
+  const platforms = Object.entries(platformMap)
+    .map(([platform, count]) => ({ platform, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const trend = [];
+  const dayMs = 24 * 60 * 60 * 1000;
+  for (let i = 6; i >= 0; i -= 1) {
+    const key = dayKey(now - i * dayMs);
+    trend.push({
+      date: key.slice(5),
+      count: teams.filter((t) => dayKey(t.createdAt) === key).length,
+    });
+  }
+
+  const stats = {
+    teams: {
+      total: teams.length,
+      active: teams.filter((t) => isOngoing(t, now)).length,
+      recruiting: teams.filter((t) => resolveStatus(t, now) === "recruiting").length,
+      full: teams.filter((t) => resolveStatus(t, now) === "full").length,
+      cancelled: teams.filter((t) => t.status === "cancelled").length,
+      expired: teams.filter((t) => resolveStatus(t, now) === "expired").length,
+    },
+    users: { total: users.length, profiled: users.filter((u) => u.nickName).length },
+    members: { total: members.length },
+    reports: {
+      total: reports.length,
+      open: reports.filter((r) => r.status !== "handled").length,
+      bug: reports.filter((r) => r.kind === "bug").length,
+      report: reports.filter((r) => r.kind === "report").length,
+    },
+    feedback: {
+      total: feedback.length,
+      open: feedback.filter((f) => f.status !== "handled").length,
+    },
+    topGames,
+    platforms,
+    trend,
+    generatedAt: now,
+  };
+  return ok({ stats });
+}
+
+async function adminReports(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const kind = event.kind === "bug" ? "bug" : event.kind === "report" ? "report" : "";
+  let list = await fetchRecent("reports", 500);
+  if (kind) list = list.filter((r) => r.kind === kind);
+  if (event.status === "open") list = list.filter((r) => r.status !== "handled");
+  list.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  return ok({ list: list.slice(0, 200) });
+}
+
+async function adminHandleReport(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const id = trim(event.reportId, 80);
+  if (!id) return fail("缺少记录");
+  const status = event.status === "open" ? "open" : "handled";
+  try {
+    const doc = (await db.collection("reports").doc(id).get()).data;
+    if (!doc) return fail("记录不存在");
+    await db.collection("reports").doc(id).update({
+      data: { status, handledAt: status === "handled" ? nowMs() : 0 },
+    });
+  } catch (e) {
+    return fail("记录不存在");
+  }
+  return ok({ status });
+}
+
+async function adminFeedback(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  let list = await fetchRecent("feedback", 500);
+  if (event.status === "open") list = list.filter((f) => f.status !== "handled");
+  list.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  return ok({ list: list.slice(0, 200) });
+}
+
+async function adminHandleFeedback(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const id = trim(event.feedbackId, 80);
+  if (!id) return fail("缺少记录");
+  const status = event.status === "open" ? "open" : "handled";
+  try {
+    const doc = (await db.collection("feedback").doc(id).get()).data;
+    if (!doc) return fail("记录不存在");
+    await db.collection("feedback").doc(id).update({
+      data: { status, handledAt: status === "handled" ? nowMs() : 0 },
+    });
+  } catch (e) {
+    return fail("记录不存在");
+  }
+  return ok({ status });
+}
+
 exports.main = async (event) => {
   try {
     await ensureCollections();
@@ -1259,12 +1797,34 @@ exports.main = async (event) => {
         return await myTeams(openid);
       case "submitFeedback":
         return await submitFeedback(event, openid);
+      case "submitBug":
+        return await submitBug(event, openid);
+      case "submitReport":
+        return await submitReport(event, openid);
+      case "adminOverview":
+        return await adminOverview(openid);
+      case "adminReports":
+        return await adminReports(event, openid);
+      case "adminTeams":
+        return await adminTeams(event, openid);
+      case "adminUsers":
+        return await adminUsers(event, openid);
+      case "adminSetBan":
+        return await adminSetBan(event, openid);
+      case "adminCancelTeam":
+        return await adminCancelTeam(event, openid);
+      case "adminHandleReport":
+        return await adminHandleReport(event, openid);
+      case "adminFeedback":
+        return await adminFeedback(event, openid);
+      case "adminHandleFeedback":
+        return await adminHandleFeedback(event, openid);
       default:
         return fail("未知操作");
     }
   } catch (e) {
-    if (e.code === "NEED_PROFILE") {
-      return { ok: false, errMsg: e.message, code: "NEED_PROFILE" };
+    if (e.code === "NEED_PROFILE" || e.code === "BANNED") {
+      return { ok: false, errMsg: e.message, code: e.code };
     }
     return fail(e.message || "服务异常");
   }

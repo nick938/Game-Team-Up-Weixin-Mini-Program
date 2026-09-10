@@ -1,0 +1,140 @@
+<view class="page">
+  <view class="page-heading">管理端</view>
+  <view class="page-caption">数据概览、举报与报错处理、意见反馈。仅管理员可见。</view>
+
+  <view class="denied" wx:if="{{denied}}">
+    <view>你没有管理权限。</view>
+    <view class="denied-sub">请联系开发者把你的 OpenID 加入 admins 集合或 ADMIN_OPENIDS。</view>
+  </view>
+
+  <block wx:else>
+    <scroll-view class="tabs" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="tabs-inner">
+        <button size="mini" class="tab {{tab === 'overview' ? 'tab-active' : ''}}" data-tab="overview" bindtap="pickTab">概览</button>
+        <button size="mini" class="tab {{tab === 'teams' ? 'tab-active' : ''}}" data-tab="teams" bindtap="pickTab">组队</button>
+        <button size="mini" class="tab {{tab === 'users' ? 'tab-active' : ''}}" data-tab="users" bindtap="pickTab">用户</button>
+        <button size="mini" class="tab {{tab === 'report' ? 'tab-active' : ''}}" data-tab="report" bindtap="pickTab">举报</button>
+        <button size="mini" class="tab {{tab === 'bug' ? 'tab-active' : ''}}" data-tab="bug" bindtap="pickTab">报错</button>
+        <button size="mini" class="tab {{tab === 'feedback' ? 'tab-active' : ''}}" data-tab="feedback" bindtap="pickTab">反馈</button>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{loading}}" class="empty">加载中…</view>
+
+    <!-- 概览 -->
+    <block wx:elif="{{tab === 'overview' && stats}}">
+      <view class="stat-grid">
+        <view class="stat-card"><view class="stat-num">{{stats.teams.total}}</view><view class="stat-label">累计组队</view></view>
+        <view class="stat-card"><view class="stat-num">{{stats.teams.active}}</view><view class="stat-label">进行中</view></view>
+        <view class="stat-card"><view class="stat-num">{{stats.teams.recruiting}}</view><view class="stat-label">缺人中</view></view>
+        <view class="stat-card"><view class="stat-num">{{stats.teams.full}}</view><view class="stat-label">满员中</view></view>
+        <view class="stat-card"><view class="stat-num">{{stats.users.total}}</view><view class="stat-label">用户数</view></view>
+        <view class="stat-card"><view class="stat-num">{{stats.members.total}}</view><view class="stat-label">上车人次</view></view>
+        <view class="stat-card {{stats.reports.open ? 'stat-warn' : ''}}"><view class="stat-num">{{stats.reports.open}}</view><view class="stat-label">待处理举报/报错</view></view>
+        <view class="stat-card {{stats.feedback.open ? 'stat-warn' : ''}}"><view class="stat-num">{{stats.feedback.open}}</view><view class="stat-label">待处理反馈</view></view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">最活跃的游戏</view>
+        <view class="card-sub">按进行中场次、总场次与上车人次综合排序</view>
+        <view wx:if="{{!stats.topGames.length}}" class="card-empty">还没有数据</view>
+        <view class="bar-row" wx:for="{{stats.topGames}}" wx:key="gameName">
+          <view class="bar-head"><text class="bar-name">{{item.gameName}}</text><text class="bar-val">{{item.active}} 进行中 · 共 {{item.teams}} 场</text></view>
+          <view class="bar-track"><view class="bar-fill" style="width: {{item.pct}}%"></view></view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">平台分布</view>
+        <view wx:if="{{!stats.platforms.length}}" class="card-empty">还没有数据</view>
+        <view class="bar-row" wx:for="{{stats.platforms}}" wx:key="platform">
+          <view class="bar-head"><text class="bar-name">{{item.platform}}</text><text class="bar-val">{{item.count}}</text></view>
+          <view class="bar-track"><view class="bar-fill alt" style="width: {{item.pct}}%"></view></view>
+        </view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">近 7 天发车</view>
+        <view class="trend">
+          <view class="trend-col" wx:for="{{stats.trend}}" wx:key="date">
+            <view class="trend-bar-wrap"><view class="trend-bar" style="height: {{item.pct}}%"></view></view>
+            <view class="trend-count">{{item.count}}</view>
+            <view class="trend-date">{{item.date}}</view>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 进行中的组队：可强制关闭 -->
+    <block wx:elif="{{tab === 'teams'}}">
+      <view class="list-toolbar">
+        <text class="toolbar-count">进行中 {{list.length}} 趟</text>
+      </view>
+      <view wx:if="{{!list.length}}" class="empty">当前没有进行中的组队</view>
+      <view class="team-record card" wx:for="{{list}}" wx:key="_id">
+        <view class="team-record-head">
+          <view class="team-game">{{item.gameName}}</view>
+          <view class="team-status status-{{item.displayStatus}}">{{item.statusText}}</view>
+        </view>
+        <view class="team-meta">
+          <text>{{item.memberCount}}/{{item.capacity}} 人</text>
+          <text>车头：{{item.hostNickName}}</text>
+          <text wx:if="{{item.platform}}">{{item.platform}}</text>
+          <text>{{item.timeText}} 开打</text>
+          <text wx:if="{{item.started}}" class="team-started">已开始</text>
+        </view>
+        <button class="btn-ghost team-close" data-id="{{item._id}}" data-name="{{item.gameName}}" bindtap="onCloseTeam">强制关闭</button>
+      </view>
+    </block>
+
+    <!-- 用户：搜索、封禁 / 解封 -->
+    <block wx:elif="{{tab === 'users'}}">
+      <view class="user-toolbar">
+        <input class="user-search" value="{{userKeyword}}" placeholder="搜昵称或 OpenID" bindinput="onUserSearch" />
+        <view class="toolbar-filter" bindtap="toggleBannedOnly">{{bannedOnly ? '只看已封禁' : '全部用户'}} ⇄</view>
+      </view>
+      <view class="list-toolbar"><text class="toolbar-count">共 {{userTotal}} 人 · 显示 {{list.length}} 人</text></view>
+      <view wx:if="{{!list.length}}" class="empty">没有符合条件的用户</view>
+      <view class="user-record card {{item.banned ? 'user-banned' : ''}}" wx:for="{{list}}" wx:key="_id">
+        <view class="user-head">
+          <view class="user-name">{{item.nickName}}</view>
+          <view class="user-state" wx:if="{{item.banned}}">已封禁</view>
+        </view>
+        <view class="user-openid">{{item.openid}}</view>
+        <view class="user-meta">
+          <text>发车 {{item.hosted}}</text>
+          <text>上车 {{item.joined}}</text>
+          <text wx:if="{{item.banReason}}" class="user-reason">原因：{{item.banReason}}</text>
+        </view>
+        <button wx:if="{{!item.banned}}" class="btn-ghost user-ban" data-id="{{item._id}}" data-name="{{item.nickName}}" bindtap="onBan">封禁</button>
+        <button wx:else class="btn-ghost user-unban" data-id="{{item._id}}" data-name="{{item.nickName}}" bindtap="onUnban">解封</button>
+      </view>
+    </block>
+
+    <!-- 列表：举报 / 报错 / 反馈 -->
+    <block wx:elif="{{tab !== 'overview'}}">
+      <view class="list-toolbar">
+        <text class="toolbar-count">{{list.length}} 条</text>
+        <view class="toolbar-filter" bindtap="toggleOpen">{{onlyOpen ? '只看未处理' : '全部记录'}} ⇄</view>
+      </view>
+      <view wx:if="{{!list.length}}" class="empty">暂时没有记录</view>
+      <view class="record card {{item.handled ? 'record-done' : ''}}" wx:for="{{list}}" wx:key="_id">
+        <view class="record-head">
+          <view class="record-tag">{{item.tag}}</view>
+          <text class="record-time">{{item.timeText}}</text>
+        </view>
+        <view class="record-body">{{item.content || '（无补充说明）'}}</view>
+        <view class="record-error" wx:if="{{item.errorMsg}}">报错：{{item.errorMsg}}</view>
+        <view class="record-meta">
+          <text wx:if="{{item.targetName}}">对象：{{item.targetName}}</text>
+          <text wx:if="{{item.kind === 'report' && item.hostOpenid}}">车头：{{item.hostOpenid}}</text>
+          <text wx:if="{{item.page}}">页面：{{item.page}}</text>
+          <text wx:if="{{item.nickName}}">用户：{{item.nickName}}</text>
+          <text wx:if="{{item.version}}">版本：{{item.version}}</text>
+          <text wx:if="{{item.systemInfo}}">{{item.systemInfo}}</text>
+        </view>
+        <button class="btn-ghost record-btn" data-id="{{item._id}}" data-handled="{{item.handled}}" bindtap="onHandle">{{item.handled ? '重新打开' : '标记已处理'}}</button>
+      </view>
+    </block>
+  </block>
+</view>

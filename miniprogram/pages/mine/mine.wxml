@@ -21,7 +21,11 @@
     <text class="dot">·</text>
     <text data-type="community" bindtap="openLegal">社区公约</text>
   </view>
-  <button class="feedback-link" bindtap="openFeedback">意见反馈</button>
+  <view class="support-links">
+    <button class="report-link" bindtap="openFeedback">意见反馈</button>
+    <button class="report-link" bindtap="openBug">报个错</button>
+  </view>
+  <button wx:if="{{isAdmin}}" class="admin-link" bindtap="openAdmin">管理端</button>
   <view class="version">{{versionText}}</view>
 
   <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />

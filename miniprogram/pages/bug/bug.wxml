@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="page-heading">报个错</view>
+  <view class="page-caption">用着不顺手、页面报错、数据不对？按模板说清楚，我们会尽快排查。</view>
+
+  <view class="form">
+    <view class="label">出问题的页面</view>
+    <view class="games">
+      <view
+        class="game {{pageName === item ? 'game-on' : ''}}"
+        wx:for="{{pages}}"
+        wx:key="*this"
+        data-name="{{item}}"
+        bindtap="pickPage"
+      >{{item}}</view>
+    </view>
+
+    <view class="label">发生了什么</view>
+    <textarea
+      class="area"
+      maxlength="800"
+      value="{{content}}"
+      bindinput="onContent"
+      placeholder="按模板填写"
+    />
+    <view class="hint">已经填好模板，直接在空行里写就行。</view>
+
+    <view class="label">报错信息（选填）</view>
+    <textarea
+      class="area area-sm"
+      maxlength="500"
+      value="{{errorMsg}}"
+      bindinput="onErrorMsg"
+      placeholder="如果看到一串错误提示，可以贴在这里"
+    />
+
+    <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">提交报错</button>
+  </view>
+</view>

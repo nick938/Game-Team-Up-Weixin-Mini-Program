@@ -18,5 +18,7 @@ button.phase { width: auto; min-width: 0; font-size: 24rpx; padding: 12rpx 20rpx
 .legal { margin-top: 36rpx; text-align: center; color: #858ba0; font-size: 23rpx; }
 .legal text { display: inline-block; padding: 20rpx 0; }
 .dot { margin: 0 16rpx; }
-button.feedback-link { margin-top: 8rpx; font-size: 23rpx; color: #6255e7; }
+.support-links { margin-top: 8rpx; text-align: center; }
+button.report-link { width: auto; min-width: 0; display: inline-block; margin: 0 14rpx; font-size: 23rpx; color: #6255e7; }
+button.admin-link { width: auto; min-width: 0; display: block; margin: 18rpx auto 0; padding: 14rpx 28rpx; font-size: 24rpx; font-weight: 600; color: #5549c7; background: #eceafa; border-radius: 16rpx; }
 .version { margin-top: 8rpx; text-align: center; font-size: 22rpx; color: #a0a6b8; }

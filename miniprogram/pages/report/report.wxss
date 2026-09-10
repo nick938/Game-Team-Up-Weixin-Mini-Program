@@ -1,0 +1,13 @@
+.page-heading { font-size: 44rpx; font-weight: 700; letter-spacing: -1rpx; line-height: 1.35; }
+.page-caption { margin-top: 10rpx; font-size: 26rpx; color: #777e92; line-height: 1.6; }
+.target { margin-top: 28rpx; padding: 24rpx 28rpx; }
+.target-label { font-size: 23rpx; color: #858ba0; }
+.target-name { margin-top: 8rpx; font-size: 32rpx; font-weight: 600; word-break: break-all; }
+.form { margin-top: 24rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 28rpx; padding: 4rpx 28rpx 28rpx; }
+.label { margin: 28rpx 0 14rpx; color: #535b72; font-size: 25rpx; font-weight: 600; }
+.area { width: 100%; min-height: 220rpx; padding: 20rpx; line-height: 1.7; border: 1rpx solid #e9ebf3; background: #f7f8fc; border-radius: 16rpx; box-sizing: border-box; font-size: 28rpx; color: #202438; }
+.games { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.game { padding: 15rpx 23rpx; background: #f5f6fa; color: #697188; border-radius: 14rpx; font-size: 25rpx; }
+.game-on { background: #feecef; color: #c54d69; box-shadow: inset 0 0 0 1rpx #f3c3ce; }
+.hint { margin-top: 12rpx; font-size: 23rpx; color: #858ba0; }
+.submit { margin-top: 32rpx; }

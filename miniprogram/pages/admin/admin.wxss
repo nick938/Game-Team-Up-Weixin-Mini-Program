@@ -1,0 +1,63 @@
+.denied { margin-top: 60rpx; text-align: center; color: #777e92; font-size: 28rpx; line-height: 1.8; }
+.denied-sub { font-size: 23rpx; color: #a0a6b8; margin-top: 10rpx; }
+.tabs { margin: 28rpx 0 8rpx; border-bottom: 1rpx solid #e5e8f1; white-space: nowrap; }
+.tabs-inner { display: inline-flex; gap: 24rpx; }
+button.tab { width: auto; min-width: 0; padding: 0 0 20rpx; color: #858ba0; font-size: 30rpx; font-weight: 600; }
+.tab-active { color: #202438; border-bottom: 5rpx solid #6255e7; }
+.stat-grid { display: flex; flex-wrap: wrap; gap: 18rpx; margin-top: 24rpx; }
+.stat-card { flex: 1 1 calc(25% - 18rpx); min-width: 150rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 22rpx; padding: 22rpx 18rpx; }
+.stat-warn { background: #fff5f6; border-color: #f3c3ce; }
+.stat-num { font-size: 42rpx; font-weight: 700; line-height: 1.2; }
+.stat-warn .stat-num { color: #c54d69; }
+.stat-label { margin-top: 6rpx; font-size: 22rpx; color: #777e92; }
+.card { margin-top: 24rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 26rpx; padding: 26rpx 28rpx; }
+.card-title { font-size: 30rpx; font-weight: 700; }
+.card-sub { margin-top: 6rpx; font-size: 22rpx; color: #a0a6b8; }
+.card-empty { padding: 40rpx 0; text-align: center; color: #a0a6b8; font-size: 24rpx; }
+.bar-row { margin-top: 24rpx; }
+.bar-head { display: flex; align-items: baseline; justify-content: space-between; }
+.bar-name { font-size: 26rpx; font-weight: 600; word-break: break-all; }
+.bar-val { font-size: 22rpx; color: #858ba0; flex-shrink: 0; margin-left: 16rpx; }
+.bar-track { margin-top: 10rpx; height: 16rpx; background: #f0f1f6; border-radius: 8rpx; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 8rpx; background: linear-gradient(90deg, #7d72f0, #6255e7); }
+.bar-fill.alt { background: linear-gradient(90deg, #6bc6a8, #3fa883); }
+.trend { display: flex; align-items: flex-end; gap: 12rpx; margin-top: 24rpx; height: 220rpx; }
+.trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.trend-bar-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.trend-bar { width: 100%; min-height: 6rpx; background: #6255e7; border-radius: 8rpx 8rpx 0 0; }
+.trend-count { font-size: 20rpx; color: #777e92; margin-top: 8rpx; }
+.trend-date { font-size: 19rpx; color: #a0a6b8; }
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 24rpx 0 8rpx; }
+.toolbar-count { font-size: 24rpx; color: #858ba0; }
+.toolbar-filter { font-size: 24rpx; color: #6255e7; }
+.record { margin-top: 18rpx; }
+.record-done { opacity: .6; }
+.record-head { display: flex; align-items: center; justify-content: space-between; }
+.record-tag { font-size: 22rpx; color: #6255e7; background: #eeecff; border-radius: 10rpx; padding: 6rpx 14rpx; }
+.record-time { font-size: 22rpx; color: #a0a6b8; }
+.record-body { margin-top: 16rpx; font-size: 27rpx; line-height: 1.7; color: #202438; white-space: pre-wrap; word-break: break-all; }
+.record-error { margin-top: 12rpx; padding: 14rpx 16rpx; background: #f7f8fc; border-radius: 12rpx; font-size: 23rpx; color: #c54d69; word-break: break-all; }
+.record-meta { margin-top: 14rpx; display: flex; flex-wrap: wrap; gap: 8rpx 20rpx; font-size: 22rpx; color: #858ba0; }
+.record-meta text { word-break: break-all; }
+.record-btn { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; }
+.team-record { margin-top: 18rpx; }
+.team-record-head { display: flex; align-items: center; justify-content: space-between; }
+.team-game { font-size: 30rpx; font-weight: 700; word-break: break-all; }
+.team-status { font-size: 22rpx; border-radius: 10rpx; padding: 6rpx 14rpx; }
+.status-recruiting { color: #6255e7; background: #eeecff; }
+.status-full { color: #3fa883; background: #e6f5f0; }
+.team-meta { margin-top: 14rpx; display: flex; flex-wrap: wrap; gap: 8rpx 20rpx; font-size: 23rpx; color: #777e92; }
+.team-started { color: #c54d69; }
+.team-close { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; color: #c54d69; background: #feecef; }
+.user-toolbar { display: flex; align-items: center; gap: 16rpx; margin-top: 24rpx; }
+.user-search { flex: 1; min-width: 0; height: 72rpx; padding: 0 22rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 16rpx; font-size: 26rpx; box-sizing: border-box; }
+.user-record { margin-top: 18rpx; }
+.user-banned { background: #fff7f8; border-color: #f3c3ce; }
+.user-head { display: flex; align-items: center; justify-content: space-between; }
+.user-name { font-size: 30rpx; font-weight: 700; word-break: break-all; }
+.user-state { font-size: 22rpx; color: #c54d69; background: #feecef; border-radius: 10rpx; padding: 6rpx 14rpx; flex-shrink: 0; }
+.user-openid { margin-top: 8rpx; font-size: 21rpx; color: #a0a6b8; word-break: break-all; }
+.user-meta { margin-top: 12rpx; display: flex; flex-wrap: wrap; gap: 8rpx 20rpx; font-size: 23rpx; color: #777e92; }
+.user-reason { color: #c54d69; word-break: break-all; }
+.user-ban { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; color: #c54d69; background: #feecef; }
+.user-unban { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; }
