@@ -18,6 +18,6 @@ App({
     });
     this.profileReady = callTeam("getProfile").then((res) => {
       this.globalData.user = res.user;
-    }).catch((err) => console.warn("读取提醒偏好失败", err.message));
+    }).catch((err) => console.warn("读取用户资料失败", err.message));
   },
 });

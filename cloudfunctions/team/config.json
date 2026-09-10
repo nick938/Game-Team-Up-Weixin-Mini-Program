@@ -1,7 +1,8 @@
 {
   "permissions": {
-    "openapi": ["subscribeMessage.send"]
+    "openapi": ["subscribeMessage.send", "security.imgSecCheck", "security.msgSecCheck"]
   },
+  "timeout": 20,
   "triggers": [
     {
       "name": "startRemind",

@@ -31,7 +31,6 @@ button.notify-link { display: inline-flex; width: auto; min-height: 68rpx; align
 .seat-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22rpx; margin-top: 12rpx; color: #535b72; }
 .seat-wait { color: #969cb0; }
 .host-tag { display: inline-block; font-size: 20rpx; color: #6255e7; margin-top: 8rpx; }
-button.kick { font-size: 21rpx; color: #b8556c; padding: 8rpx 0; width: 100%; }
 .actions { position: fixed; z-index: 10; bottom: 0; left: 0; right: 0; padding: 22rpx 32rpx calc(22rpx + env(safe-area-inset-bottom)); background: #fff; border-top: 1rpx solid #e9ebf3; display: flex; flex-wrap: wrap; gap: 16rpx; }
 .actions button { flex: 1; min-width: 0; }
 .actions .compact-action { flex: 0 0 160rpx; }

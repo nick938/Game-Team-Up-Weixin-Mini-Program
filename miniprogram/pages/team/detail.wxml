@@ -8,7 +8,7 @@
     <view class="time">{{team.timeText}}</view>
     <view wx:if="{{role && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}" class="notify-row">
       <button size="mini" class="notify-link {{notifyAuthorized ? 'notify-authorized' : ''}}" bindtap="onEnableNotify">
-        <text>{{notifyAuthorized ? '已授权本次提醒' : '开打前 5 分钟提醒我'}}</text>
+        <text>{{notifyAuthorized ? '已授权开打前提醒' : '开打前 10 分钟提醒我'}}</text>
         <text wx:if="{{!notifyAuthorized}}" class="notify-arrow">›</text>
       </button>
       <view wx:if="{{notifyHint}}" class="notify-hint">{{notifyHint}}</view>
@@ -51,7 +51,6 @@
           <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarBase64 ? 'data:image/jpeg;base64,' + item.member.avatarBase64 : (item.member.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /></button>
           <view class="seat-name">{{item.member.nickName || '玩家'}}</view>
           <text class="host-tag" wx:if="{{item.member.role === 'host'}}">车头</text>
-          <button wx:elif="{{role === 'host' && team.ongoing}}" class="kick" data-openid="{{item.member.openid}}" bindtap="onKick">移出</button>
         </block>
         <block wx:else><view class="seat-empty">＋</view><view class="seat-name seat-wait">{{team.ongoing ? '等队友' : '空位'}}</view></block>
       </view>

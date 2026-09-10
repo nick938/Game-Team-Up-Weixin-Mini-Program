@@ -1,25 +1,10 @@
 <view class="page">
   <view class="me card" bindtap="editProfile">
-    <image class="avatar" src="{{user.avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
+    <image class="avatar" src="{{user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : (user.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
     <view class="me-text">
       <view class="name">{{user.nickName || '点这里设置头像昵称'}}</view>
       <view class="tip">编辑资料 · Steam / 游戏 ID</view>
     </view>
-  </view>
-
-  <button class="settings-row" bindtap="toggleSettings"><text>提醒设置</text><view class="settings-summary">{{preferenceLoaded ? (notifyEnabled ? '已开启提醒偏好' : '提醒已关闭') : '加载中'}} <text>{{showSettings ? '−' : '›'}}</text></view></button>
-  <view wx:if="{{showSettings}}" class="card notification-settings">
-    <view class="preference-row">
-      <view class="preference-copy">
-        <view class="preference-title">接收组队提醒</view>
-        <view class="tip">开打前 5 分钟、成员变化和散局通知</view>
-      </view>
-      <switch color="#6255e7" checked="{{notifyEnabled}}" disabled="{{notifySaving || !preferenceLoaded}}" bindchange="onNotifyChange" aria-label="接收组队提醒" />
-    </view>
-    <view class="preference-note">开启后，发车或上车时会向微信申请本次订阅，无需再点详情里的提醒。此开关不代表永久授权。</view>
-    <view class="preference-status">{{wechatNotifyStatus}}</view>
-    <view wx:if="{{notifyMessage}}" class="preference-status">{{notifyMessage}}</view>
-    <button class="settings-link" bindtap="openWechatNotifySettings">微信订阅设置 ›</button>
   </view>
 
   <view class="tabs">

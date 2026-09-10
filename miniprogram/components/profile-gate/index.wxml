@@ -3,7 +3,7 @@
     <view class="sheet-heading"><view class="title">个人资料</view><button size="mini" class="close" bindtap="close" aria-label="关闭个人资料">×</button></view>
     <scroll-view class="profile-scroll" scroll-y>
       <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar" disabled="{{saving}}">
-        <image class="avatar" src="{{avatarUrl || '/images/avatar.png'}}" mode="aspectFill" />
+        <image class="avatar" src="{{avatarBase64 ? 'data:image/jpeg;base64,' + avatarBase64 : (avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
         <view class="avatar-tip">点击更换头像</view>
       </button>
       <view class="field-label">昵称</view>

@@ -1,6 +1,6 @@
 const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
-const { requestTeamNotify, notifyPreferenceEnabled } = require("../../utils/subscribe");
+const { requestTeamNotify } = require("../../utils/subscribe");
 
 Page({
   data: {
@@ -156,10 +156,6 @@ Page({
 
   async onEnableNotify() {
     if (this.requestingNotify || this.data.notifyAuthorized) return;
-    if (!notifyPreferenceEnabled()) {
-      this.setData({ notifyHint: "组队提醒已关闭，可在「我的」中开启" });
-      return;
-    }
     this.requestingNotify = true;
     const ok = await requestTeamNotify();
     this.requestingNotify = false;
@@ -206,28 +202,6 @@ Page({
         } catch (e) {
           wx.hideLoading();
           showError(e);
-        }
-      },
-    });
-  },
-
-  onKick(e) {
-    const openid = e.currentTarget.dataset.openid;
-    wx.showModal({
-      title: "踢了这人？",
-      success: async (res) => {
-        if (!res.confirm) return;
-        wx.showLoading({ title: "处理中" });
-        try {
-          await callTeam("kickMember", {
-            teamId: this.data.teamId,
-            openid,
-          });
-          wx.showToast({ title: "已踢出", icon: "success" });
-          this.loadDetail();
-        } catch (err) {
-          wx.hideLoading();
-          showError(err);
         }
       },
     });

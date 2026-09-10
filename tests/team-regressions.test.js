@@ -5,8 +5,9 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], send = async () => {}, env = {}, sendMail } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
   const tables = { teams, members, users, feedback };
+  const deleted = [];
   const db = {
     command: { gte: () => ({ and: () => ({}) }), lte: () => ({}) },
     collection(name) {
@@ -23,6 +24,10 @@ function backend({ teams = [], members = [], users = [], feedback = [], send = a
           return {
             async get() { return { data: rows.find(x => x._id === id) }; },
             async update({ data }) { Object.assign(rows.find(x => x._id === id) || {}, data); },
+            async remove() {
+              const at = rows.findIndex(x => x._id === id);
+              if (at >= 0) rows.splice(at, 1);
+            },
             async set({ data }) {
               const found = rows.find(x => x._id === id);
               if (found) Object.assign(found, data);
@@ -32,8 +37,26 @@ function backend({ teams = [], members = [], users = [], feedback = [], send = a
         },
       };
     },
+    async runTransaction(fn) { return fn(this); },
   };
-  const cloud = { init() {}, database: () => db, openapi: { subscribeMessage: { send } } };
+  const cloud = {
+    init() {},
+    database: () => db,
+    openapi: {
+      subscribeMessage: { send },
+      security: {
+        imgSecCheck: imgCheck || (async () => ({ errCode: 0 })),
+        msgSecCheck: msgCheck || (async () => ({ errCode: 0, result: { suggest: 'pass' } })),
+      },
+    },
+    async getTempFileURL({ fileList }) {
+      return {
+        fileList: (fileList || []).map((fileID) => ({ fileID, tempFileURL: `https://tmp.example/${fileID}` })),
+      };
+    },
+    async downloadFile() { return { fileContent: Buffer.from('image-bytes') }; },
+    async deleteFile({ fileList }) { deleted.push(...(fileList || [])); return {}; },
+  };
   const ctx = {
     require: (id) => {
       if (id === "nodemailer") {
@@ -48,6 +71,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], send = a
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'cloudfunctions/team/index.js'), 'utf8'), ctx);
+  ctx.deletedFiles = deleted;
   return ctx;
 }
 
@@ -78,25 +102,20 @@ test('reminder retries failed recipients without resending successful ones', asy
   assert.equal(ctx.stripSecret(team, false).startRemindedOpenids, undefined);
 });
 
-test('disabled notify preference does not block start reminder completion', async () => {
+test('start reminders ignore the legacy notify flag and always notify everyone', async () => {
   const team = { _id: 't', gameName: 'CS2', startAt: Date.now() + 240000, endAt: Date.now() + 7200000, status: 'recruiting', openid: 'host' };
-  const users = [
-    { _id: 'host', notifyEnabled: true },
-    { _id: 'guest', notifyEnabled: false },
-  ];
   const calls = [];
   const ctx = backend({
     teams: [team],
     members: [{ openid: 'host' }, { openid: 'guest' }],
-    users,
+    users: [{ _id: 'host', notifyEnabled: true }, { _id: 'guest', notifyEnabled: false }],
     send: async ({ touser }) => { calls.push(touser); },
   });
   await ctx.remindStartingTeams();
   assert.ok(team.startRemindedAt);
-  assert.deepEqual(calls, ['host']);
-  assert.deepEqual([...team.startRemindedOpenids].sort(), ['guest', 'host']);
+  assert.deepEqual([...calls].sort(), ['guest', 'host']);
   await ctx.remindStartingTeams();
-  assert.deepEqual(calls, ['host']);
+  assert.deepEqual([...calls].sort(), ['guest', 'host']);
 });
 
 test('expired teams do not receive start reminders', async () => {
@@ -122,14 +141,17 @@ test('joining requests authorization first and still joins after rejection', asy
   assert.equal(page.joining, false);
 });
 
-test('reminder query covers five minutes ahead and timer runs every minute', async () => {
+test('reminder query covers ten minutes ahead and five minutes past, timer runs every minute', async () => {
   const ctx = backend();
   const before = Date.now();
+  let lower;
   let upper;
-  ctx.dbCapture = value => { upper = value; return {}; };
-  vm.runInContext('_.lte = dbCapture', ctx);
+  ctx.dbCaptureLte = (value) => { upper = value; return {}; };
+  ctx.dbCaptureGte = (value) => { lower = value; return { and: (x) => x }; };
+  vm.runInContext('_.lte = dbCaptureLte; _.gte = dbCaptureGte', ctx);
   await ctx.remindStartingTeams();
-  assert.ok(upper >= before + 300000 && upper <= Date.now() + 300000);
+  assert.ok(upper >= before + 600000 && upper <= Date.now() + 600000);
+  assert.ok(lower <= before - 290000 && lower >= before - 310000);
   const config = JSON.parse(fs.readFileSync(path.join(root, 'cloudfunctions/team/config.json')));
   assert.equal(config.triggers[0].config, '0 */1 * * * * *');
 });
@@ -158,88 +180,69 @@ test('parallel identical reads share a request; completed reads and writes are f
   finishD(); finish(); await Promise.all([d, e]);
 });
 
-test('cloud preference stops sends and survives nickname edits', async () => {
-  const users = [{ _id: 'u', _openid: 'u', nickName: 'before' }];
+test('there is no preference endpoint and sends go out unconditionally', async () => {
+  const users = [{ _id: 'u', _openid: 'u', nickName: 'before', notifyEnabled: false }];
   let sends = 0;
   const ctx = backend({ users, send: async () => { sends++; } });
-  assert.equal((await ctx.saveNotifyPreference({ enabled: false }, 'u')).ok, true);
-  await ctx.sendSubscribe('u', 't', 'CS2', '即将开打', Date.now());
-  assert.equal(sends, 0);
-  await ctx.saveProfile({ nickName: 'after' }, 'u');
-  assert.equal(users[0].notifyEnabled, false);
-  assert.equal(users[0].nickName, 'after');
-  await ctx.saveNotifyPreference({ enabled: true }, 'u');
+  assert.equal(await ctx.saveNotifyPreference, undefined);
   await ctx.sendSubscribe('u', 't', 'CS2', '即将开打', Date.now());
   assert.equal(sends, 1);
-  assert.equal((await ctx.saveNotifyPreference({ enabled: 'yes' }, 'u')).ok, false);
-});
-
-test('preference can be saved before profile and is read back', async () => {
-  const users = [];
-  const ctx = backend({ users });
-  await ctx.saveNotifyPreference({ enabled: false }, 'new');
-  assert.equal((await ctx.getProfile('new')).user.notifyEnabled, false);
-  await ctx.saveProfile({ nickName: 'new player' }, 'new');
-  assert.equal(users.length, 1);
+  await ctx.saveProfile({ nickName: 'after' }, 'u');
+  assert.equal(users[0].nickName, 'after');
   assert.equal(users[0].notifyEnabled, false);
 });
 
-test('disabled preference skips native subscription; explicit enable requests it synchronously', async () => {
+test('profile can be read back without any preference record', async () => {
+  const users = [];
+  const ctx = backend({ users });
+  assert.equal(await ctx.saveNotifyPreference, undefined);
+  await ctx.saveProfile({ nickName: 'new player' }, 'new');
+  assert.equal(users.length, 1);
+  assert.equal(users[0].notifyEnabled, undefined);
+  assert.equal((await ctx.getProfile('new')).user.nickName, 'new player');
+});
+
+test('requestTeamNotify always asks the native panel and only trusts accept', async () => {
   let calls = 0;
+  let answer = 'accept';
   const ctx = {
     module: { exports: {} }, require: () => ({ SUBSCRIBE_TMPL_ID: 'template' }),
-    getApp: () => ({ globalData: { user: { notifyEnabled: false } } }),
-    wx: { requestSubscribeMessage({ success }) { calls++; success({ template: 'accept' }); } },
+    wx: { requestSubscribeMessage({ success }) { calls++; success({ template: answer }); } },
   };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/subscribe.js'), 'utf8'), ctx);
   const request = ctx.module.exports.requestTeamNotify;
-  assert.equal(await request(), false);
-  assert.equal(calls, 0);
-  const explicit = request({ force: true });
+  assert.equal(await request(), true);
   assert.equal(calls, 1);
-  assert.equal(await explicit, true);
+  answer = 'reject';
+  assert.equal(await request(), false);
+  assert.equal(calls, 2);
+  assert.equal(ctx.module.exports.notifyPreferenceEnabled, undefined);
 });
 
-function settingsPage({ accepted = true, saveFails = false } = {}) {
+function minePage() {
   let page;
-  const writes = [];
-  const app = { globalData: { user: { notifyEnabled: false } } };
+  const app = { globalData: { user: {} } };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/mine/mine.js'), 'utf8'), {
     Page: value => { page = value; }, getApp: () => app,
-    require: name => name.endsWith('/subscribe') ? { requestTeamNotify: async () => accepted }
-      : name.endsWith('/cloud') ? { showError() {}, callTeam: async (type, data) => {
-        writes.push([type, data]);
-        if (saveFails) throw new Error('network');
-        return { user: { notifyEnabled: data.enabled } };
-      } } : {},
-    wx: { getSetting({ success }) { success({ subscriptionsSetting: {} }); } },
+    require: name => name.endsWith('/format') ? { decorateTeam: (team) => team }
+      : name.endsWith('/cloud') ? { showError() {}, callTeam: async () => ({ user: null }) }
+      : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) } : {},
+    wx: {},
   });
   page.setData = patch => Object.assign(page.data, patch);
-  page.data.preferenceLoaded = true;
-  return { page, app, writes };
+  return { page, app };
 }
 
-test('rejecting native authorization does not enable or save preference', async () => {
-  const { page, writes } = settingsPage({ accepted: false });
-  await page.onNotifyChange({ detail: { value: true } });
-  assert.equal(page.data.notifyEnabled, false);
-  assert.equal(page.data.notifySaving, false);
-  assert.equal(writes.length, 0);
-});
-
-test('preference save failure restores switch; success updates shared preference', async () => {
-  const failed = settingsPage({ saveFails: true });
-  await failed.page.onNotifyChange({ detail: { value: true } });
-  assert.equal(failed.page.data.notifyEnabled, false);
-  assert.equal(failed.app.globalData.user.notifyEnabled, false);
-  const good = settingsPage();
-  await good.page.onNotifyChange({ detail: { value: true } });
-  assert.equal(good.page.data.notifyEnabled, true);
-  assert.equal(good.app.globalData.user.notifyEnabled, true);
+test('mine page no longer exposes notification preference controls', () => {
+  const { page } = minePage();
+  assert.equal(page.onNotifyChange, undefined);
+  assert.equal(page.toggleSettings, undefined);
+  assert.equal(page.refreshWechatNotify, undefined);
+  assert.equal(page.openWechatNotifySettings, undefined);
 });
 
 test('mine tabs keep hosted/joined and ongoing/history lists separate', () => {
-  const { page } = settingsPage();
+  const { page } = minePage();
   Object.assign(page.data, { hostedOngoing: ['h-now'], hostedPast: ['h-old'], joinedOngoing: ['j-now'], joinedPast: ['j-old'] });
   page.updateVisibleTeams();
   assert.deepEqual(page.data.visibleTeams, ['h-now']);
@@ -271,13 +274,12 @@ test('manage menu is host-only and dispatches selected operation', () => {
 });
 
 test('public profile saves string IDs, preserves omitted fields and allows explicit clearing', async () => {
-  const users = [{ _id: 'u', nickName: '玩家', notifyEnabled: false }];
+  const users = [{ _id: 'u', nickName: '玩家' }];
   const ctx = backend({ users });
   assert.equal((await ctx.saveProfile({ nickName: '玩家', steamFriendCode: ' 001234 ', gameId: '游戏名', kookId: 'abc', bio: '晚上在线' }, 'u')).ok, true);
   assert.equal(users[0].steamFriendCode, '001234');
   await ctx.saveProfile({ nickName: '新昵称' }, 'u');
   assert.equal(users[0].gameId, '游戏名');
-  assert.equal(users[0].notifyEnabled, false);
   await ctx.saveProfile({ nickName: '新昵称', steamFriendCode: '', gameId: '', kookId: '', bio: '' }, 'u');
   assert.equal(users[0].steamFriendCode, '');
   assert.equal(users[0].bio, '');
@@ -516,7 +518,6 @@ test('feedback rejects blank template, emails when SMTP is set, and cools down',
     kind: '功能建议',
     page: '发车',
     content: '【我遇到的情况】发车页时间选不了\n【我希望怎样】能选到明天',
-    contact: 'me@test.com',
     version: '0.6.0',
     envVersion: '开发版',
   }, 'u');
@@ -524,9 +525,13 @@ test('feedback rejects blank template, emails when SMTP is set, and cools down',
   assert.equal(res.mailed, true);
   assert.equal(feedback.length, 1);
   assert.equal(feedback[0].kind, '功能建议');
+  assert.equal(feedback[0].contact, undefined);
   assert.equal(mails.length, 1);
   assert.match(mails[0].subject, /功能建议/);
   assert.match(mails[0].text, /发车页时间选不了/);
+  // 邮件不再携带任何身份信息（OpenID、手机号/微信号/邮箱等联系方式）。
+  assert.doesNotMatch(mails[0].text, /OpenID/);
+  assert.doesNotMatch(mails[0].text, /联系方式/);
   assert.equal((await ctx.submitFeedback({
     kind: '功能建议', page: '发车', content: '再来一条补充说明一下',
   }, 'u')).ok, false);
@@ -576,4 +581,175 @@ test('app version falls back to local build and labels env', () => {
   assert.equal(mod.exports.getAppVersion().text, 'v0.6.0 · 开发版');
   info = { envVersion: 'release', version: '1.2.0' };
   assert.equal(mod.exports.getAppVersion().text, 'v1.2.0');
+});
+
+test('permanent subscribe errors stop retrying inside the reminder window', async () => {
+  const team = { _id: 't', gameName: 'CS2', startAt: Date.now() + 240000, endAt: Date.now() + 7200000, status: 'recruiting', openid: 'host' };
+  const calls = [];
+  const ctx = backend({
+    teams: [team],
+    members: [{ openid: 'host' }],
+    users: [{ _id: 'host', notifyEnabled: true }],
+    send: async ({ touser }) => {
+      calls.push(touser);
+      const err = new Error('no quota');
+      err.errCode = 43101;
+      throw err;
+    },
+  });
+  await ctx.remindStartingTeams();
+  assert.ok(team.startRemindedAt);
+  await ctx.remindStartingTeams();
+  assert.deepEqual(calls, ['host']);
+});
+
+test('member payloads never include OpenIDs and kick is gone', async () => {
+  const team = {
+    _id: 't', gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting',
+    openid: 'host', startAt: Date.now(), endAt: Date.now() + 3600000,
+    startRemindedAt: 1, startRemindedOpenids: ['host'],
+  };
+  const members = [
+    { _id: 'm1', teamId: 't', openid: 'host', role: 'host' },
+    { _id: 'm2', teamId: 't', openid: 'guest', role: 'member' },
+  ];
+  const ctx = backend({ teams: [team], members });
+  assert.equal(await ctx.kickMember, undefined);
+  for (const who of ['stranger', 'guest', 'host']) {
+    const res = await ctx.getTeam({ teamId: 't' }, who);
+    assert.equal(res.team.openid, undefined);
+    assert.equal(res.team.startRemindedAt, undefined);
+    assert.equal(res.members.every((m) => m.openid === undefined), true);
+  }
+  assert.equal((await ctx.getTeam({ teamId: 't' }, 'stranger')).role, null);
+  assert.equal((await ctx.getTeam({ teamId: 't' }, 'guest')).role, 'member');
+  assert.equal((await ctx.getTeam({ teamId: 't' }, 'host')).role, 'host');
+});
+
+test('oversized inline avatars are dropped to protect the response body', () => {
+  const ctx = backend();
+  assert.equal(ctx.safeAvatarBase64('abc'), 'abc');
+  assert.equal(ctx.safeAvatarBase64('x'.repeat(200001)), '');
+  assert.equal(ctx.safeAvatarBase64(undefined), '');
+});
+
+test('cloud fileIDs are exchanged for temp URLs on every read path', async () => {
+  const users = [{ _id: 'host', _openid: 'host', nickName: '车头', avatarUrl: 'cloud://env/a.png' },
+    { _id: 'guest', _openid: 'guest', nickName: '乘客', avatarUrl: 'cloud://env/b.png' }];
+  const ctx = backend({
+    users,
+    teams: [{ _id: 't', gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting', openid: 'host', startAt: Date.now(), endAt: Date.now() + 3600000 }],
+    members: [{ _id: 'm1', teamId: 't', openid: 'host', role: 'host' }, { _id: 'm2', teamId: 't', openid: 'guest', role: 'member' }],
+  });
+  const detail = await ctx.getTeam({ teamId: 't' }, 'host');
+  assert.equal(detail.members.every((m) => m.avatarUrl.startsWith('https://tmp.example/')), true);
+  const profile = await ctx.getPublicProfile({ teamId: 't', memberId: 'm2' });
+  assert.equal(profile.profile.avatarUrl, 'https://tmp.example/cloud://env/b.png');
+  assert.equal((await ctx.getProfile('guest')).user.avatarUrl, 'https://tmp.example/cloud://env/b.png');
+  // 非 cloud:// 的旧值原样返回，不会被打断。
+  assert.equal(ctx.withTempAvatar({}, 'wxfile://tmp_a.png'), 'wxfile://tmp_a.png');
+});
+
+test('saving a cloud avatar clears the legacy inline base64', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', avatarBase64: 'oldpayload' }];
+  const ctx = backend({ users });
+  await ctx.saveProfile({ nickName: '玩家', avatarUrl: 'cloud://env/new.png', avatarBase64: 'ignored' }, 'u');
+  assert.equal(users[0].avatarUrl, 'cloud://env/new.png');
+  assert.equal(users[0].avatarBase64, '');
+});
+
+test('a risky avatar is rejected and the uploaded file is deleted', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({
+    users,
+    imgCheck: async () => ({ errCode: 87014 }),
+  });
+  const res = await ctx.saveProfile({ nickName: '玩家', avatarUrl: 'cloud://env/bad.png' }, 'u');
+  assert.equal(res.ok, false);
+  assert.match(res.errMsg, /安全检测/);
+  assert.equal(users[0].avatarUrl, undefined);
+  assert.deepEqual(ctx.deletedFiles, ['cloud://env/bad.png']);
+});
+
+test('a safe avatar passes the check and is kept', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({ users });
+  const res = await ctx.saveProfile({ nickName: '玩家', avatarUrl: 'cloud://env/ok.png' }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(users[0].avatarUrl, 'cloud://env/ok.png');
+  assert.deepEqual(ctx.deletedFiles, []);
+});
+
+test('re-saving the same avatar skips a redundant security check', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', avatarUrl: 'cloud://env/ok.png' }];
+  let checks = 0;
+  const ctx = backend({ users, imgCheck: async () => { checks++; return { errCode: 0 }; } });
+  await ctx.saveProfile({ nickName: '新昵称', avatarUrl: 'cloud://env/ok.png' }, 'u');
+  assert.equal(checks, 0);
+  assert.equal(users[0].nickName, '新昵称');
+});
+
+test('risky team text is rejected before the team is created', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const teams = [];
+  const ctx = backend({
+    users,
+    teams,
+    msgCheck: async () => ({ errCode: 0, result: { suggest: 'risky' } }),
+  });
+  const res = await ctx.createTeam({
+    team: {
+      gameName: '违规内容', capacity: 5,
+      startAt: Date.now() + 60000, endAt: Date.now() + 3600000,
+    },
+  }, 'u');
+  assert.equal(res.ok, false);
+  assert.match(res.errMsg, /不允许发布/);
+  assert.equal(teams.length, 0);
+});
+
+test('review-graded text is not treated as a violation', async () => {
+  const users = [{ _id: 'v', nickName: '玩家2' }];
+  const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'review' } }) });
+  const ok = await ctx.createTeam({
+    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+  }, 'v');
+  assert.equal(ok.ok, true);
+});
+
+test('risk profile text is rejected and no user record is written', async () => {
+  const users = [];
+  const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'risky' } }) });
+  const res = await ctx.saveProfile({ nickName: '正常昵称', bio: '违规简介' }, 'new');
+  assert.equal(res.ok, false);
+  assert.match(res.errMsg, /不支持/);
+  assert.equal(users.length, 0);
+});
+
+test('risky feedback is rejected and nothing is stored', async () => {
+  const feedback = [];
+  const ctx = backend({ feedback, msgCheck: async () => ({ result: { suggest: 'risky' } }) });
+  const res = await ctx.submitFeedback({ kind: '其他', page: '我的', content: '违规内容在此' }, 'u');
+  assert.equal(res.ok, false);
+  assert.equal(feedback.length, 0);
+});
+
+test('a scanning outage does not block publishing', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({
+    users,
+    msgCheck: async () => { const e = new Error('timeout'); e.errCode = -1; throw e; },
+  });
+  const res = await ctx.createTeam({
+    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+  }, 'u');
+  assert.equal(res.ok, true);
+});
+
+test('leaving a cancelled team reports it is dissolved, not merely ended', async () => {
+  const ctx = backend({
+    teams: [{ _id: 't', gameName: 'CS2', status: 'cancelled', memberCount: 2, capacity: 5, openid: 'host', startAt: Date.now(), endAt: Date.now() + 3600000 }],
+    members: [{ _id: 'm1', teamId: 't', openid: 'host', role: 'host' }, { _id: 'm2', teamId: 't', openid: 'guest', role: 'member' }],
+  });
+  assert.match((await ctx.leaveTeam({ teamId: 't' }, 'guest')).errMsg, /散了/);
 });

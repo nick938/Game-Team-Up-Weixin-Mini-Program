@@ -4,15 +4,6 @@
 .me-text { min-width: 0; }
 .name { font-size: 38rpx; font-weight: 700; word-break: break-all; }
 .tip { margin-top: 10rpx; font-size: 24rpx; line-height: 1.5; color: #777e92; }
-button.settings-row { width: 100% !important; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 20rpx; padding: 24rpx; display: flex; align-items: center; justify-content: space-between; font-size: 27rpx; text-align: left; }
-.settings-summary { font-size: 23rpx; color: #777e92; }
-.settings-summary text { margin-left: 14rpx; color: #6255e7; }
-.notification-settings { margin-top: 16rpx; }
-.preference-row { display: flex; align-items: center; gap: 16rpx; }
-.preference-copy { flex: 1; min-width: 0; }
-.preference-title { font-size: 28rpx; font-weight: 600; }
-.preference-note, .preference-status { margin-top: 16rpx; font-size: 24rpx; color: #777e92; line-height: 1.6; }
-button.settings-link { font-size: 25rpx; color: #6255e7; padding: 20rpx 0 0; text-align: left; width: 100%; }
 .tabs { display: flex; margin-top: 36rpx; gap: 36rpx; border-bottom: 1rpx solid #e5e8f1; }
 button.tab { width: auto; min-width: 0; padding: 0 0 22rpx; color: #858ba0; font-size: 32rpx; font-weight: 600; }
 .tab-active { color: #202438; border-bottom: 5rpx solid #6255e7; }

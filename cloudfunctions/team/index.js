@@ -23,8 +23,9 @@ const FEEDBACK_TO = "liuyi4781@foxmail.com";
 const FEEDBACK_KINDS = ["遇到问题", "功能建议", "体验吐槽", "其他"];
 const FEEDBACK_PAGES = ["大厅", "发车", "组队详情", "我的", "其他"];
 const FEEDBACK_MAX = 800;
-const FEEDBACK_CONTACT_MAX = 40;
 const FEEDBACK_COOLDOWN_MS = 2 * 60 * 1000;
+// 头像以 base64 内联进 getTeam 响应；单张上限约 150KB 图片，避免多人时撑爆云函数返回体。
+const AVATAR_BASE64_MAX = 200000;
 
 const PLATFORMS = ["Steam", "手游", "端游", "主机"];
 const VOICES = ["不限", "KOOK", "游戏内语音", "开麦"];
@@ -71,9 +72,116 @@ function isOngoing(team, now) {
   return status === "recruiting" || status === "full";
 }
 
+function safeAvatarBase64(value) {
+  if (typeof value !== "string" || !value) return "";
+  return value.length <= AVATAR_BASE64_MAX ? value : "";
+}
+
+// 免费开发环境的云存储权限锁定为「仅创建者可读写」，客户端之间互看头像会 403。
+// 云函数作为服务端始终有完整读权限，这里把 cloud:// fileID 批量换成有时效的 HTTPS 链接，
+// 客户端 <image> 直接加载即可，也不需要配置 downloadFile 合法域名。
+async function toTempAvatarUrls(fileIDs) {
+  const unique = [
+    ...new Set(
+      (fileIDs || []).filter((v) => typeof v === "string" && v.startsWith("cloud://"))
+    ),
+  ];
+  const map = {};
+  for (let i = 0; i < unique.length; i += 50) {
+    const part = unique.slice(i, i + 50);
+    try {
+      const res = await cloud.getTempFileURL({ fileList: part });
+      (res.fileList || []).forEach((item) => {
+        if (item && item.fileID && item.tempFileURL) map[item.fileID] = item.tempFileURL;
+      });
+    } catch (e) {
+      console.error("getTempFileURL fail", (e && e.message) || e);
+    }
+  }
+  return map;
+}
+
+function withTempAvatar(map, url) {
+  if (typeof url === "string" && map[url]) return map[url];
+  return url || "";
+}
+
+function imageContentType(fileID) {
+  const match = /\.([a-zA-Z0-9]+)(?:\?|$)/.exec(fileID || "");
+  const ext = (match ? match[1] : "").toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "gif") return "image/gif";
+  return "image/png";
+}
+
+// 用户上传的头像必须过内容安全检测。云函数作为服务端可直接下载云存储文件再送检，
+// 不受客户端存储读权限限制。检测服务本身异常时不阻断保存（仅记录），由平台巡检兜底。
+async function avatarPassesSecurityCheck(fileID) {
+  try {
+    const down = await cloud.downloadFile({ fileID });
+    const buffer = down && down.fileContent;
+    if (!buffer || !buffer.length) return true;
+    const res = await cloud.openapi.security.imgSecCheck({
+      media: { contentType: imageContentType(fileID), value: buffer },
+    });
+    return Number(res && res.errCode) === 0;
+  } catch (e) {
+    const code = Number(e && e.errCode);
+    if (code === 87014) return false;
+    console.error("imgSecCheck fail", (e && (e.errCode || e.message)) || e);
+    return true;
+  }
+}
+
+async function removeCloudFiles(fileIDs) {
+  const list = (fileIDs || []).filter((v) => typeof v === "string" && v.startsWith("cloud://"));
+  if (!list.length) return;
+  try {
+    await cloud.deleteFile({ fileList: list });
+  } catch (e) {
+    console.error("deleteFile fail", (e && e.message) || e);
+  }
+}
+
+// 用户可见文本的合规检测。msgSecCheck v2 返回 result.suggest（pass/review/risky），
+// 只有 risky 直接拦下；review 不误伤正常内容。接口异常时不阻断，由平台巡检兜底。
+const MSG_SEC_CHECK_MAX = 2500;
+
+async function textPassesSecurityCheck(content, openid) {
+  const text = String(content || "").trim();
+  if (!text) return true;
+  try {
+    const res = await cloud.openapi.security.msgSecCheck({
+      content: text.slice(0, MSG_SEC_CHECK_MAX),
+      version: 2,
+      scene: 1,
+      openid,
+    });
+    const suggest = res && res.result && res.result.suggest;
+    if (suggest) return suggest !== "risky";
+    return Number(res && res.errCode) === 0;
+  } catch (e) {
+    if (Number(e && e.errCode) === 87014) return false;
+    console.error("msgSecCheck fail", (e && (e.errCode || e.message)) || e);
+    return true;
+  }
+}
+
+// 合并多个字段一次送检，返回错误文案或 null。
+async function textSafeError(openid, texts, errorMsg) {
+  const merged = (texts || []).filter(Boolean).join("\n").trim();
+  if (!merged) return null;
+  const safe = await textPassesSecurityCheck(merged, openid);
+  return safe ? null : errorMsg;
+}
+
 function stripSecret(team, showPwd) {
   const copy = { ...team };
   delete copy.startRemindedOpenids;
+  delete copy.startRemindedAt;
+  // 不向客户端下发任何身份标识；车头身份由服务端 role 判定。
+  delete copy.openid;
+  delete copy._openid;
   if (!showPwd) {
     copy.roomPwd = "";
     copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
@@ -103,12 +211,12 @@ function subscribeTime(ts) {
   )}:${pad(local.getUTCMinutes())}`;
 }
 
+// 一次性订阅模板的常见终态错误：重试也不会成功，直接按已处理跳过，避免每分钟空转。
+const PERMANENT_SUBSCRIBE_ERRORS = new Set([43101, 47003, 40003, 40037, 41030]);
+
 async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
   if (!SUBSCRIBE_TMPL_ID || !touser) return "skipped";
   try {
-    const user = await getUser(touser, { strict: true });
-    // 偏好关闭即停止发送；它与微信侧的订阅授权是两个独立条件。
-    if (user && user.notifyEnabled === false) return "skipped";
     await cloud.openapi.subscribeMessage.send({
       touser,
       templateId: SUBSCRIBE_TMPL_ID,
@@ -121,7 +229,10 @@ async function sendSubscribe(touser, teamId, gameName, statusText, startAt) {
     });
     return "sent";
   } catch (e) {
-    console.error("subscribe send fail", (e && (e.errCode || e.message)) || e);
+    const code = e && (e.errCode || e.errMsg || e.message);
+    console.error("subscribe send fail", code || e);
+    // 无订阅额度、模板参数不合法等属于终态：不再重试，避免提醒窗口内反复空转。
+    if (PERMANENT_SUBSCRIBE_ERRORS.has(Number(e && e.errCode))) return "skipped";
     return "failed";
   }
 }
@@ -141,8 +252,29 @@ async function notifyMany(openids, teamId, team, statusText) {
   );
 }
 
-const START_REMIND_BEFORE_MS = 5 * 60 * 1000;
-const START_REMIND_GRACE_MS = 2 * 60 * 1000;
+// 一次性订阅每局只保证一条：默认留给开打提醒，因此窗口取 10 分钟。
+// 开打前 10 分钟内才上车的人错过本轮扫描，不再补发。
+const START_REMIND_BEFORE_MS = 10 * 60 * 1000;
+const START_REMIND_GRACE_MS = 5 * 60 * 1000;
+const REMIND_TEAM_CONCURRENCY = 5;
+const REMIND_RECIPIENT_CONCURRENCY = 5;
+
+// 有限并发地跑一批任务，避免整批串行拖到函数超时，也避免瞬间打爆 openapi 限频。
+async function mapLimit(items, limit, fn) {
+  const list = items || [];
+  const out = new Array(list.length);
+  let cursor = 0;
+  const size = Math.max(1, Math.min(limit || 1, list.length || 1));
+  const workers = Array.from({ length: size }, async () => {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await fn(list[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
 
 async function remindStartingTeams() {
   const now = nowMs();
@@ -169,11 +301,11 @@ async function remindStartingTeams() {
     (t) =>
       isOngoing(t, now) && !t.startRemindedAt
   );
-  let reminded = 0;
-  for (let i = 0; i < targets.length; i += 1) {
-    const team = targets[i];
+  // 每趟车并发处理：收件人并行发送，成功/跳过的收件人一次性合并写回，
+  // 避免像过去那样逐个收件人各写一次库（20 人接近 40 次往返）。
+  const results = await mapLimit(targets, REMIND_TEAM_CONCURRENCY, async (team) => {
     const teamId = team._id;
-    if (!teamId) continue;
+    if (!teamId) return 0;
     try {
       const memRes = await db.collection("members").where({ teamId }).get();
       const ids = (memRes.data || [])
@@ -181,30 +313,32 @@ async function remindStartingTeams() {
         .filter(Boolean);
       const host = hostUid(team);
       if (host) ids.push(host);
-      // 按收件人保存已处理结果（发送成功或按偏好跳过）；下一轮仅补发失败的收件人。
+      // 按收件人保存已处理结果（发送成功或按偏好/终态错误跳过）；下一轮仅补发暂时失败的收件人。
       const sent = new Set(team.startRemindedOpenids || []);
       const recipients = [...new Set(ids)];
-      for (const uid of recipients) {
-        if (sent.has(uid)) continue;
-        const outcome = await sendSubscribe(
-          uid, teamId, team.gameName, "即将开打，请准时上线", team.startAt
-        );
-        if (outcome !== "failed") {
-          sent.add(uid);
-          await db.collection("teams").doc(teamId).update({
-            data: { startRemindedOpenids: [...sent] },
-          });
-        }
+      const pending = recipients.filter((uid) => !sent.has(uid));
+      const outcomes = await mapLimit(pending, REMIND_RECIPIENT_CONCURRENCY, (uid) =>
+        sendSubscribe(uid, teamId, team.gameName, "即将开打，请准时上线", team.startAt)
+      );
+      outcomes.forEach((outcome, idx) => {
+        if (outcome !== "failed") sent.add(pending[idx]);
+      });
+      if (sent.size !== (team.startRemindedOpenids || []).length) {
+        await db.collection("teams").doc(teamId).update({
+          data: { startRemindedOpenids: [...sent] },
+        });
       }
-      if (!recipients.length || !recipients.every((uid) => sent.has(uid))) continue;
+      if (!recipients.length || !recipients.every((uid) => sent.has(uid))) return 0;
       await db.collection("teams").doc(teamId).update({
         data: { startRemindedAt: now },
       });
-      reminded += 1;
+      return 1;
     } catch (e) {
       // 下一轮再试
+      return 0;
     }
-  }
+  });
+  const reminded = results.reduce((sum, value) => sum + (value || 0), 0);
   return ok({ reminded });
 }
 
@@ -438,7 +572,7 @@ function publicProfile(user, member) {
   const profile = {
     nickName: (user && user.nickName) || member.nickName || "玩家",
     avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
-    avatarBase64: (user && user.avatarBase64) || "",
+    avatarBase64: safeAvatarBase64(user && user.avatarBase64),
   };
   for (const key of Object.keys(PUBLIC_PROFILE_FIELDS)) {
     profile[key] = (user && typeof user[key] === "string") ? user[key] : "";
@@ -457,7 +591,10 @@ async function getPublicProfile(event) {
   if (!member || member.teamId !== teamId) return fail("该成员已不在这趟车上");
   const uid = memberUid(member) || (member.role === "host" ? hostUid(team) : "");
   const user = uid ? await getUser(uid, { strict: true }) : null;
-  return ok({ profile: publicProfile(user, member) });
+  const profile = publicProfile(user, member);
+  const avatarMap = await toTempAvatarUrls([profile.avatarUrl]);
+  profile.avatarUrl = withTempAvatar(avatarMap, profile.avatarUrl);
+  return ok({ profile });
 }
 
 async function saveProfile(event, openid) {
@@ -468,11 +605,46 @@ async function saveProfile(event, openid) {
   const checked = validatePublicProfile(event);
   if (checked.error) return fail(checked.error);
   const existed = await getUser(openid);
+  // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
+  const profileFields = ["gameId", "kookId", "bio", "steamFriendCode"];
+  const nickChanged = !existed || existed.nickName !== nickName;
+  const fieldsChanged = profileFields.some(
+    (key) =>
+      Object.prototype.hasOwnProperty.call(checked.value, key) &&
+      checked.value[key] !== ((existed && existed[key]) || "")
+  );
+  if (nickChanged || fieldsChanged) {
+    const textError = await textSafeError(
+      openid,
+      [
+        nickName,
+        ...profileFields.map((key) =>
+          Object.prototype.hasOwnProperty.call(checked.value, key)
+            ? checked.value[key]
+            : (existed && existed[key]) || ""
+        ),
+      ],
+      "资料包含不支持的内容"
+    );
+    if (textError) return fail(textError);
+  }
+  const cloudAvatar = avatarUrl.startsWith("cloud://");
+  // 只对本次新上传的文件送检；沿用旧头像时无需重复检测（也不再浪费接口调用）。
+  if (cloudAvatar && (!existed || existed.avatarUrl !== avatarUrl)) {
+    const safe = await avatarPassesSecurityCheck(avatarUrl);
+    if (!safe) {
+      await removeCloudFiles([avatarUrl]);
+      return fail("头像未通过安全检测，请换一张再试");
+    }
+  }
   const payload = {
     ...checked.value,
     nickName,
     avatarUrl: avatarUrl || (existed && existed.avatarUrl) || "",
-    avatarBase64: avatarBase64 || (existed && existed.avatarBase64) || "",
+    // 头像改走云存储后不再需要 base64；写入 fileID 时顺手清掉历史 base64，避免响应体过大。
+    avatarBase64: cloudAvatar
+      ? ""
+      : avatarBase64 || (existed && existed.avatarBase64) || "",
     updatedAt: nowMs(),
   };
   const id = existed ? existed._id : openid;
@@ -484,28 +656,33 @@ async function saveProfile(event, openid) {
   return ok({ user: { ...existed, ...payload, _id: id, _openid: openid } });
 }
 
-async function saveNotifyPreference(event, openid) {
-  if (typeof event.enabled !== "boolean") return fail("提醒设置无效");
-  const existed = await getUser(openid);
-  const id = existed ? existed._id : openid;
-  const payload = { notifyEnabled: event.enabled, updatedAt: nowMs() };
-  if (existed) {
-    await db.collection("users").doc(id).update({ data: payload });
-  } else {
-    await db.collection("users").doc(id).set({ data: { ...payload, _openid: openid } });
-  }
-  return ok({ user: { ...existed, ...payload, _id: id, _openid: openid } });
-}
-
 async function getProfile(openid) {
   const user = await getUser(openid);
+  if (user) {
+    const raw = user.avatarUrl;
+    user.avatarFileID = typeof raw === "string" && raw.startsWith("cloud://") ? raw : "";
+    if (raw) {
+      const avatarMap = await toTempAvatarUrls([raw]);
+      user.avatarUrl = withTempAvatar(avatarMap, raw);
+    }
+  }
   return ok({ user: user || null });
+}
+
+function teamVisibleTexts(team) {
+  return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note];
 }
 
 async function createTeam(event, openid) {
   const user = await requireProfile(openid);
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
+  const textError = await textSafeError(
+    openid,
+    teamVisibleTexts(checked.value),
+    "内容包含不允许发布的信息"
+  );
+  if (textError) return fail(textError);
 
   const teamData = {
     ...checked.value,
@@ -517,17 +694,21 @@ async function createTeam(event, openid) {
     createdAt: nowMs(),
   };
 
-  const addRes = await db.collection("teams").add({ data: teamData });
-  const teamId = addRes._id;
-  await db.collection("members").add({
-    data: {
-      teamId,
-      openid,
-      role: "host",
-      nickName: user.nickName,
-      avatarUrl: user.avatarUrl || "",
-      joinedAt: nowMs(),
-    },
+  // 建车队与建车头成员放同一事务，避免成员写入失败留下没有车头的脏队伍。
+  let teamId = "";
+  await db.runTransaction(async (transaction) => {
+    const addRes = await transaction.collection("teams").add({ data: teamData });
+    teamId = addRes._id;
+    await transaction.collection("members").add({
+      data: {
+        teamId,
+        openid,
+        role: "host",
+        nickName: user.nickName,
+        avatarUrl: user.avatarUrl || "",
+        joinedAt: nowMs(),
+      },
+    });
   });
 
   return ok({ teamId });
@@ -553,6 +734,12 @@ async function updateTeam(event, openid) {
   if (checked.value.capacity < team.memberCount) {
     return fail("人数不能少于当前已加入人数");
   }
+  const textError = await textSafeError(
+    openid,
+    teamVisibleTexts(checked.value),
+    "内容包含不允许发布的信息"
+  );
+  if (textError) return fail(textError);
 
   const nextStatus =
     checked.value.capacity <= team.memberCount ? "full" : "recruiting";
@@ -605,7 +792,6 @@ async function joinTeam(event, openid) {
     // 事务里会再校验
   }
 
-  let joinedTeam = null;
   try {
     await db.runTransaction(async (transaction) => {
       const teamRes = await transaction.collection("teams").doc(teamId).get();
@@ -640,29 +826,11 @@ async function joinTeam(event, openid) {
           status: nextStatus,
         },
       });
-      joinedTeam = {
-        ...team,
-        memberCount: nextCount,
-        status: nextStatus,
-      };
     });
   } catch (e) {
     return fail(e.message || "上车失败");
   }
-  if (joinedTeam) {
-    const host = hostUid(joinedTeam);
-    if (host && host !== openid) {
-      const text =
-        joinedTeam.status === "full" ? "人已经齐了" : "有人上车了";
-      await sendSubscribe(
-        host,
-        teamId,
-        joinedTeam.gameName,
-        text,
-        joinedTeam.startAt
-      );
-    }
-  }
+  // 不再发送「有人上车 / 人齐了」：一次性订阅每局只保证一条，额度留给开打提醒。
   return ok();
 }
 
@@ -684,6 +852,7 @@ async function leaveTeam(event, openid) {
       if (hostUid(team) === openid) {
         throw new Error("车头不能下车，请散了这趟");
       }
+      if (team.status === "cancelled") throw new Error("这趟已经散了");
       if (!isOngoing(team, nowMs())) throw new Error("队伍已结束");
 
       const mem = await transaction.collection("members").where({ teamId }).get();
@@ -703,62 +872,6 @@ async function leaveTeam(event, openid) {
     });
   } catch (e) {
     return fail(e.message || "下车失败");
-  }
-  return ok();
-}
-
-async function kickMember(event, openid) {
-  const teamId = event.teamId;
-  const targetOpenid = event.openid;
-  if (!targetOpenid) return fail("缺少成员");
-  try {
-    const peek = await db.collection("teams").doc(teamId).get();
-    if (!peek.data || !(await isTeamHost(peek.data, openid, teamId))) {
-      return fail("只有车头可以踢人");
-    }
-  } catch (e) {
-    return fail(e.message || "踢人失败");
-  }
-  try {
-    await db.runTransaction(async (transaction) => {
-      const teamRes = await transaction.collection("teams").doc(teamId).get();
-      const team = teamRes.data;
-      if (!teamExists(team)) throw new Error("队伍不存在");
-      if (hostUid(team) && hostUid(team) !== openid) {
-        throw new Error("只有车头可以踢人");
-      }
-      if (targetOpenid === openid) throw new Error("不能踢自己");
-      if (!isOngoing(team, nowMs())) throw new Error("队伍已结束");
-
-      const mem = await transaction.collection("members").where({ teamId }).get();
-      const targets = mem.data.filter((m) => memberUid(m) === targetOpenid);
-      if (!targets.length) throw new Error("对方不在队伍里");
-
-      for (let i = 0; i < targets.length; i += 1) {
-        await transaction.collection("members").doc(targets[i]._id).remove();
-      }
-      const nextCount = Math.max(1, team.memberCount - targets.length);
-      await transaction.collection("teams").doc(teamId).update({
-        data: {
-          memberCount: nextCount,
-          status: nextCount >= team.capacity ? "full" : "recruiting",
-        },
-      });
-    });
-  } catch (e) {
-    return fail(e.message || "踢人失败");
-  }
-  try {
-    const teamRes = await db.collection("teams").doc(teamId).get();
-    await sendSubscribe(
-      targetOpenid,
-      teamId,
-      teamRes.data && teamRes.data.gameName,
-      "你被请下车了",
-      teamRes.data && teamRes.data.startAt
-    );
-  } catch (e) {
-    // 通知失败不影响踢人
   }
   return ok();
 }
@@ -844,7 +957,14 @@ async function getTeam(event, openid) {
     team = teamRes.data;
   }
 
-  const members = await Promise.all(
+  const owner = await isTeamHost(team, openid, teamId, memList);
+  const memberUids = memList.map(
+    (m) => memberUid(m) || (m.role === "host" ? hostUid(team) : "")
+  );
+  const mine = memberUids.includes(openid);
+  const role = owner ? "host" : mine ? "member" : null;
+
+  const rawMembers = await Promise.all(
     memList
       .slice()
       .sort((a, b) => {
@@ -855,20 +975,23 @@ async function getTeam(event, openid) {
       .map(async (m) => {
         const uid = memberUid(m) || (m.role === "host" ? hostUid(team) : "");
         const user = uid ? await getUser(uid) : null;
+        // 不再下发成员 OpenID：没有踢人功能后，客户端不需要任何身份标识。
         return {
           _id: m._id,
-          openid: uid,
           role: m.role,
           nickName: (user && user.nickName) || m.nickName || "玩家",
-          avatarUrl: (user && user.avatarUrl) || m.avatarUrl || "",
-          avatarBase64: (user && user.avatarBase64) || "",
+          avatar: (user && user.avatarUrl) || m.avatarUrl || "",
+          avatarBase64: safeAvatarBase64(user && user.avatarBase64),
           joinedAt: m.joinedAt,
         };
       })
   );
-  const mine = members.find((m) => m.openid === openid);
-  const owner = await isTeamHost(team, openid, teamId, memList);
-  const role = owner ? "host" : mine ? "member" : null;
+  const avatarMap = await toTempAvatarUrls(rawMembers.map((m) => m.avatar));
+  const members = rawMembers.map(({ avatar, ...rest }) => ({
+    ...rest,
+    avatarUrl: withTempAvatar(avatarMap, avatar),
+  }));
+
   const displayStatus = resolveStatus(team, nowMs());
   const showPwd = owner || (!!mine && displayStatus !== "cancelled");
 
@@ -876,7 +999,6 @@ async function getTeam(event, openid) {
     team: stripSecret(team, showPwd),
     members,
     role,
-    openid,
   });
 }
 
@@ -1005,7 +1127,7 @@ function createMailTransport(nodemailer, mail) {
   });
 }
 
-async function sendFeedbackMail({ kind, page, content, contact, nickName, version, envVersion, openid }) {
+async function sendFeedbackMail({ kind, page, content, nickName, version, envVersion }) {
   const mail = loadMailSecrets();
   if (!mail.pass || !mail.user || !mail.host) {
     return { status: "skipped", error: "未配置发信授权码。请在 mail.local.js 填写 QQ 邮箱授权码后重新上传云函数。" };
@@ -1024,8 +1146,6 @@ async function sendFeedbackMail({ kind, page, content, contact, nickName, versio
     `页面：${page}`,
     `版本：${version || "未知"}${envVersion ? ` · ${envVersion}` : ""}`,
     `昵称：${nickName || "未填写"}`,
-    `OpenID：${openid}`,
-    contact ? `联系方式：${contact}` : "联系方式：未填",
     "",
     content,
   ];
@@ -1047,13 +1167,14 @@ async function submitFeedback(event, openid) {
   const kind = FEEDBACK_KINDS.includes(event.kind) ? event.kind : "";
   const page = FEEDBACK_PAGES.includes(event.page) ? event.page : "";
   const content = trim(event.content, FEEDBACK_MAX);
-  const contact = trim(event.contact, FEEDBACK_CONTACT_MAX);
   const version = trim(event.version, 20);
   const envVersion = trim(event.envVersion, 20);
   if (!kind) return fail("请选择反馈类型");
   if (!page) return fail("请选择发生页面");
   if (!feedbackFilled(content)) return fail("请把遇到的情况写具体一点");
-  if (BAD.test(`${content}${contact}`)) return fail("内容包含不允许提交的信息");
+  if (BAD.test(content)) return fail("内容包含不允许提交的信息");
+  const textError = await textSafeError(openid, [content], "内容包含不允许提交的信息");
+  if (textError) return fail(textError);
 
   try {
     const recent = await db
@@ -1078,7 +1199,6 @@ async function submitFeedback(event, openid) {
     kind,
     page,
     content,
-    contact,
     nickName: (user && user.nickName) || "",
     version,
     envVersion,
@@ -1108,8 +1228,6 @@ exports.main = async (event) => {
     switch (event.type) {
       case "saveProfile":
         return await saveProfile(event, openid);
-      case "saveNotifyPreference":
-        return await saveNotifyPreference(event, openid);
       case "getPublicProfile":
         return await getPublicProfile(event);
       case "getProfile":
@@ -1124,8 +1242,6 @@ exports.main = async (event) => {
         return await joinTeam(event, openid);
       case "leaveTeam":
         return await leaveTeam(event, openid);
-      case "kickMember":
-        return await kickMember(event, openid);
       case "getTeam":
         return await getTeam(event, openid);
       case "listTeams":

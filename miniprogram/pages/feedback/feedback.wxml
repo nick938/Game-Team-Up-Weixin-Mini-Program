@@ -35,15 +35,6 @@
     />
     <view class="hint">已经填好模板，直接在空行里写就行。</view>
 
-    <view class="label">方便的话留个联系方式（选填）</view>
-    <input
-      class="field"
-      maxlength="40"
-      value="{{contact}}"
-      bindinput="onContact"
-      placeholder="微信号或邮箱"
-    />
-
     <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">发送到邮箱</button>
   </view>
 

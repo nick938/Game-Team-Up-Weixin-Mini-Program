@@ -13,7 +13,6 @@ Page({
     kind: "遇到问题",
     pageName: "大厅",
     content: FEEDBACK_TEMPLATE,
-    contact: "",
     submitting: false,
     versionText: "",
   },
@@ -36,10 +35,6 @@ Page({
     this.setData({ content: e.detail.value });
   },
 
-  onContact(e) {
-    this.setData({ contact: e.detail.value });
-  },
-
   async onSubmit() {
     if (this.data.submitting) return;
     const content = (this.data.content || "").trim();
@@ -58,13 +53,12 @@ Page({
         kind: this.data.kind,
         page: this.data.pageName,
         content,
-        contact: (this.data.contact || "").trim(),
         version: ver.version,
         envVersion: ver.envLabel,
       });
       if (res.mailed) {
         wx.showToast({ title: "已发到邮箱", icon: "success" });
-        this.setData({ content: FEEDBACK_TEMPLATE, contact: "" });
+        this.setData({ content: FEEDBACK_TEMPLATE });
         setTimeout(() => wx.navigateBack(), 600);
         return;
       }
