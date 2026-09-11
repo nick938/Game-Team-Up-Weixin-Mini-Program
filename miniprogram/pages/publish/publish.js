@@ -225,18 +225,16 @@ Page({
         this.setData(emptyForm());
         wx.showToast({ title: "已保存", icon: "success" });
         setTimeout(() => {
-          wx.navigateTo({
-            url: teamDetailPath(editingId, { gameName: team.gameName }),
-          });
+          const url = teamDetailPath(editingId, { gameName: team.gameName });
+          if (url) wx.navigateTo({ url });
         }, 400);
       } else {
         const res = await callTeam("createTeam", { team });
         this.setData(emptyForm());
         wx.showToast({ title: "已发车", icon: "success" });
         setTimeout(() => {
-          wx.navigateTo({
-            url: teamDetailPath(res.teamId, { gameName: team.gameName }),
-          });
+          const url = teamDetailPath(res.teamId, { gameName: team.gameName });
+          if (url) wx.navigateTo({ url });
         }, 400);
       }
     } catch (e) {

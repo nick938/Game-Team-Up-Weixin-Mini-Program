@@ -1,7 +1,7 @@
 const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
-const { resolveTeamId, teamShareQuery } = require("../../utils/team-entry");
+const { resolveTeamId, teamShareQuery, usableTeamId } = require("../../utils/team-entry");
 const { bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
 
 function readLaunchExtras() {
@@ -63,7 +63,7 @@ Page({
       query: teamShareQuery(this.data.teamId),
       title: (this.data.team && this.data.team.gameName) || "来开黑",
     }));
-    let teamId = this.data.teamId;
+    let teamId = usableTeamId(this.data.teamId);
     if (!teamId) {
       teamId = resolveTeamId({}, readLaunchExtras());
       if (teamId) this.setData({ teamId });
@@ -71,7 +71,7 @@ Page({
     if (teamId) {
       this.loadDetail();
     } else {
-      this.setData({ loading: false, team: null });
+      this.setData({ loading: false, team: null, teamId: "" });
     }
   },
 
@@ -115,9 +115,9 @@ Page({
   },
 
   async loadDetail() {
-    const teamId = this.data.teamId;
+    const teamId = usableTeamId(this.data.teamId);
     if (!teamId) {
-      this.setData({ loading: false, team: null });
+      this.setData({ loading: false, team: null, teamId: "" });
       return;
     }
     this.setData({ loading: true });
