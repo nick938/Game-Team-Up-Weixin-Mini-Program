@@ -19,6 +19,7 @@ App({
     this.profileReady = callTeam("getProfile").then((res) => {
       this.globalData.user = res.user;
       this.globalData.isAdmin = !!res.isAdmin;
+      this.globalData.isOrganizer = !!res.isOrganizer;
     }).catch((err) => console.warn("读取用户资料失败", err.message));
   },
 

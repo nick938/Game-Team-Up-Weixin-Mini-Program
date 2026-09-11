@@ -5,8 +5,8 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
-  const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins };
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
+  const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
   const deleted = [];
   const db = {
     command: { gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
@@ -1163,8 +1163,10 @@ test('getProfile reports admin status for the current user', async () => {
   const users = [{ _id: 'a', _openid: 'a', nickName: 'A' }];
   const plain = backend({ users });
   assert.equal((await plain.getProfile('a')).isAdmin, false);
+  assert.equal((await plain.getProfile('a')).isOrganizer, false);
   const admin = backend({ users, env: { ADMIN_OPENIDS: 'a' } });
   assert.equal((await admin.getProfile('a')).isAdmin, true);
+  assert.equal((await admin.getProfile('a')).isOrganizer, false);
 });
 
 test('admin can ban and unban a user, with guards for self and admins', async () => {
@@ -1248,4 +1250,127 @@ test('myTeams never returns teams that merely share a partial identity', async (
   assert.equal(res.joined.length, 1);
   assert.equal(res.joined[0]._id, 'a');
   assert.equal(res.hosted.length, 0);
+});
+
+function teamPayload() {
+  return {
+    gameName: 'CS2',
+    capacity: 5,
+    startAt: Date.now() + 60000,
+    endAt: Date.now() + 3600000,
+  };
+}
+
+test('organizer can create a team on behalf of a friend, without becoming host', async () => {
+  const users = [
+    { _id: 'helper', nickName: '群管理' },
+    { _id: 'friend', nickName: '小明' },
+  ];
+  const teams = [];
+  const members = [];
+  const ctx = backend({
+    users,
+    teams,
+    members,
+    organizers: [{ _id: 'helper', nickName: '群管理' }],
+  });
+
+  const denied = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'friend' }, 'stranger');
+  assert.equal(denied.ok, false);
+  assert.match(denied.errMsg, /代开权限/);
+
+  const res = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'friend' }, 'helper');
+  assert.equal(res.ok, true);
+  assert.equal(teams[0].openid, 'friend');
+  assert.equal(teams[0].hostNickName, '小明');
+  assert.equal(teams[0].proxyOpenid, 'helper');
+  assert.equal(teams[0].proxyNickName, '群管理');
+  assert.equal(members[0].openid, 'friend');
+  assert.equal(members[0].role, 'host');
+  assert.equal(members.length, 1);
+
+  const publicTeam = ctx.stripSecret(teams[0], false);
+  assert.equal(publicTeam.proxyOpenid, undefined);
+  assert.equal(publicTeam.proxyNickName, '群管理');
+
+  const hosted = await ctx.myTeams('friend');
+  assert.equal(hosted.hosted.length, 1);
+  const helperTeams = await ctx.myTeams('helper');
+  assert.equal(helperTeams.hosted.length, 0);
+  assert.equal(helperTeams.joined.length, 0);
+});
+
+test('admin can proxy-create without being an organizer, organizers cannot open admin', async () => {
+  const users = [
+    { _id: 'boss', nickName: '站长' },
+    { _id: 'helper', nickName: '群管理' },
+    { _id: 'friend', nickName: '小明' },
+  ];
+  const ctx = backend({
+    users,
+    organizers: [{ _id: 'helper' }],
+    env: { ADMIN_OPENIDS: 'boss' },
+  });
+  assert.equal((await ctx.adminOverview('helper')).ok, false);
+  assert.equal((await ctx.getProfile('helper')).isOrganizer, true);
+  assert.equal((await ctx.getProfile('helper')).isAdmin, false);
+  const res = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'friend' }, 'boss');
+  assert.equal(res.ok, true);
+});
+
+test('proxy create is rejected for banned or profile-less friends', async () => {
+  const users = [
+    { _id: 'helper', nickName: '群管理' },
+    { _id: 'banned', nickName: '封禁号', banned: true },
+    { _id: 'newbie' },
+  ];
+  const ctx = backend({ users, organizers: [{ _id: 'helper' }] });
+  const banned = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'banned' }, 'helper');
+  assert.equal(banned.ok, false);
+  assert.match(banned.errMsg, /封禁/);
+  const missing = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'newbie' }, 'helper');
+  assert.equal(missing.ok, false);
+  assert.match(missing.errMsg, /头像昵称/);
+});
+
+test('searchProxyUsers is organizer-only and hides banned users', async () => {
+  const users = [
+    { _id: 'helper', nickName: '群管理' },
+    { _id: 'friend', nickName: '小明同学' },
+    { _id: 'banned', nickName: '小明广告', banned: true },
+  ];
+  const ctx = backend({ users, organizers: [{ _id: 'helper' }] });
+  assert.equal((await ctx.searchProxyUsers({ keyword: '小明' }, 'stranger')).ok, false);
+  const res = await ctx.searchProxyUsers({ keyword: '小明' }, 'helper');
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.list.map((u) => u.userId), ['friend']);
+  assert.equal(res.list[0].nickName, '小明同学');
+});
+
+test('admin can grant and revoke organizer, and banning removes it', async () => {
+  const users = [{ _id: 'helper', nickName: '群管理' }];
+  const organizers = [];
+  const ctx = backend({ users, organizers, env: { ADMIN_OPENIDS: 'boss' } });
+  assert.equal((await ctx.adminSetOrganizer({ userId: 'helper', enabled: true }, 'stranger')).ok, false);
+  const granted = await ctx.adminSetOrganizer({ userId: 'helper', enabled: true }, 'boss');
+  assert.equal(granted.ok, true);
+  assert.equal((await ctx.getProfile('helper')).isOrganizer, true);
+  assert.equal((await ctx.adminUsers({}, 'boss')).list[0].isOrganizer, true);
+
+  await ctx.adminSetBan({ userId: 'helper', banned: true }, 'boss');
+  assert.equal((await ctx.getProfile('helper')).isOrganizer, false);
+  assert.equal(organizers.length, 0);
+});
+
+test('ORGANIZER_OPENIDS env grants proxy access and cannot be toggled in admin', async () => {
+  const users = [
+    { _id: 'helper', nickName: '群管理' },
+    { _id: 'friend', nickName: '小明' },
+  ];
+  const ctx = backend({ users, env: { ORGANIZER_OPENIDS: 'helper', ADMIN_OPENIDS: 'boss' } });
+  assert.equal((await ctx.getProfile('helper')).isOrganizer, true);
+  const created = await ctx.createTeam({ team: teamPayload(), hostOpenid: 'friend' }, 'helper');
+  assert.equal(created.ok, true);
+  const blocked = await ctx.adminSetOrganizer({ userId: 'helper', enabled: false }, 'boss');
+  assert.equal(blocked.ok, false);
 });

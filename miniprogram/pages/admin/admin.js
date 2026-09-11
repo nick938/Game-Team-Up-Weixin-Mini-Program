@@ -172,12 +172,42 @@ Page({
       await callTeam("adminSetBan", { userId: id, banned, reason });
       wx.showToast({ title: toast, icon: "none" });
       this.allUsers = (this.allUsers || []).map((u) =>
-        u._id === id ? { ...u, banned, banReason: reason } : u
+        u._id === id
+          ? { ...u, banned, banReason: reason, isOrganizer: banned ? false : u.isOrganizer }
+          : u
       );
       this.applyUsersFilter();
     } catch (err) {
       showError(err);
     }
+  },
+
+  onToggleOrganizer(e) {
+    const id = e.currentTarget.dataset.id;
+    const name = e.currentTarget.dataset.name || "该用户";
+    const enabled = String(e.currentTarget.dataset.on) !== "true";
+    wx.showModal({
+      title: enabled ? "设为组局员？" : "取消组局员？",
+      content: enabled
+        ? `「${name}」将可以帮群友发车，但不能进入管理端。`
+        : `「${name}」将不能再帮别人发车。`,
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await callTeam("adminSetOrganizer", { userId: id, enabled });
+          this.allUsers = (this.allUsers || []).map((u) =>
+            u._id === id ? { ...u, isOrganizer: enabled } : u
+          );
+          this.applyUsersFilter();
+          wx.showToast({
+            title: enabled ? "已设为组局员" : "已取消组局员",
+            icon: "none",
+          });
+        } catch (err) {
+          showError(err);
+        }
+      },
+    });
   },
 
   onCloseTeam(e) {

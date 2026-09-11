@@ -25,6 +25,7 @@
     <button class="report-link" bindtap="openFeedback">意见反馈</button>
     <button class="report-link" bindtap="openBug">报个错</button>
   </view>
+  <button wx:if="{{isOrganizer && !isAdmin}}" class="admin-link" bindtap="openPublish">帮群友发车</button>
   <button wx:if="{{isAdmin}}" class="admin-link" bindtap="openAdmin">管理端</button>
   <view class="version">{{versionText}}</view>
 

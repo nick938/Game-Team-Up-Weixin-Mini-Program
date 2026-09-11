@@ -1,6 +1,6 @@
 <view class="page">
   <view class="page-heading">管理端</view>
-  <view class="page-caption">数据概览、举报与报错处理、意见反馈。仅管理员可见。</view>
+  <view class="page-caption">数据概览、举报与报错处理、意见反馈。仅你能进；组局员只能代开发车。</view>
 
   <view class="denied" wx:if="{{denied}}">
     <view>你没有管理权限。</view>
@@ -98,7 +98,10 @@
       <view class="user-record card {{item.banned ? 'user-banned' : ''}}" wx:for="{{list}}" wx:key="_id">
         <view class="user-head">
           <view class="user-name">{{item.nickName}}</view>
-          <view class="user-state" wx:if="{{item.banned}}">已封禁</view>
+          <view class="user-badges">
+            <view class="user-state" wx:if="{{item.banned}}">已封禁</view>
+            <view class="user-organizer" wx:if="{{item.isOrganizer}}">组局员</view>
+          </view>
         </view>
         <view class="user-openid">{{item.openid}}</view>
         <view class="user-meta">
@@ -108,6 +111,7 @@
         </view>
         <button wx:if="{{!item.banned}}" class="btn-ghost user-ban" data-id="{{item._id}}" data-name="{{item.nickName}}" bindtap="onBan">封禁</button>
         <button wx:else class="btn-ghost user-unban" data-id="{{item._id}}" data-name="{{item.nickName}}" bindtap="onUnban">解封</button>
+        <button wx:if="{{!item.banned && !item.envOrganizer}}" class="btn-ghost user-organizer-btn" data-id="{{item._id}}" data-name="{{item.nickName}}" data-on="{{item.isOrganizer}}" bindtap="onToggleOrganizer">{{item.isOrganizer ? '取消组局员' : '设为组局员'}}</button>
       </view>
     </block>
 

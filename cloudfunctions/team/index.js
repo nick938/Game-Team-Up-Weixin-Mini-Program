@@ -204,6 +204,7 @@ function stripSecret(team, showPwd) {
   // 不向客户端下发任何身份标识；车头身份由服务端 role 判定。
   delete copy.openid;
   delete copy._openid;
+  delete copy.proxyOpenid;
   if (!showPwd) {
     copy.roomPwd = "";
     copy.hasPwd = !!(team.roomPwd && String(team.roomPwd).length);
@@ -460,6 +461,7 @@ async function ensureCollections() {
     "reports",
     "rate_limits",
     "admins",
+    "organizers",
   ]) {
     try {
       await db.createCollection(name);
@@ -583,6 +585,38 @@ async function isAdmin(openid) {
 
 async function adminGuard(openid) {
   return (await isAdmin(openid)) ? null : fail("没有管理权限");
+}
+
+// 组局员：只能帮群友代开，进不了管理端。环境变量 ORGANIZER_OPENIDS 或 organizers 集合。
+function organizerOpenids() {
+  return readEnv("ORGANIZER_OPENIDS")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function isOrganizer(openid) {
+  if (!openid) return false;
+  if (organizerOpenids().includes(openid)) return true;
+  try {
+    const res = await db.collection("organizers").doc(openid).get();
+    return !!(res && res.data);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function canProxyCreate(openid) {
+  return (await isAdmin(openid)) || (await isOrganizer(openid));
+}
+
+async function organizerIdSet() {
+  const ids = new Set(organizerOpenids());
+  const rows = await fetchRecent("organizers", 500);
+  rows.forEach((row) => {
+    if (row && row._id) ids.add(row._id);
+  });
+  return ids;
 }
 
 async function fetchRecent(name, cap) {
@@ -803,7 +837,11 @@ async function getProfile(openid) {
       user.avatarUrl = withTempAvatar(avatarMap, raw);
     }
   }
-  return ok({ user: user || null, isAdmin: await isAdmin(openid) });
+  return ok({
+    user: user || null,
+    isAdmin: await isAdmin(openid),
+    isOrganizer: await isOrganizer(openid),
+  });
 }
 
 function teamVisibleTexts(team) {
@@ -814,6 +852,30 @@ async function createTeam(event, openid) {
   const user = await requireProfile(openid);
   const limited = await rateLimitExceeded(openid, "createTeam");
   if (limited) return fail(limited);
+
+  // 代开：组局员/管理员指定别人当车头。普通发车忽略这个字段。
+  const hostOpenid = trim(event.hostOpenid, 64);
+  let hostId = openid;
+  let hostUser = user;
+  let proxyUser = null;
+  if (hostOpenid && hostOpenid !== openid) {
+    if (!(await canProxyCreate(openid))) return fail("没有代开权限");
+    try {
+      hostUser = await requireProfile(hostOpenid);
+      const matched =
+        hostUser._id === hostOpenid || hostUser._openid === hostOpenid;
+      if (!matched) return fail("找不到这个人");
+    } catch (e) {
+      if (e.code === "BANNED") return fail("对方账号已被封禁，不能代开");
+      if (e.code === "NEED_PROFILE") {
+        return fail("对方还没设置头像昵称，请先让他打开小程序填一下");
+      }
+      throw e;
+    }
+    hostId = hostOpenid;
+    proxyUser = user;
+  }
+
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
   const textError = await textSafeError(
@@ -825,13 +887,17 @@ async function createTeam(event, openid) {
 
   const teamData = {
     ...checked.value,
-    openid,
+    openid: hostId,
     memberCount: 1,
     status: "recruiting",
-    hostNickName: user.nickName,
-    hostAvatarUrl: user.avatarUrl || "",
+    hostNickName: hostUser.nickName,
+    hostAvatarUrl: hostUser.avatarUrl || "",
     createdAt: nowMs(),
   };
+  if (proxyUser) {
+    teamData.proxyOpenid = openid;
+    teamData.proxyNickName = proxyUser.nickName || "";
+  }
 
   // 建车队与建车头成员放同一事务，避免成员写入失败留下没有车头的脏队伍。
   let teamId = "";
@@ -841,10 +907,10 @@ async function createTeam(event, openid) {
     await transaction.collection("members").add({
       data: {
         teamId,
-        openid,
+        openid: hostId,
         role: "host",
-        nickName: user.nickName,
-        avatarUrl: user.avatarUrl || "",
+        nickName: hostUser.nickName,
+        avatarUrl: hostUser.avatarUrl || "",
         joinedAt: nowMs(),
       },
     });
@@ -953,11 +1019,13 @@ async function adminUsers(event, openid) {
   if (denied) return denied;
   const keyword = trim(event.keyword, 40).toLowerCase();
   const bannedOnly = !!event.bannedOnly;
-  const [users, teams, members] = await Promise.all([
+  const [users, teams, members, organizerIds] = await Promise.all([
     fetchRecent("users", 1000),
     fetchRecent("teams", 1000),
     fetchRecent("members", 1000),
+    organizerIdSet(),
   ]);
+  const envOrganizers = new Set(organizerOpenids());
   const hostCount = {};
   teams.forEach((t) => {
     const uid = hostUid(t);
@@ -978,6 +1046,8 @@ async function adminUsers(event, openid) {
       bannedAt: u.bannedAt || 0,
       hosted: hostCount[u._id] || 0,
       joined: joinCount[u._id] || 0,
+      isOrganizer: organizerIds.has(u._id),
+      envOrganizer: envOrganizers.has(u._id),
       updatedAt: u.updatedAt || 0,
     }))
     .filter((u) => !bannedOnly || u.banned)
@@ -1023,7 +1093,72 @@ async function adminSetBan(event, openid) {
       updatedAt: nowMs(),
     },
   });
+  if (banned) {
+    try {
+      await db.collection("organizers").doc(target).remove();
+    } catch (e) {
+      // 本来就不是组局员
+    }
+  }
   return ok({ banned });
+}
+
+// 组局员按昵称搜人，只回展示字段。必须带关键字，避免把全站用户名单发出去。
+async function searchProxyUsers(event, openid) {
+  if (!(await canProxyCreate(openid))) return fail("没有代开权限");
+  const keyword = trim(event.keyword, 32);
+  if (!keyword) return ok({ list: [] });
+  const key = keyword.toLowerCase();
+  const users = await fetchRecent("users", 1000);
+  const matched = users
+    .filter((u) => {
+      if (!u || u.banned || !u.nickName) return false;
+      if ((u._id || u._openid) === openid) return false;
+      return String(u.nickName).toLowerCase().includes(key);
+    })
+    .slice(0, 20);
+  const avatarMap = await toTempAvatarUrls(matched.map((u) => u.avatarUrl));
+  return ok({
+    list: matched.map((u) => ({
+      userId: u._id,
+      nickName: u.nickName,
+      avatarUrl: withTempAvatar(avatarMap, u.avatarUrl || ""),
+      avatarBase64: safeAvatarBase64(u.avatarBase64),
+    })),
+  });
+}
+
+// 仅全站管理员可授予 / 取消组局员。环境变量里的名单不能在这里改。
+async function adminSetOrganizer(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const target = trim(event.userId, 60);
+  if (!target) return fail("缺少用户");
+  if (organizerOpenids().includes(target)) {
+    return fail("环境变量里的组局员不能在这里改");
+  }
+  const enabled = !!event.enabled;
+  const existed = await getUser(target);
+  if (!existed) return fail("用户不存在");
+  if (enabled) {
+    if (existed.banned) return fail("封禁用户不能设为组局员");
+    if (!existed.nickName) return fail("对方还没设置昵称");
+    await db.collection("organizers").doc(target).set({
+      data: {
+        openid: target,
+        nickName: existed.nickName,
+        createdAt: nowMs(),
+        createdBy: openid,
+      },
+    });
+  } else {
+    try {
+      await db.collection("organizers").doc(target).remove();
+    } catch (e) {
+      // 已经不是组局员
+    }
+  }
+  return ok({ enabled });
 }
 
 // 管理端组队列表：只列进行中的，供管理员定位并强制关闭。
@@ -1785,6 +1920,8 @@ exports.main = async (event) => {
         return await getProfile(openid);
       case "createTeam":
         return await createTeam(event, openid);
+      case "searchProxyUsers":
+        return await searchProxyUsers(event, openid);
       case "updateTeam":
         return await updateTeam(event, openid);
       case "cancelTeam":
@@ -1815,6 +1952,8 @@ exports.main = async (event) => {
         return await adminUsers(event, openid);
       case "adminSetBan":
         return await adminSetBan(event, openid);
+      case "adminSetOrganizer":
+        return await adminSetOrganizer(event, openid);
       case "adminCancelTeam":
         return await adminCancelTeam(event, openid);
       case "adminHandleReport":

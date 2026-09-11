@@ -40,11 +40,16 @@ function emptyForm() {
     pendingAction: "",
     fromLast: false,
     showMore: false,
+    proxyMode: false,
+    proxyKeyword: "",
+    proxySearching: false,
+    proxyResults: [],
+    proxyHost: null,
   };
 }
 
 Page({
-  data: emptyForm(),
+  data: Object.assign(emptyForm(), { canProxy: false }),
 
   async onShow() {
     bindCopyUrl(wx, () => plazaShare("来开黑 - 发起组队"));
@@ -62,6 +67,7 @@ Page({
       app.globalData.republishTeam = null;
       this.applyDraft(draft);
     }
+    await this.loadProxyAccess();
   },
 
   onHide() {
@@ -97,6 +103,8 @@ Page({
         voice: VOICES.indexOf(voice) >= 0 ? voice : "KOOK",
         rankReq: team.rankReq || "",
         note: team.note || "",
+        canProxy: false,
+        proxyMode: false,
       });
     } catch (e) {
       showError(e);
@@ -182,6 +190,83 @@ Page({
     this.setData({ note: e.detail.value });
   },
 
+  async loadProxyAccess() {
+    if (this.data.editingId) {
+      this.setData({ canProxy: false, proxyMode: false });
+      return;
+    }
+    const app = getApp();
+    const cached = !!(app.globalData.isAdmin || app.globalData.isOrganizer);
+    if (cached) this.setData({ canProxy: true });
+    try {
+      const profile = await callTeam("getProfile");
+      const canProxy = !!(profile.isAdmin || profile.isOrganizer);
+      app.globalData.isAdmin = !!profile.isAdmin;
+      app.globalData.isOrganizer = !!profile.isOrganizer;
+      this.setData({ canProxy });
+    } catch (e) {
+      if (!cached) this.setData({ canProxy: false });
+    }
+  },
+
+  toggleProxy() {
+    if (this.data.editingId || !this.data.canProxy) return;
+    const proxyMode = !this.data.proxyMode;
+    this.setData({
+      proxyMode,
+      proxyKeyword: "",
+      proxySearching: false,
+      proxyResults: [],
+      proxyHost: null,
+    });
+  },
+
+  onProxyKeyword(e) {
+    const proxyKeyword = e.detail.value;
+    this.setData({ proxyKeyword });
+    if (this.proxyTimer) clearTimeout(this.proxyTimer);
+    const keyword = String(proxyKeyword || "").trim();
+    if (!keyword) {
+      this.setData({ proxyResults: [], proxySearching: false });
+      return;
+    }
+    this.setData({ proxySearching: true, proxyResults: [] });
+    this.proxyTimer = setTimeout(() => this.searchProxyUsers(keyword), 280);
+  },
+
+  async searchProxyUsers(keyword) {
+    const token = (this.proxySearchToken = (this.proxySearchToken || 0) + 1);
+    try {
+      const res = await callTeam("searchProxyUsers", { keyword });
+      if (token !== this.proxySearchToken) return;
+      this.setData({ proxyResults: res.list || [], proxySearching: false });
+    } catch (e) {
+      if (token !== this.proxySearchToken) return;
+      this.setData({ proxySearching: false, proxyResults: [] });
+      showError(e);
+    }
+  },
+
+  pickProxyHost(e) {
+    const host = e.currentTarget.dataset.host;
+    if (!host || !host.userId) return;
+    this.setData({
+      proxyHost: host,
+      proxyKeyword: host.nickName || "",
+      proxyResults: [],
+      proxySearching: false,
+    });
+  },
+
+  clearProxyHost() {
+    this.setData({
+      proxyHost: null,
+      proxyKeyword: "",
+      proxyResults: [],
+      proxySearching: false,
+    });
+  },
+
   buildTeam() {
     return {
       gameName: (this.data.gameName || "").trim(),
@@ -214,6 +299,10 @@ Page({
       return;
     }
     const editingId = this.data.editingId;
+    if (!editingId && this.data.proxyMode && !(this.data.proxyHost && this.data.proxyHost.userId)) {
+      wx.showToast({ title: "请先选择要帮谁发车", icon: "none" });
+      return;
+    }
     this.submitting = true;
     this.setData({ submitting: true });
     try {
@@ -229,9 +318,14 @@ Page({
           if (url) wx.navigateTo({ url });
         }, 400);
       } else {
-        const res = await callTeam("createTeam", { team });
+        const payload = { team };
+        if (this.data.proxyMode && this.data.proxyHost && this.data.proxyHost.userId) {
+          payload.hostOpenid = this.data.proxyHost.userId;
+        }
+        const res = await callTeam("createTeam", payload);
+        const helped = !!(payload.hostOpenid);
         this.setData(emptyForm());
-        wx.showToast({ title: "已发车", icon: "success" });
+        wx.showToast({ title: helped ? "已帮 TA 发车" : "已发车", icon: "success" });
         setTimeout(() => {
           const url = teamDetailPath(res.teamId, { gameName: team.gameName });
           if (url) wx.navigateTo({ url });

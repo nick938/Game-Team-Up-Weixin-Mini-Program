@@ -27,6 +27,7 @@ Page({
     showProfile: false,
     versionText: "",
     isAdmin: false,
+    isOrganizer: false,
   },
 
   onShow() {
@@ -58,11 +59,13 @@ Page({
         app.globalData.user = profile.user;
       }
       app.globalData.isAdmin = !!profile.isAdmin;
+      app.globalData.isOrganizer = !!profile.isOrganizer;
       const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
       const joined = splitTeams((teams.joined || []).map(decorateTeam));
       this.setData({
         user: profile.user || {},
         isAdmin: !!profile.isAdmin,
+        isOrganizer: !!profile.isOrganizer,
         hostedOngoing: hosted.ongoing,
         hostedPast: hosted.past,
         joinedOngoing: joined.ongoing,
@@ -129,6 +132,10 @@ Page({
 
   openAdmin() {
     wx.navigateTo({ url: "/pages/admin/admin" });
+  },
+
+  openPublish() {
+    wx.switchTab({ url: "/pages/publish/publish" });
   },
 
   onShareAppMessage() {

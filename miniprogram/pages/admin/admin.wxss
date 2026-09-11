@@ -53,11 +53,14 @@ button.tab { width: auto; min-width: 0; padding: 0 0 20rpx; color: #858ba0; font
 .user-search { flex: 1; min-width: 0; height: 72rpx; padding: 0 22rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 16rpx; font-size: 26rpx; box-sizing: border-box; }
 .user-record { margin-top: 18rpx; }
 .user-banned { background: #fff7f8; border-color: #f3c3ce; }
-.user-head { display: flex; align-items: center; justify-content: space-between; }
+.user-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
 .user-name { font-size: 30rpx; font-weight: 700; word-break: break-all; }
-.user-state { font-size: 22rpx; color: #c54d69; background: #feecef; border-radius: 10rpx; padding: 6rpx 14rpx; flex-shrink: 0; }
+.user-badges { display: flex; flex-shrink: 0; gap: 8rpx; }
+.user-state { font-size: 22rpx; color: #c54d69; background: #feecef; border-radius: 10rpx; padding: 6rpx 14rpx; }
+.user-organizer { font-size: 22rpx; color: #6255e7; background: #eeecff; border-radius: 10rpx; padding: 6rpx 14rpx; }
 .user-openid { margin-top: 8rpx; font-size: 21rpx; color: #a0a6b8; word-break: break-all; }
 .user-meta { margin-top: 12rpx; display: flex; flex-wrap: wrap; gap: 8rpx 20rpx; font-size: 23rpx; color: #777e92; }
 .user-reason { color: #c54d69; word-break: break-all; }
 .user-ban { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; color: #c54d69; background: #feecef; }
 .user-unban { margin-top: 20rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; }
+.user-organizer-btn { margin-top: 12rpx; min-height: 68rpx; line-height: 40rpx; font-size: 25rpx; }

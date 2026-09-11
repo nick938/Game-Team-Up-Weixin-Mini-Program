@@ -1,6 +1,6 @@
 // 仅合并同时发生的相同读取；完成后即清除，组队状态始终重新读取。
 const pendingReads = new Map();
-const READ_TYPES = new Set(["getProfile", "getPublicProfile", "getTeam", "listTeams", "myTeams"]);
+const READ_TYPES = new Set(["getProfile", "getPublicProfile", "getTeam", "listTeams", "myTeams", "searchProxyUsers"]);
 
 function callTeam(type, data = {}) {
   if (!READ_TYPES.has(type)) return invokeTeam(type, data);

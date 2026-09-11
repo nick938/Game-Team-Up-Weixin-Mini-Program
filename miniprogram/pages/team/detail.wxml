@@ -5,7 +5,8 @@
       <view class="started" wx:if="{{team.started}}">进行中</view>
       <view class="soon" wx:elif="{{team.soon}}">即将开始</view>
     </view>
-    <view class="game">{{team.gameName}}</view>
+            <view class="game">{{team.gameName}}</view>
+    <view class="proxy-tip" wx:if="{{team.proxyNickName}}">由 {{team.proxyNickName}} 代开</view>
     <view class="time">{{team.timeText}}</view>
     <view wx:if="{{role && (team.displayStatus === 'recruiting' || team.displayStatus === 'full')}}" class="notify-row">
       <button size="mini" class="notify-link {{notifyAuthorized ? 'notify-authorized' : ''}}" bindtap="onEnableNotify">
