@@ -1,7 +1,7 @@
 const PLATFORMS = ["Steam", "手游", "端游", "主机"];
 const VOICES = ["不限", "KOOK", "游戏内语音", "开麦"];
 const MAX_TEAM_HOURS = 24;
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "1.6.1";
 const FEEDBACK_KINDS = ["遇到问题", "功能建议", "体验吐槽", "其他"];
 const FEEDBACK_PAGES = ["大厅", "发车", "组队详情", "我的", "其他"];
 const FEEDBACK_TEMPLATE = "【我遇到的情况】\n\n\n【我希望怎样】\n";

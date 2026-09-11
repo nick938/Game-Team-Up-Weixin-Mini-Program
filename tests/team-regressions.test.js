@@ -818,21 +818,31 @@ test('started teams stay visible but are flagged and sink below upcoming ones', 
   assert.equal(ctx.stripSecret({ ...startedTeam, endAt: now - 1 }, false).started, false);
 });
 
-test('app version always comes from the build and only the env label varies', () => {
-  let info = { envVersion: 'develop', version: '' };
-  const mod = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
-    require: () => ({ APP_VERSION: '0.7.0' }),
-    module: mod,
-    wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
-  });
-  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 开发版');
-  assert.equal(mod.exports.getAppVersion().version, '0.7.0');
-  // 正式版忽略后台上传版本号，仍显示代码里的版本，保证开发版/正式版一致。
-  info = { envVersion: 'release', version: '1.2.0' };
-  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 正式版');
-  info = { envVersion: 'trial', version: '0.7.0' };
-  assert.equal(mod.exports.getAppVersion().text, 'v0.7.0 · 体验版');
+test('app version reads the backend on release and local APP_VERSION elsewhere', () => {
+  const load = info => {
+    const mod = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
+      require: () => ({ APP_VERSION: '1.6.1' }),
+      module: mod,
+      wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
+    });
+    return mod.exports;
+  };
+  // 开发版/体验版取本地 APP_VERSION，带环境标注。
+  let ver = load({ envVersion: 'develop', version: '' }).getAppVersion();
+  assert.equal(ver.text, 'v1.6.1 · 开发版');
+  assert.equal(ver.version, '1.6.1');
+  ver = load({ envVersion: 'trial', version: '' }).getAppVersion();
+  assert.equal(ver.text, 'v1.6.1 · 体验版');
+  // 正式版取微信后台上传的版本号，允许与本地不同，且不显示环境标注。
+  ver = load({ envVersion: 'release', version: '1.6.1' }).getAppVersion();
+  assert.equal(ver.text, 'v1.6.1');
+  ver = load({ envVersion: 'release', version: '1.5.0' }).getAppVersion();
+  assert.equal(ver.text, 'v1.5.0');
+  assert.equal(ver.version, '1.5.0');
+  // 正式版拿不到后台版本号时回退到本地 APP_VERSION，并补上标注。
+  ver = load({ envVersion: 'release', version: '' }).getAppVersion();
+  assert.equal(ver.text, 'v1.6.1 · 正式版');
 });
 
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
