@@ -8,6 +8,9 @@
 .filters-inner { display: inline-flex; gap: 12rpx; }
 .filter { padding: 16rpx 26rpx; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 32rpx; color: #737a90; font-size: 25rpx; }
 .filter-on { background: #6255e7; color: #fff; border-color: #6255e7; }
+.sorts { display: inline-flex; gap: 8rpx; margin-bottom: 24rpx; padding: 6rpx; background: #eceef6; border-radius: 28rpx; }
+.sort { padding: 10rpx 22rpx; border-radius: 24rpx; color: #737a90; font-size: 24rpx; }
+.sort-on { background: #fff; color: #6255e7; font-weight: 600; }
 .empty-btn { width: 300rpx; margin: 28rpx auto 0; }
 
 .hero-copy { flex: 1; min-width: 0; position: relative; z-index: 1; }

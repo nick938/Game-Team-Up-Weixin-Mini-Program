@@ -20,6 +20,16 @@
     </view>
   </scroll-view>
 
+  <view class="sorts">
+    <view
+      class="sort {{sortMode === item.key ? 'sort-on' : ''}}"
+      wx:for="{{sorts}}"
+      wx:key="key"
+      data-key="{{item.key}}"
+      bindtap="pickSort"
+    >{{item.label}}</view>
+  </view>
+
   <view wx:if="{{loading && !total}}" class="empty">正在找车…</view>
   <view wx:elif="{{!total}}" class="empty">
     <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />

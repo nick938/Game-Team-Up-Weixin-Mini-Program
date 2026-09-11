@@ -845,6 +845,35 @@ test('app version reads the backend on release and local APP_VERSION elsewhere',
   assert.equal(ver.text, 'v1.6.1 · 正式版');
 });
 
+test('lobby sorts by creation, heat and tip-off, defaulting to newest first', () => {
+  const { SORT_MODES, sortTeams } = require(path.join(root, 'miniprogram/utils/sort.js'));
+  const ids = list => list.map(t => t._id);
+  const now = Date.now();
+  const teams = [
+    { _id: 'old', createdAt: now - 300000, memberCount: 5, capacity: 5, startAt: now + 60000, started: false },
+    { _id: 'new', createdAt: now - 1000, memberCount: 2, capacity: 5, startAt: now + 120000, started: false },
+    { _id: 'mid', createdAt: now - 120000, memberCount: 4, capacity: 5, startAt: now - 60000, started: true },
+  ];
+  // 默认也没有模式时，都按创建时间倒序，最新的在最上面。
+  assert.equal(sortTeams(teams)[0]._id, 'new');
+  assert.deepEqual(ids(sortTeams(teams, 'latest')), ['new', 'mid', 'old']);
+  assert.equal(sortTeams(teams, 'not-a-mode')[0]._id, 'new');
+  // 热度按上车人数；人数相同再按最新创建。
+  const tie = [
+    { _id: 'a', createdAt: now - 1000, memberCount: 3 },
+    { _id: 'b', createdAt: now - 90000, memberCount: 3 },
+    { _id: 'c', createdAt: now - 5000, memberCount: 4 },
+  ];
+  assert.deepEqual(ids(sortTeams(tie, 'hot')), ['c', 'a', 'b']);
+  // 时间：未开打的在前，各自按开打时间从近到远；已开打的沉底。
+  assert.deepEqual(ids(sortTeams(teams, 'time')), ['old', 'new', 'mid']);
+  assert.deepEqual(SORT_MODES.map(m => m.key), ['latest', 'hot', 'time']);
+  // 不改动入参数组本身。
+  const input = teams.slice();
+  sortTeams(input, 'hot');
+  assert.deepEqual(ids(input), ids(teams));
+});
+
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
   const team = { _id: 't', gameName: 'CS2', startAt: Date.now() + 240000, endAt: Date.now() + 7200000, status: 'recruiting', openid: 'host' };
   const calls = [];
