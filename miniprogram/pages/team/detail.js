@@ -72,7 +72,7 @@ Page({
     if (singlePage) return;
     bindCopyUrl(wx, () => ({
       query: teamShareQuery(this.data.teamId),
-      title: (this.data.team && this.data.team.gameName) || "来开黑",
+      title: (this.data.team && this.data.team.gameName) || "图一乐",
     }));
     const teamId = this.syncTeamId(this.entryOptions || this.options);
     if (teamId) {
@@ -95,10 +95,10 @@ Page({
     const query = teamShareQuery(this.data.teamId);
     const path = query ? `/pages/team/detail?${query}` : "/pages/index/index";
     if (!team) {
-      return { title: "来开黑", path, query };
+      return { title: "图一乐", path, query };
     }
     const time = formatStartAt(team.startAt).replace(/今天 |今晚 |明天 /, "");
-    let title = `来开黑｜${team.gameName}`;
+    let title = `图一乐｜${team.gameName}`;
     if (team.displayStatus === "recruiting") {
       title += ` 还差 ${team.needCount} 人 · ${time}`;
     } else if (team.displayStatus === "full") {

@@ -1,6 +1,6 @@
 function plazaShare(title) {
   return {
-    title: title || "来开黑 - 一起组队开黑",
+    title: title || "图一乐 - 一起组队开黑",
     path: "/pages/index/index",
     query: "",
   };
@@ -13,7 +13,7 @@ function bindCopyUrl(api, getPayload) {
     const payload = typeof getPayload === "function" ? getPayload() : getPayload || {};
     return {
       query: payload.query || "",
-      title: payload.title || "来开黑",
+      title: payload.title || "图一乐",
     };
   });
 }

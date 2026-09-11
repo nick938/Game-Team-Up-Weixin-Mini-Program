@@ -1,7 +1,7 @@
 <view wx:if="{{show}}" class="mask" catchtouchmove="noop">
   <view class="letter" catchtap="noop">
     <image class="stamp" src="/images/brand/avatar-v1.jpg" mode="aspectFill" aria-hidden="true" />
-    <view class="kicker">来开黑 · 给上车的你</view>
+    <view class="kicker">图一乐 · 给上车的你</view>
     <view class="title">一起玩，好好玩</view>
     <view class="body">嘿，欢迎上车。这里是给游戏好友发车组队用的。车上都是真人，请友好相处。</view>
     <view class="rules">

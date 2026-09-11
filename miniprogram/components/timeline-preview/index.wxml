@@ -1,6 +1,6 @@
 <view class="preview">
   <image class="art" src="/images/brand/lobby-v1.jpg" mode="aspectFit" />
-  <view class="brand">来开黑</view>
+  <view class="brand">图一乐</view>
   <view class="title">找队友，开一局</view>
   <view class="subtitle">好玩的局，就差一个你。</view>
   <view class="intro">和游戏好友约好时间，一起组队开黑。</view>

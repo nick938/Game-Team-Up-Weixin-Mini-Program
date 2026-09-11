@@ -225,7 +225,7 @@ function stripSecret(team, showPwd) {
 }
 
 function clipThing(s, max) {
-  const t = String(s || "").trim() || "来开黑";
+  const t = String(s || "").trim() || "图一乐";
   if (t.length <= max) return t;
   return t.slice(0, max - 1) + "…";
 }
@@ -1573,9 +1573,9 @@ async function sendFeedbackMail({ kind, page, content, nickName, version, envVer
   ];
   try {
     await createMailTransport(nodemailer, mail).sendMail({
-      from: `"来开黑反馈" <${mail.user}>`,
+      from: `"图一乐游戏组局助手反馈" <${mail.user}>`,
       to: mail.to,
-      subject: `【来开黑反馈】${kind} · ${nickName || "未命名用户"}`,
+      subject: `【图一乐游戏组局助手反馈】${kind} · ${nickName || "未命名用户"}`,
       text: lines.join("\n"),
     });
     return { status: "sent" };
