@@ -209,9 +209,9 @@ Page({
     }
   },
 
-  toggleProxy() {
+  toggleProxy(e) {
     if (this.data.editingId || !this.data.canProxy) return;
-    const proxyMode = !this.data.proxyMode;
+    const proxyMode = e.detail.value;
     this.setData({
       proxyMode,
       proxyKeyword: "",

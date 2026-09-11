@@ -16,8 +16,15 @@
 .area { width: 100%; min-height: 170rpx; padding: 20rpx; line-height: 1.6; }
 .from-last { color: #6255e7; font-size: 24rpx; margin-top: 12rpx; }
 .time-hint { margin-top: 12rpx; font-size: 23rpx; color: #858ba0; }
-button.more-toggle { width: 100% !important; margin-top: 28rpx; padding: 28rpx 0; border-top: 1rpx solid #eef0f6; display: flex; justify-content: space-between; align-items: center; font-size: 27rpx; text-align: left; }
-.more-hint { font-size: 22rpx; color: #777e92; }
+button.more-toggle { width: 100% !important; margin-top: 32rpx; padding: 24rpx 20rpx; box-sizing: border-box; border: 2rpx solid #d8d2ff; border-radius: 18rpx; background: #f3f0ff; display: flex; gap: 16rpx; justify-content: space-between; align-items: center; text-align: left; line-height: 1.5; }
+.more-copy { flex: 1; min-width: 0; }
+.more-title { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; font-size: 28rpx; font-weight: 700; color: #4437b5; }
+.more-optional { font-size: 21rpx; font-weight: 400; color: #736b99; }
+.more-hint { margin-top: 8rpx; font-size: 23rpx; color: #6b6485; }
+.more-action { flex-shrink: 0; display: flex; align-items: center; gap: 12rpx; padding: 10rpx 16rpx; border-radius: 12rpx; background: #e5dfff; color: #5549c7; font-size: 24rpx; font-weight: 600; }
+.more-chevron { width: 10rpx; height: 10rpx; border-right: 3rpx solid currentColor; border-bottom: 3rpx solid currentColor; transform: translateY(-3rpx) rotate(45deg); }
+.more-chevron-up { transform: translateY(3rpx) rotate(225deg); }
+button.more-toggle-hover { background: #eae4ff; }
 .submit { margin-top: 24rpx; }
 
 .proxy-switch { margin: 28rpx 0 8rpx; padding: 22rpx 20rpx; display: flex; align-items: center; gap: 16rpx; background: #f7f8fc; border: 1rpx solid #e9ebf3; border-radius: 18rpx; }
@@ -25,8 +32,7 @@ button.more-toggle { width: 100% !important; margin-top: 28rpx; padding: 28rpx 0
 .proxy-switch-copy { flex: 1; min-width: 0; }
 .proxy-switch-title { font-size: 27rpx; font-weight: 700; color: #202438; }
 .proxy-switch-hint { margin-top: 6rpx; font-size: 22rpx; color: #858ba0; line-height: 1.5; }
-.proxy-toggle { flex-shrink: 0; min-width: 72rpx; text-align: center; font-size: 23rpx; font-weight: 700; color: #6255e7; background: #fff; border-radius: 999rpx; padding: 10rpx 18rpx; }
-.proxy-switch-on .proxy-toggle { background: #6255e7; color: #fff; }
+.proxy-toggle { flex-shrink: 0; }
 .proxy-picked { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 18rpx; background: #f7f8fc; border-radius: 16rpx; }
 .proxy-picked-name { flex: 1; min-width: 0; font-size: 28rpx; font-weight: 600; word-break: break-all; }
 .proxy-picked-clear { flex-shrink: 0; font-size: 23rpx; color: #6255e7; }

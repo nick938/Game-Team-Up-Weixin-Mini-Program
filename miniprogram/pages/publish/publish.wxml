@@ -1,13 +1,13 @@
 <view class="page">
   <view class="publish-heading"><view class="publish-copy"><view class="page-heading">{{editingId ? '调整这趟车' : (proxyMode ? '帮群友开一局' : '喊上好友，开一局')}}</view><view class="page-caption">{{editingId ? '先定游戏和时间，发车后分享给好友。' : (proxyMode ? '车头是群友，发车后出现在他的「我发起的」里。' : '先定游戏和时间，发车后分享给好友。')}}</view></view><image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="来开黑" /></view>
   <view class="form">
-    <view wx:if="{{canProxy && !editingId}}" class="proxy-switch {{proxyMode ? 'proxy-switch-on' : ''}}" bindtap="toggleProxy">
+    <label wx:if="{{canProxy && !editingId}}" class="proxy-switch {{proxyMode ? 'proxy-switch-on' : ''}}">
       <view class="proxy-switch-copy">
         <view class="proxy-switch-title">帮群友发车</view>
         <view class="proxy-switch-hint">群里有人喊了但没自己发车时，可以代开一趟</view>
       </view>
-      <view class="proxy-toggle">{{proxyMode ? '开' : '关'}}</view>
-    </view>
+      <switch class="proxy-toggle" checked="{{proxyMode}}" color="#6255e7" bindchange="toggleProxy" aria-label="帮群友发车" />
+    </label>
 
     <block wx:if="{{proxyMode && !editingId}}">
       <view class="label">帮谁发车</view>
@@ -77,7 +77,13 @@
       <view class="step-btn" bindtap="incCap">+</view>
     </view>
 
-    <button class="more-toggle" bindtap="toggleMore"><text>更多设置</text><text class="more-hint">房间、语音、备注 {{showMore ? '−' : '＋'}}</text></button>
+    <button class="more-toggle" bindtap="toggleMore" hover-class="more-toggle-hover" aria-label="更多设置，{{showMore ? '点击收起' : '点击展开'}}">
+      <view class="more-copy">
+        <view class="more-title">更多设置<text class="more-optional">选填</text></view>
+        <view class="more-hint">房间号、密码、区服、语音、水平、备注</view>
+      </view>
+      <view class="more-action">{{showMore ? '收起' : '展开'}}<text class="more-chevron {{showMore ? 'more-chevron-up' : ''}}"></text></view>
+    </button>
     <view hidden="{{!showMore}}" class="more-fields">
     <view class="label">怎么进（选填）</view>
     <input class="field" placeholder="房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
