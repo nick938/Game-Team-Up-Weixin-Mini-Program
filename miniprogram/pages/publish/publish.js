@@ -75,6 +75,7 @@ Page({
   },
 
   onUnload() {
+    this.cancelProxySearch();
     unbindCopyUrl(wx);
   },
 
@@ -209,8 +210,15 @@ Page({
     }
   },
 
+  cancelProxySearch() {
+    if (this.proxyTimer) clearTimeout(this.proxyTimer);
+    this.proxyTimer = null;
+    this.proxySearchToken = (this.proxySearchToken || 0) + 1;
+  },
+
   toggleProxy(e) {
     if (this.data.editingId || !this.data.canProxy) return;
+    this.cancelProxySearch();
     const proxyMode = e.detail.value;
     this.setData({
       proxyMode,
@@ -224,7 +232,7 @@ Page({
   onProxyKeyword(e) {
     const proxyKeyword = e.detail.value;
     this.setData({ proxyKeyword });
-    if (this.proxyTimer) clearTimeout(this.proxyTimer);
+    this.cancelProxySearch();
     const keyword = String(proxyKeyword || "").trim();
     if (!keyword) {
       this.setData({ proxyResults: [], proxySearching: false });
@@ -250,6 +258,7 @@ Page({
   pickProxyHost(e) {
     const host = e.currentTarget.dataset.host;
     if (!host || !host.userId) return;
+    this.cancelProxySearch();
     this.setData({
       proxyHost: host,
       proxyKeyword: host.nickName || "",
@@ -259,6 +268,7 @@ Page({
   },
 
   clearProxyHost() {
+    this.cancelProxySearch();
     this.setData({
       proxyHost: null,
       proxyKeyword: "",

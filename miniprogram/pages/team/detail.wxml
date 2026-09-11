@@ -62,7 +62,7 @@
   <view class="actions" wx:if="{{team.ongoing}}">
     <button class="btn-ghost compact-action" wx:if="{{role === 'host'}}" bindtap="onManage">管理</button>
     <button class="btn-ghost compact-action" wx:if="{{role === 'member'}}" bindtap="onLeave">下车</button>
-    <button class="{{role ? 'btn-primary' : 'btn-ghost compact-action'}}" open-type="share">邀请好友</button>
+    <button class="{{role ? 'btn-primary' : 'btn-ghost compact-action'}}" open-type="share">{{team.displayStatus === 'full' ? '分享队伍' : '邀请好友'}}</button>
     <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'recruiting'}}" bindtap="onJoin">{{team.started ? '中途加入' : '上车'}} · 还差 {{team.needCount}} 人</button>
     <button class="btn-primary" wx:if="{{!role && team.displayStatus === 'full'}}" bindtap="goPlaza">已满员，看看别的局</button>
   </view>

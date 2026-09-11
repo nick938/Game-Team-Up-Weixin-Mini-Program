@@ -635,12 +635,14 @@ test('welcome letter can open feedback', () => {
   assert.deepEqual(navigated, ['/pages/feedback/feedback']);
 });
 
-function publishPage() {
+function publishPage(searchUsers) {
   let page;
   const app = { globalData: { editingTeamId: null, republishTeam: null } };
   const calls = [];
   const now = Date.now();
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/publish/publish.js'), 'utf8'), {
+    setTimeout,
+    clearTimeout,
     Page: value => { page = value; },
     getApp: () => app,
     require: (name) => {
@@ -660,6 +662,7 @@ function publishPage() {
         return {
           callTeam: async (type, data) => {
             calls.push([type, data]);
+            if (type === 'searchProxyUsers' && searchUsers) return searchUsers(data);
             if (type === 'getTeam') {
               return {
                 team: {
@@ -1373,4 +1376,38 @@ test('ORGANIZER_OPENIDS env grants proxy access and cannot be toggled in admin',
   assert.equal(created.ok, true);
   const blocked = await ctx.adminSetOrganizer({ userId: 'helper', enabled: false }, 'boss');
   assert.equal(blocked.ok, false);
+});
+
+
+test('proxy search ignores results after switch off, input clear, or host change', async () => {
+  for (const action of [
+    page => page.toggleProxy({ detail: { value: false } }),
+    page => page.onProxyKeyword({ detail: { value: '' } }),
+    page => page.clearProxyHost(),
+    page => page.pickProxyHost({ currentTarget: { dataset: { host: { userId: 'chosen', nickName: '选中的群友' } } } }),
+  ]) {
+    let resolve;
+    const { page } = publishPage(() => new Promise(done => { resolve = done; }));
+    page.setData({ canProxy: true, proxyMode: true, proxyKeyword: '旧昵称' });
+    const pending = page.searchProxyUsers('旧昵称');
+    action(page);
+    resolve({ list: [{ userId: 'stale', nickName: '旧昵称' }] });
+    await pending;
+    assert.equal(page.data.proxyResults.length, 0);
+    assert.equal(page.data.proxySearching, false);
+  }
+});
+
+test('proxy switch uses checked value and more settings preserve entered fields', () => {
+  const { page } = publishPage();
+  page.setData({ canProxy: true, roomNo: '123', note: '娱乐局' });
+  page.toggleProxy({ detail: { value: true } });
+  assert.equal(page.data.proxyMode, true);
+  page.toggleProxy({ detail: { value: false } });
+  assert.equal(page.data.proxyMode, false);
+  page.toggleMore();
+  page.toggleMore();
+  assert.equal(page.data.showMore, false);
+  assert.equal(page.data.roomNo, '123');
+  assert.equal(page.data.note, '娱乐局');
 });
