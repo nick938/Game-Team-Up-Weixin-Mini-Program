@@ -1,16 +1,22 @@
 .hero { display: flex; align-items: center; justify-content: space-between; margin: 8rpx 0 36rpx; gap: 16rpx; }
 .hero-title { font-size: 46rpx; font-weight: 700; letter-spacing: -1rpx; }
 .hero-sub { margin-top: 10rpx; color: #777e92; font-size: 25rpx; }
-.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24rpx; }
-.zone { font-size: 29rpx; font-weight: 600; }
-.section-meta { font-size: 23rpx; color: #777e92; }
-.filters { white-space: nowrap; margin-bottom: 24rpx; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; gap: 16rpx; }
+.zone { font-size: 29rpx; font-weight: 600; flex-shrink: 0; }
+.section-count { margin-left: 10rpx; font-size: 23rpx; font-weight: 400; color: #9aa0b4; }
+.toolbar { display: flex; align-items: center; gap: 16rpx; margin-bottom: 20rpx; }
+.search { position: relative; display: flex; align-items: center; flex: 0 0 auto; width: 300rpx; }
+.toolbar-solo .search { flex: 1; width: auto; }
+.search-input { width: 100%; height: 68rpx; padding: 0 56rpx 0 26rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 34rpx; font-size: 25rpx; color: #202438; }
+.search-clear { position: absolute; right: 22rpx; width: 36rpx; height: 36rpx; line-height: 36rpx; text-align: center; color: #9aa0b4; font-size: 24rpx; }
+.filters { flex: 1; min-width: 0; white-space: nowrap; }
 .filters-inner { display: inline-flex; gap: 12rpx; }
-.filter { padding: 16rpx 26rpx; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 32rpx; color: #737a90; font-size: 25rpx; }
+.filter { padding: 12rpx 22rpx; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 30rpx; color: #737a90; font-size: 24rpx; line-height: 1.3; }
 .filter-on { background: #6255e7; color: #fff; border-color: #6255e7; }
-.sorts { display: inline-flex; gap: 8rpx; margin-bottom: 24rpx; padding: 6rpx; background: #eceef6; border-radius: 28rpx; }
-.sort { padding: 10rpx 22rpx; border-radius: 24rpx; color: #737a90; font-size: 24rpx; }
+.sorts { display: inline-flex; flex-shrink: 0; gap: 4rpx; padding: 5rpx; background: #eceef6; border-radius: 26rpx; }
+.sort { padding: 8rpx 18rpx; border-radius: 21rpx; color: #737a90; font-size: 23rpx; line-height: 1.3; }
 .sort-on { background: #fff; color: #6255e7; font-weight: 600; }
+.load-more { padding: 28rpx 0 8rpx; text-align: center; color: #9aa0b4; font-size: 24rpx; }
 .empty-btn { width: 300rpx; margin: 28rpx auto 0; }
 
 .hero-copy { flex: 1; min-width: 0; position: relative; z-index: 1; }

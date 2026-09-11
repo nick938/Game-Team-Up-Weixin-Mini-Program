@@ -5,16 +5,20 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false } = {}) {
   const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
   const deleted = [];
   const db = {
     command: { gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
     collection(name) {
       const rows = tables[name] || (tables[name] = []);
+      // 默认忽略 skip/limit（老测试依赖全量返回）；paginate 时按真实数据库语义切片。
+      let _skip = 0, _limit = Infinity;
       return {
-        where() { return this; }, limit() { return this; }, orderBy() { return this; },
-        async get() { return { data: rows }; },
+        where() { return this; }, orderBy() { return this; },
+        limit(n) { _limit = n; return this; },
+        skip(n) { _skip = n; return this; },
+        async get() { return { data: paginate ? rows.slice(_skip, _skip + _limit) : rows }; },
         async add({ data }) {
           const _id = `${name}_${rows.length + 1}`;
           rows.push({ _id, ...data });
@@ -809,13 +813,52 @@ test('started teams stay visible but are flagged and sink below upcoming ones', 
   const ctx = backend({ teams: [startedTeam, upcomingTeam] });
   assert.equal(ctx.stripSecret(startedTeam, false).started, true);
   assert.equal(ctx.stripSecret(upcomingTeam, false).started, false);
-  const list = (await ctx.listTeams({}, '')).list;
-  assert.equal(list.length, 2);
-  // 已开始的车仍在列表中，但排在未开始的车后面。
-  assert.deepEqual(list.map((t) => t._id), ['upcoming', 'started']);
+  const res = await ctx.listTeams({}, '');
+  assert.equal(res.list.length, 2);
+  // 已开始的车仍会返回（带 started 标记），排序交给客户端。
+  assert.deepEqual([...res.list.map((t) => t._id)].sort(), ['started', 'upcoming']);
+  assert.equal(res.hasMore, false);
   // 已取消 / 已过期不算「进行中」。
   assert.equal(ctx.stripSecret({ ...startedTeam, status: 'cancelled' }, false).started, false);
   assert.equal(ctx.stripSecret({ ...startedTeam, endAt: now - 1 }, false).started, false);
+});
+
+test('lobby paginates by createdAt desc and reports hasMore/nextOffset', async () => {
+  const now = Date.now();
+  const live = (n, at) => ({ _id: `live${n}`, gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting', endAt: now + 3600000, createdAt: at });
+  // 库内按 createdAt 倒序返回（真实库由 orderBy 保证，这里按该顺序铺数据）。
+  const teams = [live(3, 300), live(2, 200), live(1, 100)];
+  const ctx = backend({ teams, paginate: true });
+  // 每页 2 条：第一页拿 2 条且还有更多，nextOffset 精确指向第二条之后。
+  const first = await ctx.listTeams({ offset: 0, limit: 2 }, '');
+  assert.deepEqual([...first.list.map(t => t._id)], ['live3', 'live2']);
+  assert.equal(first.hasMore, true);
+  assert.equal(first.nextOffset, 2);
+  // 第二页拿剩下的 1 条，到底。
+  const second = await ctx.listTeams({ offset: first.nextOffset, limit: 2 }, '');
+  assert.deepEqual([...second.list.map(t => t._id)], ['live1']);
+  assert.equal(second.hasMore, false);
+  assert.equal(second.nextOffset, 3);
+  // 越界返回空页且不再 hasMore。
+  const beyond = await ctx.listTeams({ offset: 99, limit: 2 }, '');
+  assert.equal(beyond.list.length, 0);
+  assert.equal(beyond.hasMore, false);
+  // 已取消 / 已过期的车被跳过，不会占分页名额；扫描时也不误判到底。
+  const mixed = [live(3, 300), { ...live(9, 250), status: 'cancelled' }, live(2, 200), { ...live(8, 150), endAt: now - 1 }, live(1, 100)];
+  const ctx2 = backend({ teams: mixed, paginate: true });
+  const page = await ctx2.listTeams({ offset: 0, limit: 2 }, '');
+  assert.deepEqual([...page.list.map(t => t._id)], ['live3', 'live2']);
+  assert.equal(page.hasMore, true);
+  // 凑满一页即停，nextOffset 指向下一条未消费的原始记录（已取消项会被跳过）。
+  assert.equal(page.nextOffset, 3);
+  const rest = await ctx2.listTeams({ offset: page.nextOffset, limit: 5 }, '');
+  assert.deepEqual([...rest.list.map(t => t._id)], ['live1']);
+  assert.equal(rest.hasMore, false);
+  // 上限会被夹紧到 50，避免客户端拉过量。
+  const capped = await backend({ teams: Array.from({ length: 80 }, (_, i) => live(i, 1000 - i)), paginate: true })
+    .listTeams({ offset: 0, limit: 5000 }, '');
+  assert.equal(capped.list.length, 50);
+  assert.equal(capped.hasMore, true);
 });
 
 test('app version reads the backend on release and local APP_VERSION elsewhere', () => {
@@ -845,8 +888,8 @@ test('app version reads the backend on release and local APP_VERSION elsewhere',
   assert.equal(ver.text, 'v1.6.1 · 正式版');
 });
 
-test('lobby sorts by creation, heat and tip-off, defaulting to newest first', () => {
-  const { SORT_MODES, sortTeams } = require(path.join(root, 'miniprogram/utils/sort.js'));
+test('lobby sorts by creation or heat, defaulting to newest first', () => {
+  const { SORT_MODES, sortTeams } = require(path.join(root, 'miniprogram/utils/lobby.js'));
   const ids = list => list.map(t => t._id);
   const now = Date.now();
   const teams = [
@@ -865,13 +908,36 @@ test('lobby sorts by creation, heat and tip-off, defaulting to newest first', ()
     { _id: 'c', createdAt: now - 5000, memberCount: 4 },
   ];
   assert.deepEqual(ids(sortTeams(tie, 'hot')), ['c', 'a', 'b']);
-  // 时间：未开打的在前，各自按开打时间从近到远；已开打的沉底。
-  assert.deepEqual(ids(sortTeams(teams, 'time')), ['old', 'new', 'mid']);
-  assert.deepEqual(SORT_MODES.map(m => m.key), ['latest', 'hot', 'time']);
+  // 目前只提供最新 / 最热两档。
+  assert.deepEqual(SORT_MODES.map(m => m.key), ['latest', 'hot']);
   // 不改动入参数组本身。
   const input = teams.slice();
   sortTeams(input, 'hot');
   assert.deepEqual(ids(input), ids(teams));
+});
+
+test('lobby search matches game, server, rank and note, and composes with filters', () => {
+  const { matchKeyword, buildLobbyView } = require(path.join(root, 'miniprogram/utils/lobby.js'));
+  const teams = [
+    { _id: 'a', gameName: 'CS2', server: '国服', rankReq: '上分', note: '萌新友好', createdAt: 300 },
+    { _id: 'b', gameName: '永劫无间', server: '亚服', rankReq: '', note: '', createdAt: 200 },
+    { _id: 'c', gameName: 'CS2', server: '欧服', rankReq: '娱乐', note: '', createdAt: 100 },
+  ];
+  // 空关键词全通过。
+  assert.equal(matchKeyword(teams[0], ''), true);
+  assert.equal(matchKeyword(teams[0], '   '), true);
+  // 命中游戏名 / 区服 / 段位 / 备注任意字段即可，大小写与空白不敏感。
+  assert.equal(matchKeyword(teams[0], 'cs2'), true);
+  assert.equal(matchKeyword(teams[1], 'CS2'), false);
+  assert.equal(matchKeyword(teams[1], '亚服'), true);
+  assert.equal(matchKeyword(teams[2], '娱乐'), true);
+  assert.equal(matchKeyword(teams[0], '萌新'), true);
+  assert.equal(matchKeyword(teams[1], '不存在'), false);
+  // 搜索 + 游戏筛选 + 排序叠加：先搜「服」→ 三条都中，再筛 CS2 → a、c，再按最新在前 → a、c。
+  assert.deepEqual(buildLobbyView(teams, { keyword: '服', gameFilter: 'CS2', sortMode: 'latest' }).map(t => t._id), ['a', 'c']);
+  // 只搜索不筛选，按最热（人数缺省为 0，回落到创建时间）排序。
+  assert.deepEqual(buildLobbyView(teams, { keyword: 'CS2' }).map(t => t._id), ['a', 'c']);
+  assert.deepEqual(buildLobbyView(teams, { keyword: '不存在' }), []);
 });
 
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {

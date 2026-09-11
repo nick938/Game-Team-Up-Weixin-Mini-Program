@@ -6,28 +6,43 @@
     <image class="hero-art" src="/images/brand/lobby-v1.jpg" mode="aspectFit" aria-hidden="true" />
   </view>
 
-  <view class="section-head"><view class="zone">现在的车</view><text class="section-meta">{{total}} 趟 · 下拉刷新</text></view>
-
-  <scroll-view wx:if="{{games.length > 1}}" class="filters" scroll-x>
-    <view class="filters-inner">
+  <view class="section-head">
+    <view class="zone">现在的车<text class="section-count">{{filtered.length}}/{{total}}</text></view>
+    <view class="sorts">
       <view
-        class="filter {{gameFilter === item ? 'filter-on' : ''}}"
-        wx:for="{{games}}"
-        wx:key="*this"
-        data-name="{{item}}"
-        bindtap="pickGame"
-      >{{item}}</view>
+        class="sort {{sortMode === item.key ? 'sort-on' : ''}}"
+        wx:for="{{sorts}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="pickSort"
+      >{{item.label}}</view>
     </view>
-  </scroll-view>
+  </view>
 
-  <view class="sorts">
-    <view
-      class="sort {{sortMode === item.key ? 'sort-on' : ''}}"
-      wx:for="{{sorts}}"
-      wx:key="key"
-      data-key="{{item.key}}"
-      bindtap="pickSort"
-    >{{item.label}}</view>
+  <view class="toolbar {{games.length > 1 ? '' : 'toolbar-solo'}}">
+    <view class="search">
+      <input
+        class="search-input"
+        type="text"
+        placeholder="搜游戏 / 区服"
+        value="{{keyword}}"
+        maxlength="20"
+        confirm-type="search"
+        bindinput="onSearch"
+      />
+      <text wx:if="{{keyword}}" class="search-clear" catchtap="clearSearch">✕</text>
+    </view>
+    <scroll-view wx:if="{{games.length > 1}}" class="filters" scroll-x>
+      <view class="filters-inner">
+        <view
+          class="filter {{gameFilter === item ? 'filter-on' : ''}}"
+          wx:for="{{games}}"
+          wx:key="*this"
+          data-name="{{item}}"
+          bindtap="pickGame"
+        >{{item}}</view>
+      </view>
+    </scroll-view>
   </view>
 
   <view wx:if="{{loading && !total}}" class="empty">正在找车…</view>
@@ -36,6 +51,11 @@
     <view>队友还在路上</view>
     <view>自己发一趟，把卡片丢进群。</view>
     <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
+  </view>
+  <view wx:elif="{{!filtered.length && keyword}}" class="empty">
+    <view>已加载的车里没搜到「{{keyword}}」。</view>
+    <button wx:if="{{hasMore}}" class="btn-ghost empty-btn" bindtap="loadMore">继续加载更多</button>
+    <button wx:else class="btn-ghost empty-btn" bindtap="clearSearch">清空搜索</button>
   </view>
   <view wx:elif="{{!filtered.length}}" class="empty">
     <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />
@@ -51,6 +71,9 @@
     mark="{{item.mark}}"
     bind:open="onOpen"
   />
+  <view wx:if="{{filtered.length && loadingMore}}" class="load-more">正在加载更多…</view>
+  <view wx:elif="{{filtered.length && !hasMore}}" class="load-more">没有更多了</view>
+  <view wx:elif="{{filtered.length && hasMore}}" class="load-more">上拉加载更多</view>
   <welcome-letter />
 </view>
 

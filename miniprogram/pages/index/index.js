@@ -3,7 +3,15 @@ const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
 const { teamDetailPath } = require("../../utils/team-entry");
-const { SORT_MODES, DEFAULT_SORT, sortTeams } = require("../../utils/sort");
+const {
+  SORT_MODES,
+  DEFAULT_SORT,
+  buildLobbyView,
+} = require("../../utils/lobby");
+
+const PAGE_SIZE = 20;
+// 搜索框每敲一个字都会在已加载的数据上重跑筛选+排序，防抖后再算。
+const SEARCH_DEBOUNCE_MS = 280;
 
 function uniqueGames(list) {
   const seen = {};
@@ -17,14 +25,17 @@ function uniqueGames(list) {
   return games;
 }
 
-function applyFilter(list, gameFilter) {
-  if (!gameFilter || gameFilter === "全部") return list || [];
-  return (list || []).filter((t) => t.gameName === gameFilter);
-}
-
-// 先按游戏名筛选，再按当前排序方式排列。
-function applyView(list, gameFilter, sortMode) {
-  return sortTeams(applyFilter(list, gameFilter), sortMode);
+// 分页累加时可能拿到重复的车（翻页期间有人新建），按队伍 id 去重。
+function mergeTeams(current, incoming) {
+  const seen = {};
+  const out = [];
+  (current || []).concat(incoming || []).forEach((t) => {
+    const id = t.id || t._id;
+    if (!id || seen[id]) return;
+    seen[id] = true;
+    out.push(t);
+  });
+  return out;
 }
 
 Page({
@@ -33,9 +44,12 @@ Page({
     filtered: [],
     games: ["全部"],
     gameFilter: "全部",
+    keyword: "",
     sorts: SORT_MODES,
     sortMode: DEFAULT_SORT,
+    hasMore: false,
     loading: false,
+    loadingMore: false,
   },
 
   onShow() {
@@ -52,40 +66,71 @@ Page({
 
   onUnload() {
     unbindCopyUrl(wx);
+    this.cancelSearch();
   },
 
   onPullDownRefresh() {
     this.loadList().finally(() => wx.stopPullDownRefresh());
   },
 
-  async loadList() {
+  // 滚到底部自动加载下一页；单页模式（朋友圈预览）没有列表，直接跳过。
+  onReachBottom() {
     if (isSinglePage()) return;
-    this.setData({ loading: true });
+    this.loadMore();
+  },
+
+  // 搜索是客户端行为，只覆盖已加载的车；没搜到但还有下一页时，让用户手动继续。
+  loadMore() {
+    if (!this.data.hasMore || this.data.loading || this.data.loadingMore) return;
+    this.loadList(false);
+  },
+
+  // reset 为 true 时从头拉第一页（首次进入、下拉刷新都走这里）。
+  async loadList(reset = true) {
+    if (isSinglePage()) return;
+    const offset = reset ? 0 : this.nextOffset || 0;
+    this.setData(reset ? { loading: true } : { loadingMore: true });
     try {
-      const res = await callTeam("listTeams");
-      const list = (res.list || []).map(decorateTeam);
-      this.teams = list;
-      const games = uniqueGames(list);
+      const res = await callTeam("listTeams", { offset, limit: PAGE_SIZE });
+      const page = (res.list || []).map(decorateTeam);
+      const teams = reset ? mergeTeams([], page) : mergeTeams(this.teams, page);
+      this.teams = teams;
+      this.nextOffset =
+        typeof res.nextOffset === "number" ? res.nextOffset : offset + page.length;
+      const games = uniqueGames(teams);
       let gameFilter = this.data.gameFilter;
       if (games.indexOf(gameFilter) < 0) gameFilter = "全部";
       this.setData({
-        total: list.length,
+        total: teams.length,
         games,
         gameFilter,
-        filtered: applyView(list, gameFilter, this.data.sortMode),
+        hasMore: !!res.hasMore,
+        filtered: this.buildView(teams, {
+          gameFilter,
+          keyword: this.data.keyword,
+          sortMode: this.data.sortMode,
+        }),
       });
     } catch (e) {
       showError(e);
     } finally {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadingMore: false });
     }
+  },
+
+  buildView(teams, { gameFilter, keyword, sortMode }) {
+    return buildLobbyView(teams, { gameFilter, keyword, sortMode });
   },
 
   pickGame(e) {
     const gameFilter = e.currentTarget.dataset.name;
     this.setData({
       gameFilter,
-      filtered: applyView(this.teams, gameFilter, this.data.sortMode),
+      filtered: this.buildView(this.teams, {
+        gameFilter,
+        keyword: this.data.keyword,
+        sortMode: this.data.sortMode,
+      }),
     });
   },
 
@@ -94,7 +139,45 @@ Page({
     if (!SORT_MODES.some((m) => m.key === sortMode)) return;
     this.setData({
       sortMode,
-      filtered: applyView(this.teams, this.data.gameFilter, sortMode),
+      filtered: this.buildView(this.teams, {
+        gameFilter: this.data.gameFilter,
+        keyword: this.data.keyword,
+        sortMode,
+      }),
+    });
+  },
+
+  cancelSearch() {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = null;
+  },
+
+  // 输入框的值要立刻回显（含清空按钮），筛选结果防抖后再算。
+  onSearch(e) {
+    const keyword = (e.detail && e.detail.value) || "";
+    this.setData({ keyword });
+    this.cancelSearch();
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      this.setData({
+        filtered: this.buildView(this.teams, {
+          gameFilter: this.data.gameFilter,
+          keyword: this.data.keyword,
+          sortMode: this.data.sortMode,
+        }),
+      });
+    }, SEARCH_DEBOUNCE_MS);
+  },
+
+  clearSearch() {
+    this.cancelSearch();
+    this.setData({
+      keyword: "",
+      filtered: this.buildView(this.teams, {
+        gameFilter: this.data.gameFilter,
+        keyword: "",
+        sortMode: this.data.sortMode,
+      }),
     });
   },
 

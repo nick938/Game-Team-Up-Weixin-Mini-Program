@@ -48,6 +48,18 @@ const RATE_LIMITS = {
 // 头像以 base64 内联进 getTeam 响应；单张上限约 150KB 图片，避免多人时撑爆云函数返回体。
 const AVATAR_BASE64_MAX = 200000;
 
+// 大厅分页：一次最多返回 50 趟，默认 20。状态过滤在内存里做，
+// 所以要连续扫描原始页直到凑满一页或扫完，避免原始页里全是已取消的车时误判到底。
+const LOBBY_PAGE_DEFAULT = 20;
+const LOBBY_PAGE_MAX = 50;
+const LOBBY_SCAN_MAX = 200;
+
+function clampInt(value, fallback, min, max) {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, min), max);
+}
+
 const PLATFORMS = ["Steam", "手游", "端游", "主机"];
 const VOICES = ["不限", "KOOK", "游戏内语音", "开麦"];
 
@@ -1422,23 +1434,57 @@ async function getTeam(event, openid) {
   });
 }
 
-async function listTeams(event, openid) {
-  const now = nowMs();
-  let data = [];
+// 取一页原始队伍（未过期），按创建时间倒序，最新的在前。
+// 缺 createdAt 索引或旧集合时退化为全量读取后内存排序分页，保证功能不中断。
+async function fetchLobbyPage(now, skip, take) {
   try {
     const res = await db
       .collection("teams")
-      .where({
-        endAt: _.gt(now),
-      })
-      .orderBy("endAt", "asc")
-      .limit(50)
+      .where({ endAt: _.gt(now) })
+      .orderBy("createdAt", "desc")
+      .skip(skip)
+      .limit(take)
       .get();
-    data = res.data;
+    return res.data || [];
   } catch (e) {
-    const res = await db.collection("teams").limit(80).get();
-    data = res.data.filter((t) => teamEndAt(t) > now);
+    const res = await db.collection("teams").limit(LOBBY_SCAN_MAX).get();
+    const rows = (res.data || [])
+      .filter((t) => teamEndAt(t) > now)
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    return rows.slice(skip, skip + take);
   }
+}
+
+async function listTeams(event, openid) {
+  const now = nowMs();
+  const limit = clampInt(event && event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
+  const offset = clampInt(event && event.offset, 0, 0, 100000);
+
+  // 原始页里可能夹杂已取消/已过期的车，连续扫描直到凑满一页或扫完。
+  const found = [];
+  let consumed = 0;
+  let exhausted = false;
+  while (found.length < limit && consumed < LOBBY_SCAN_MAX) {
+    const take = Math.min(limit, LOBBY_SCAN_MAX - consumed);
+    const rows = await fetchLobbyPage(now, offset + consumed, take);
+    if (!rows.length) {
+      exhausted = true;
+      break;
+    }
+    for (const t of rows) {
+      consumed++;
+      if (!isOngoing(t, now)) continue;
+      found.push(t);
+      if (found.length >= limit) break;
+    }
+    if (rows.length < take) {
+      exhausted = true;
+      break;
+    }
+  }
+  const nextOffset = offset + consumed;
+  const hasMore = !exhausted;
+
   const mems = openid ? await findMembersByOpenid(openid) : [];
   const roleByTeam = {};
   mems.forEach((m) => {
@@ -1446,24 +1492,14 @@ async function listTeams(event, openid) {
     if (m.role === "host") roleByTeam[m.teamId] = "host";
     else if (!roleByTeam[m.teamId]) roleByTeam[m.teamId] = "member";
   });
-  const list = data
-    .filter((t) => t.status === "recruiting" || t.status === "full")
-    .map((t) => {
-      const row = stripSecret(t, false);
-      const role = roleByTeam[t._id];
-      if (role === "host") row.mark = "我发的";
-      else if (role) row.mark = "已上车";
-      return row;
-    });
-  // 未开始的先于已开始的；各自内部缺人先于满员，再按结束时间。已开始的车沉底但仍可见。
-  list.sort((a, b) => {
-    if (a.started !== b.started) return a.started ? 1 : -1;
-    const ar = a.displayStatus === "recruiting" ? 0 : 1;
-    const br = b.displayStatus === "recruiting" ? 0 : 1;
-    if (ar !== br) return ar - br;
-    return teamEndAt(a) - teamEndAt(b);
+  const list = found.map((t) => {
+    const row = stripSecret(t, false);
+    const role = roleByTeam[t._id];
+    if (role === "host") row.mark = "我发的";
+    else if (role) row.mark = "已上车";
+    return row;
   });
-  return ok({ list });
+  return ok({ list, hasMore, nextOffset });
 }
 
 async function myTeams(openid) {
