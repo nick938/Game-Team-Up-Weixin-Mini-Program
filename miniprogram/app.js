@@ -1,13 +1,16 @@
+const { isSinglePage } = require("./utils/runtime");
 const { callTeam } = require("./utils/cloud");
 
 App({
-  onLaunch: function () {
+  onLaunch: function (options) {
     this.globalData = {
       env: "cloud1-d9gniyjzh4e2ffb1c",
       user: null,
       editingTeamId: null,
       republishTeam: null,
     };
+    this.profileReady = Promise.resolve();
+    if (isSinglePage(options)) return;
     if (!wx.cloud) {
       console.error("请使用 2.2.3 或以上的基础库以使用云能力");
       return;

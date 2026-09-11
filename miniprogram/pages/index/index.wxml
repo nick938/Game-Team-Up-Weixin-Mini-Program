@@ -1,3 +1,5 @@
+<timeline-preview wx:if="{{singlePage}}" />
+<block wx:else>
 <view class="page">
   <view class="hero">
     <view class="hero-copy"><view class="hero-title">找队友，开一局</view><view class="hero-sub">好玩的局，就差一个你。</view><button size="mini" class="hero-create" bindtap="goPublish">发起组队 ＋</button></view>
@@ -41,3 +43,5 @@
   />
   <welcome-letter />
 </view>
+
+</block>

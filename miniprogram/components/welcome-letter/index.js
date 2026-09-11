@@ -1,3 +1,4 @@
+const { isSinglePage } = require("../../utils/runtime");
 const STORAGE_KEY = "welcomeLetterV2";
 
 function hasReadLetter() {
@@ -45,6 +46,10 @@ Component({
     noop() {},
 
     syncVisibility() {
+      if (isSinglePage()) {
+        this.setData({ show: false });
+        return;
+      }
       const show = !hasReadLetter();
       this.setData({ show });
       setTabBarHidden(show);

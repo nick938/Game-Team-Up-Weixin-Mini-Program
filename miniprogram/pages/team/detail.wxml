@@ -1,3 +1,5 @@
+<timeline-preview wx:if="{{singlePage}}" />
+<block wx:else>
 <view class="page" wx:if="{{team}}">
   <view class="hero card">
     <view class="status-row">
@@ -111,3 +113,5 @@
     </scroll-view>
   </view>
 </view>
+
+</block>

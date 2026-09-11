@@ -1,3 +1,4 @@
+const { isSinglePage } = require("../../utils/runtime");
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { getAppVersion } = require("../../utils/version");
@@ -31,6 +32,9 @@ Page({
   },
 
   onShow() {
+    const singlePage = isSinglePage();
+    this.setData({ singlePage });
+    if (singlePage) return;
     bindCopyUrl(wx, () => plazaShare());
     this.setData({ versionText: getAppVersion().text });
     this.load();
@@ -49,6 +53,7 @@ Page({
   },
 
   async load() {
+    if (isSinglePage()) return;
     try {
       const [profile, teams] = await Promise.all([
         callTeam("getProfile"),

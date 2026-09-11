@@ -1,3 +1,5 @@
+<timeline-preview wx:if="{{singlePage}}" />
+<block wx:else>
 <view class="page">
   <view class="me card" bindtap="editProfile">
     <image class="avatar" src="{{user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : (user.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
@@ -32,3 +34,5 @@
   <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
   <welcome-letter />
 </view>
+
+</block>

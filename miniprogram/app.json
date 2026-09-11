@@ -47,6 +47,7 @@
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "usingComponents": {
-    "welcome-letter": "/components/welcome-letter/index"
+    "welcome-letter": "/components/welcome-letter/index",
+    "timeline-preview": "/components/timeline-preview/index"
   }
 }

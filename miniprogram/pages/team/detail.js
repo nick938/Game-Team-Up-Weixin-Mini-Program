@@ -1,3 +1,4 @@
+const { isSinglePage } = require("../../utils/runtime");
 const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
@@ -66,6 +67,9 @@ Page({
   },
 
   onShow() {
+    const singlePage = isSinglePage();
+    this.setData({ singlePage });
+    if (singlePage) return;
     bindCopyUrl(wx, () => ({
       query: teamShareQuery(this.data.teamId),
       title: (this.data.team && this.data.team.gameName) || "来开黑",
@@ -118,6 +122,7 @@ Page({
   },
 
   async loadDetail() {
+    if (isSinglePage()) return;
     const teamId = usableTeamId(this.data.teamId);
     if (!teamId) {
       this.setData({ loading: false, team: null, teamId: "" });

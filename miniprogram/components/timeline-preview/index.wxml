@@ -1,0 +1,9 @@
+<view class="preview">
+  <image class="art" src="/images/brand/lobby-v1.jpg" mode="aspectFit" />
+  <view class="brand">来开黑</view>
+  <view class="title">找队友，开一局</view>
+  <view class="subtitle">好玩的局，就差一个你。</view>
+  <view class="intro">和游戏好友约好时间，一起组队开黑。</view>
+  <view class="hint">点击底部「前往小程序」</view>
+  <view class="detail">查看最新组队信息，发车或加入好友的队伍</view>
+</view>

@@ -1,3 +1,4 @@
+const { isSinglePage } = require("../../utils/runtime");
 const { PLATFORMS, VOICES, MAX_TEAM_HOURS } = require("../../utils/constants");
 const MAX_TEAM_MS = MAX_TEAM_HOURS * 60 * 60 * 1000;
 const {
@@ -52,6 +53,9 @@ Page({
   data: Object.assign(emptyForm(), { canProxy: false }),
 
   async onShow() {
+    const singlePage = isSinglePage();
+    this.setData({ singlePage });
+    if (singlePage) return;
     bindCopyUrl(wx, () => plazaShare("来开黑 - 发起组队"));
     const app = getApp();
     const editingId = app.globalData.editingTeamId;

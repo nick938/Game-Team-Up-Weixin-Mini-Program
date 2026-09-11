@@ -584,6 +584,7 @@ test('welcome letter shows once then stays dismissed', () => {
   const tabBar = [];
   let comp;
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
+    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
     Component: value => { comp = value; },
     wx: {
       getStorageSync: key => store[key],
@@ -617,6 +618,7 @@ test('welcome letter can open feedback', () => {
   const navigated = [];
   let comp;
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
+    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
     Component: value => { comp = value; },
     wx: {
       getStorageSync: key => store[key],
@@ -646,6 +648,7 @@ function publishPage(searchUsers) {
     Page: value => { page = value; },
     getApp: () => app,
     require: (name) => {
+      if (name.endsWith('/runtime')) return require(path.join(root, 'miniprogram/utils/runtime.js'));
       if (name.endsWith('/constants')) return { PLATFORMS: ['Steam', '手游'], VOICES: ['KOOK', '开麦'], MAX_TEAM_HOURS: 24 };
       if (name.endsWith('/format')) {
         return {

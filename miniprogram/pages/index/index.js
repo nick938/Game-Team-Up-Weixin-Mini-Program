@@ -1,3 +1,4 @@
+const { isSinglePage } = require("../../utils/runtime");
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
@@ -30,6 +31,9 @@ Page({
   },
 
   onShow() {
+    const singlePage = isSinglePage();
+    this.setData({ singlePage });
+    if (singlePage) return;
     bindCopyUrl(wx, () => plazaShare());
     this.loadList();
   },
@@ -47,6 +51,7 @@ Page({
   },
 
   async loadList() {
+    if (isSinglePage()) return;
     this.setData({ loading: true });
     try {
       const res = await callTeam("listTeams");
