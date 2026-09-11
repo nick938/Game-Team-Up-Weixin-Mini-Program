@@ -31,7 +31,7 @@ const DOCS = {
     sections: [
       {
         heading: "1. 我们收集什么",
-        body: "为识别你的身份并展示给同局玩家，我们收集：微信 OpenID、你选择的昵称和头像、你自愿填写的公开游戏资料（Steam 好友代码、游戏内 ID、KOOK ID、个人简介）、你发布或加入的组队信息（游戏名、时间、人数、进房方式、备注等）、你主动提交的意见反馈。我们不收集手机号、微信号、电子邮箱或通讯录，也不调用 getUserInfo 读取微信资料。",
+        body: "为识别你的身份并展示给同局玩家，我们收集：微信 OpenID、你选择的昵称和头像、你自愿填写的签名（如 Steam 好友码、常玩时间等）、你发布或加入的组队信息（游戏名、时间、人数、进房方式、备注等）、你主动提交的意见反馈。我们不收集手机号、微信号、电子邮箱或通讯录，也不调用 getUserInfo 读取微信资料。",
       },
       {
         heading: "2. 我们如何使用",
@@ -39,11 +39,11 @@ const DOCS = {
       },
       {
         heading: "3. 存储与共享",
-        body: "数据存储在微信云开发（腾讯云）环境中。你填写的公开游戏资料可由队伍页面的访客点击成员头像查看和复制；清空相应字段并保存后不再展示。你提交的意见反馈会保存到云数据库，并发送到开发者邮箱，仅用于改进产品。除实现组队功能所必需、以及法律法规要求外，我们不会向其他第三方提供你的个人信息。分享卡片只会带上队伍 ID，不会带上你的 OpenID。",
+        body: "数据存储在微信云开发（腾讯云）环境中。你填写的签名可由队伍页面的访客点击成员头像查看；清空签名并保存后不再展示。你提交的意见反馈会保存到云数据库，并发送到开发者邮箱，仅用于改进产品。除实现组队功能所必需、以及法律法规要求外，我们不会向其他第三方提供你的个人信息。分享卡片只会带上队伍 ID，不会带上你的 OpenID。",
       },
       {
         heading: "4. 你的权利",
-        body: "你可以在「我的」随时修改头像和昵称。你可以下车或散了自己发起的组队。如需删除账号相关数据，请通过微信小程序投诉或联系开发者处理。",
+        body: "你可以在「我的」随时修改头像、昵称和签名。你可以下车或散了自己发起的组队。如需删除账号相关数据，请通过微信小程序投诉或联系开发者处理。",
       },
       {
         heading: "5. 未成年人",
@@ -75,16 +75,39 @@ const DOCS = {
   },
 };
 
+// 三个文档在同一页切换，避免从「我的」进来看不到另外两份。
+const DOC_ORDER = [
+  { key: "agreement", label: "用户协议" },
+  { key: "privacy", label: "隐私政策" },
+  { key: "community", label: "社区公约" },
+];
+
 Page({
   data: {
     title: "",
     updated: "",
     sections: [],
+    docs: DOC_ORDER,
+    activeType: "",
   },
 
   onLoad(options) {
-    const doc = DOCS[options.type] || DOCS.privacy;
-    this.setData(doc);
+    this.showDoc(options && options.type);
+  },
+
+  showDoc(type) {
+    const key = DOCS[type] ? type : "privacy";
+    const doc = DOCS[key];
+    this.setData({
+      title: doc.title,
+      updated: doc.updated,
+      sections: doc.sections,
+      activeType: key,
+    });
     wx.setNavigationBarTitle({ title: doc.title });
+  },
+
+  pickDoc(e) {
+    this.showDoc(e.currentTarget.dataset.type);
   },
 });

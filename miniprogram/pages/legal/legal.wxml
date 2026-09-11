@@ -1,4 +1,13 @@
 <view class="page">
+  <view class="doc-tabs">
+    <view
+      class="doc-tab {{activeType === item.key ? 'doc-tab-on' : ''}}"
+      wx:for="{{docs}}"
+      wx:key="key"
+      data-type="{{item.key}}"
+      bindtap="pickDoc"
+    >{{item.label}}</view>
+  </view>
   <view class="updated">更新日期：{{updated}}</view>
   <view class="block" wx:for="{{sections}}" wx:key="heading">
     <view class="heading">{{item.heading}}</view>

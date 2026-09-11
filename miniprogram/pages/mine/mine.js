@@ -15,6 +15,12 @@ function splitTeams(list) {
   return { ongoing, past };
 }
 
+// 资料卡副标题：优先展示签名，没填时给引导文案。
+function profileHint(user) {
+  const bio = ((user && user.bio) || "").trim();
+  return bio || "写个签名，把 Steam 好友码放进去，队友加你好友";
+}
+
 Page({
   data: {
     user: {},
@@ -26,9 +32,12 @@ Page({
     joinedOngoing: [],
     joinedPast: [],
     showProfile: false,
+    profileHint: "",
     versionText: "",
     isAdmin: false,
     isOrganizer: false,
+    hostedCount: 0,
+    joinedCount: 0,
   },
 
   onShow() {
@@ -69,12 +78,15 @@ Page({
       const joined = splitTeams((teams.joined || []).map(decorateTeam));
       this.setData({
         user: profile.user || {},
+        profileHint: profileHint(profile.user),
         isAdmin: !!profile.isAdmin,
         isOrganizer: !!profile.isOrganizer,
         hostedOngoing: hosted.ongoing,
         hostedPast: hosted.past,
         joinedOngoing: joined.ongoing,
         joinedPast: joined.past,
+        hostedCount: hosted.ongoing.length + hosted.past.length,
+        joinedCount: joined.ongoing.length + joined.past.length,
       });
       this.updateVisibleTeams();
     } catch (e) {

@@ -430,13 +430,19 @@ test('requestTeamNotify always asks the native panel and only trusts accept', as
   assert.equal(ctx.module.exports.notifyPreferenceEnabled, undefined);
 });
 
-function minePage() {
+function minePage({ profile, teams } = {}) {
   let page;
   const app = { globalData: { user: {} } };
+  const callTeam = async (type) => {
+    if (type === 'getProfile') return profile || { user: null };
+    if (type === 'myTeams') return teams || { hosted: [], joined: [] };
+    return {};
+  };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/mine/mine.js'), 'utf8'), {
     Page: value => { page = value; }, getApp: () => app,
     require: name => name.endsWith('/format') ? { decorateTeam: (team) => team }
-      : name.endsWith('/cloud') ? { showError() {}, callTeam: async () => ({ user: null }) }
+      : name.endsWith('/runtime') ? { isSinglePage: () => false }
+      : name.endsWith('/cloud') ? { showError() {}, callTeam }
       : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) }
       : name.endsWith('/share') ? require(path.join(root, 'miniprogram/utils/share.js'))
       : name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js'))
@@ -453,6 +459,43 @@ test('mine page no longer exposes notification preference controls', () => {
   assert.equal(page.toggleSettings, undefined);
   assert.equal(page.refreshWechatNotify, undefined);
   assert.equal(page.openWechatNotifySettings, undefined);
+});
+
+test('mine profile card shows the signature and tab counts', async () => {
+  const { page } = minePage({
+    profile: { user: { nickName: '阿乐', bio: 'Steam 12345，晚上在线' }, isAdmin: false, isOrganizer: true },
+    teams: {
+      hosted: [{ _id: 'h1', ongoing: true }, { _id: 'h2', ongoing: false }],
+      joined: [{ _id: 'j1', ongoing: true }],
+    },
+  });
+  await page.load();
+  assert.equal(page.data.profileHint, 'Steam 12345，晚上在线');
+  assert.equal(page.data.hostedCount, 2);
+  assert.equal(page.data.joinedCount, 1);
+  assert.equal(page.data.isOrganizer, true);
+  // 没填签名时给引导文案。
+  const { page: bare } = minePage({ profile: { user: { nickName: '新玩家' } } });
+  await bare.load();
+  assert.equal(bare.data.profileHint, '写个签名，把 Steam 好友码放进去，队友加你好友');
+});
+
+test('legal page merges three docs into one entry that switches in place', () => {
+  let page;
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/legal/legal.js'), 'utf8'), {
+    Page: value => { page = value; },
+    wx: { setNavigationBarTitle() {} },
+  });
+  page.setData = patch => Object.assign(page.data, patch);
+  page.onLoad({ type: 'agreement' });
+  assert.equal(page.data.activeType, 'agreement');
+  assert.deepEqual([...page.data.docs.map(d => d.key)], ['agreement', 'privacy', 'community']);
+  page.pickDoc({ currentTarget: { dataset: { type: 'community' } } });
+  assert.equal(page.data.activeType, 'community');
+  assert.equal(page.data.title, '社区公约');
+  // 未知类型回退到隐私政策。
+  page.onLoad({ type: 'nope' });
+  assert.equal(page.data.activeType, 'privacy');
 });
 
 test('mine tabs keep hosted/joined and ongoing/history lists separate', () => {
@@ -495,61 +538,65 @@ test('manage menu is host-only, drops republish, and dispatches edit/cancel', ()
   assert.equal(selected, 'edit');
 });
 
-test('public profile saves string IDs, preserves omitted fields and allows explicit clearing', async () => {
+test('public profile saves the signature, preserves it when omitted and allows clearing', async () => {
   const users = [{ _id: 'u', nickName: '玩家' }];
   const ctx = backend({ users });
-  assert.equal((await ctx.saveProfile({ nickName: '玩家', steamFriendCode: ' 001234 ', gameId: '游戏名', kookId: 'abc', bio: '晚上在线' }, 'u')).ok, true);
-  assert.equal(users[0].steamFriendCode, '001234');
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', bio: ' Steam 001234，晚上在线 ' }, 'u')).ok, true);
+  assert.equal(users[0].bio, 'Steam 001234，晚上在线');
   await ctx.saveProfile({ nickName: '新昵称' }, 'u');
-  assert.equal(users[0].gameId, '游戏名');
-  await ctx.saveProfile({ nickName: '新昵称', steamFriendCode: '', gameId: '', kookId: '', bio: '' }, 'u');
-  assert.equal(users[0].steamFriendCode, '');
+  assert.equal(users[0].bio, 'Steam 001234，晚上在线');
+  await ctx.saveProfile({ nickName: '新昵称', bio: '' }, 'u');
   assert.equal(users[0].bio, '');
 });
 
-test('invalid public fields fail before changing account data', async () => {
+test('invalid signature fails before changing account data', async () => {
   const users = [{ _id: 'u', nickName: '原昵称' }];
   const ctx = backend({ users });
-  for (const fields of [{ steamFriendCode: 123 }, { steamFriendCode: 'abc' }, { gameId: 'x'.repeat(41) }, { bio: 'x'.repeat(81) }]) {
-    assert.equal((await ctx.saveProfile({ nickName: '新昵称', ...fields }, 'u')).ok, false);
+  for (const bio of [123, 'x'.repeat(51)]) {
+    assert.equal((await ctx.saveProfile({ nickName: '新昵称', bio }, 'u')).ok, false);
     assert.equal(users[0].nickName, '原昵称');
+    assert.equal(users[0].bio, undefined);
   }
+  // 50 字刚好通过。
+  assert.equal((await ctx.saveProfile({ nickName: '新昵称', bio: 'x'.repeat(50) }, 'u')).ok, true);
+  assert.equal(users[0].bio.length, 50);
 });
 
-test('room profile returns only current public fields and rejects unrelated members', async () => {
-  const users = [{ _id: 'u', _openid: 'secret', nickName: '最新昵称', steamFriendCode: '00123', notifyEnabled: false, privateField: 'secret' }];
+test('room profile returns only nickName/avatar/bio and rejects unrelated members', async () => {
+  const users = [{ _id: 'u', _openid: 'secret', nickName: '最新昵称', bio: 'Steam 00123', notifyEnabled: false, privateField: 'secret' }];
   const ctx = backend({ teams: [{ _id: 't', gameName: 'CS2' }], members: [{ _id: 'm', teamId: 't', openid: 'u', nickName: '旧昵称' }, { _id: 'other', teamId: 'another', openid: 'u' }], users });
   const result = await ctx.getPublicProfile({ teamId: 't', memberId: 'm' });
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarBase64', 'bio', 'gameId', 'kookId', 'nickName', 'steamFriendCode'].sort());
+  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarBase64', 'bio', 'nickName'].sort());
   assert.equal(result.profile.nickName, '最新昵称');
-  assert.equal(result.profile.steamFriendCode, '00123');
-  users[0].steamFriendCode = '';
-  assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'm' })).profile.steamFriendCode, '');
+  assert.equal(result.profile.bio, 'Steam 00123');
+  assert.equal(result.profile.privateField, undefined);
+  assert.equal(result.profile._openid, undefined);
+  users[0].bio = '';
+  assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'm' })).profile.bio, '');
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'other' })).ok, false);
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'missing' })).ok, false);
 });
 
-test('switching or closing member card ignores stale responses and copies ID intact', async () => {
+test('switching or closing member card ignores stale responses', async () => {
   let page;
-  const pending = [], copied = [];
+  const pending = [];
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
     Page: value => { page = value; },
     require: () => ({ callTeam: () => new Promise(resolve => pending.push(resolve)) }),
-    wx: { setClipboardData: ({ data }) => copied.push(data) },
+    wx: {},
   });
   page.setData = patch => Object.assign(page.data, patch);
   page.data.selectedMemberId = 'first';
   const first = page.loadMemberProfile();
   page.data.selectedMemberId = 'second';
   const second = page.loadMemberProfile();
-  pending[1]({ profile: { nickName: 'second', steamFriendCode: '00123' } });
+  pending[1]({ profile: { nickName: 'second', bio: 'Steam 00123' } });
   await second;
   pending[0]({ profile: { nickName: 'first' } });
   await first;
   assert.equal(page.data.memberProfile.nickName, 'second');
-  page.copyPublicField({ currentTarget: { dataset: { field: 'steamFriendCode' } } });
-  assert.deepEqual(copied, ['00123']);
+  assert.equal(page.data.memberProfile.bio, 'Steam 00123');
   const closed = page.loadMemberProfile();
   page.closeMemberProfile();
   pending[2]({ profile: { nickName: 'late' } });

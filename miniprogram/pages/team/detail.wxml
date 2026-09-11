@@ -104,11 +104,8 @@
       <view wx:elif="{{memberProfileError}}" class="profile-placeholder"><view>{{memberProfileError}}</view><button class="profile-retry" bindtap="loadMemberProfile">重新加载</button></view>
       <view wx:elif="{{memberProfile}}">
         <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarBase64 ? 'data:image/jpeg;base64,' + memberProfile.avatarBase64 : (memberProfile.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
-        <view class="public-bio" wx:if="{{memberProfile.bio}}">{{memberProfile.bio}}</view>
-        <button class="public-field" wx:if="{{memberProfile.steamFriendCode}}" data-field="steamFriendCode" bindtap="copyPublicField"><view class="public-field-label">Steam 好友代码</view><view class="public-field-value"><text selectable>{{memberProfile.steamFriendCode}}</text><text class="public-copy">复制</text></view></button>
-        <button class="public-field" wx:if="{{memberProfile.gameId}}" data-field="gameId" bindtap="copyPublicField"><view class="public-field-label">游戏内 ID</view><view class="public-field-value"><text selectable>{{memberProfile.gameId}}</text><text class="public-copy">复制</text></view></button>
-        <button class="public-field" wx:if="{{memberProfile.kookId}}" data-field="kookId" bindtap="copyPublicField"><view class="public-field-label">KOOK ID</view><view class="public-field-value"><text selectable>{{memberProfile.kookId}}</text><text class="public-copy">复制</text></view></button>
-        <view wx:if="{{!memberProfile.steamFriendCode && !memberProfile.gameId && !memberProfile.kookId && !memberProfile.bio}}" class="profile-placeholder">这位队友还没有填写公开游戏资料</view>
+        <view class="public-bio" wx:if="{{memberProfile.bio}}" selectable>{{memberProfile.bio}}</view>
+        <view wx:else class="profile-placeholder">这位队友还没有填写签名</view>
       </view>
     </scroll-view>
   </view>

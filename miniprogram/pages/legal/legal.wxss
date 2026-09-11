@@ -1,3 +1,27 @@
+.doc-tabs {
+  display: flex;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+  padding: 6rpx;
+  background: #eceef6;
+  border-radius: 24rpx;
+}
+
+.doc-tab {
+  flex: 1;
+  padding: 14rpx 0;
+  text-align: center;
+  font-size: 25rpx;
+  color: #737a90;
+  border-radius: 18rpx;
+}
+
+.doc-tab-on {
+  background: #fff;
+  color: #6255e7;
+  font-weight: 600;
+}
+
 .updated {
   margin-bottom: 28rpx;
   font-size: 24rpx;

@@ -2,36 +2,50 @@
 <block wx:else>
 <view class="page">
   <view class="me card" bindtap="editProfile">
-    <image class="avatar" src="{{user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : (user.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
+    <view class="avatar-wrap">
+      <image class="avatar" src="{{user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : (user.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
+      <view class="avatar-edit">✎</view>
+    </view>
     <view class="me-text">
-      <view class="name">{{user.nickName || '点这里设置头像昵称'}}</view>
-      <view class="tip">编辑资料 · Steam / 游戏 ID</view>
+      <view class="name-row">
+        <view class="name">{{user.nickName || '点这里设置头像昵称'}}</view>
+        <view wx:if="{{isOrganizer && !isAdmin}}" class="badge">组局员</view>
+      </view>
+      <view class="tip">{{profileHint}}</view>
     </view>
   </view>
 
-  <view class="tabs">
-    <button size="mini" class="tab {{teamTab === 'hosted' ? 'tab-active' : ''}}" data-tab="hosted" bindtap="pickTeamTab">我发起的</button>
-    <button size="mini" class="tab {{teamTab === 'joined' ? 'tab-active' : ''}}" data-tab="joined" bindtap="pickTeamTab">我加入的</button>
+  <view class="list-head">
+    <view class="tabs">
+      <button size="mini" class="tab {{teamTab === 'hosted' ? 'tab-active' : ''}}" data-tab="hosted" bindtap="pickTeamTab">我发起的<text class="tab-count">{{hostedCount}}</text></button>
+      <button size="mini" class="tab {{teamTab === 'joined' ? 'tab-active' : ''}}" data-tab="joined" bindtap="pickTeamTab">我加入的<text class="tab-count">{{joinedCount}}</text></button>
+    </view>
+    <view class="phases">
+      <button size="mini" class="phase {{phase === 'Ongoing' ? 'phase-active' : ''}}" data-phase="Ongoing" bindtap="pickPhase">进行中</button>
+      <button size="mini" class="phase {{phase === 'Past' ? 'phase-active' : ''}}" data-phase="Past" bindtap="pickPhase">历史</button>
+    </view>
   </view>
-  <view class="list-head"><view class="phases"><button size="mini" class="phase {{phase === 'Ongoing' ? 'phase-active' : ''}}" data-phase="Ongoing" bindtap="pickPhase">进行中</button><button size="mini" class="phase {{phase === 'Past' ? 'phase-active' : ''}}" data-phase="Past" bindtap="pickPhase">历史</button></view><text class="list-total">{{visibleTeams.length}} 趟组队</text></view>
   <team-card wx:for="{{visibleTeams}}" wx:key="_id" team="{{item}}" team-id="{{item.id || item._id}}" mark="{{teamTab === 'hosted' ? '车头' : '队员'}}" bind:open="onOpen" />
   <view wx:if="{{!visibleTeams.length}}" class="empty"><image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" /><view>{{phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'}}</view><view class="empty-sub">{{phase === 'Past' ? '结束的组队会留在这里' : '发起一局，或去大厅找队友'}}</view><button wx:if="{{phase === 'Ongoing'}}" class="btn-ghost" bindtap="goPlaza">去大厅看看</button></view>
-  <view class="legal">
-    <text data-type="agreement" bindtap="openLegal">用户协议</text>
-    <text class="dot">·</text>
-    <text data-type="privacy" bindtap="openLegal">隐私政策</text>
-    <text class="dot">·</text>
-    <text data-type="community" bindtap="openLegal">社区公约</text>
+  <view class="footer">
+    <button wx:if="{{isOrganizer && !isAdmin}}" class="footer-action" bindtap="openPublish">帮群友发车</button>
+    <button wx:if="{{isAdmin}}" class="footer-action" bindtap="openAdmin">管理端</button>
+    <view class="footer-links">
+      <text class="footer-link" bindtap="openFeedback">意见反馈</text>
+      <text class="footer-dot">·</text>
+      <text class="footer-link" bindtap="openBug">报个错</text>
+    </view>
+    <view class="legal">
+      <text data-type="agreement" bindtap="openLegal">用户协议</text>
+      <text class="footer-dot">·</text>
+      <text data-type="privacy" bindtap="openLegal">隐私政策</text>
+      <text class="footer-dot">·</text>
+      <text data-type="community" bindtap="openLegal">社区公约</text>
+    </view>
+    <view class="version">{{versionText}}</view>
   </view>
-  <view class="support-links">
-    <button class="report-link" bindtap="openFeedback">意见反馈</button>
-    <button class="report-link" bindtap="openBug">报个错</button>
-  </view>
-  <button wx:if="{{isOrganizer && !isAdmin}}" class="admin-link" bindtap="openPublish">帮群友发车</button>
-  <button wx:if="{{isAdmin}}" class="admin-link" bindtap="openAdmin">管理端</button>
-  <view class="version">{{versionText}}</view>
 
-  <profile-gate expanded="{{true}}" show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+  <profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
   <welcome-letter />
 </view>
 

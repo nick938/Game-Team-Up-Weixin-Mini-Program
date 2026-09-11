@@ -8,18 +8,9 @@
       </button>
       <view class="field-label">昵称</view>
       <input class="nick" type="nickname" maxlength="32" value="{{nickName}}" placeholder="填写或选择微信昵称" bindblur="onNickname" bindinput="onNickname" bindchange="onNickname" disabled="{{saving}}" />
-      <button class="expand" bindtap="toggleGameFields">公开游戏资料（选填） {{showGameFields ? '−' : '＋'}}</button>
-      <view hidden="{{!showGameFields}}">
-        <view class="sub">房间里的访客可点击你的头像查看以下资料。只填写你愿意公开的信息，清空后保存即可移除。</view>
-        <view class="field-label">Steam 好友代码</view>
-        <input class="nick" type="number" maxlength="20" value="{{steamFriendCode}}" placeholder="输入数字好友代码" data-field="steamFriendCode" bindinput="onPublicField" disabled="{{saving}}" />
-        <view class="field-label">游戏内 ID</view>
-        <input class="nick" maxlength="40" value="{{gameId}}" placeholder="如：三角洲 · 你的游戏昵称" data-field="gameId" bindinput="onPublicField" disabled="{{saving}}" />
-        <view class="field-label">KOOK ID</view>
-        <input class="nick" maxlength="40" value="{{kookId}}" placeholder="你的 KOOK 用户 ID" data-field="kookId" bindinput="onPublicField" disabled="{{saving}}" />
-        <view class="field-label">个人简介</view>
-        <textarea class="bio" maxlength="80" value="{{bio}}" placeholder="常玩的游戏、上线时间、开黑风格…" data-field="bio" bindinput="onPublicField" disabled="{{saving}}" />
-      </view>
+      <view class="field-head"><text class="field-label">签名</text><text class="field-count">{{bioLength}}/50</text></view>
+      <textarea class="bio" maxlength="50" value="{{bio}}" placeholder="一句话介绍自己，比如 Steam 好友码、常玩时间" data-field="bio" bindinput="onBio" disabled="{{saving}}" />
+      <view class="field-hint">房间里的访客可看到你的头像、昵称和签名。</view>
     </scroll-view>
     <button class="submit" loading="{{saving}}" disabled="{{saving}}" bindtap="onSave">保存资料</button>
   </view>

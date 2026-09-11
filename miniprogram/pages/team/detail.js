@@ -184,13 +184,6 @@ Page({
     this.setData({ showMemberProfile: false, memberProfile: null, selectedMemberId: "" });
   },
 
-  copyPublicField(e) {
-    const field = e.currentTarget.dataset.field;
-    if (!["steamFriendCode", "gameId", "kookId"].includes(field)) return;
-    const value = this.data.memberProfile && this.data.memberProfile[field];
-    if (value) wx.setClipboardData({ data: String(value) });
-  },
-
   copyRoom() {
     const no = this.data.team && this.data.team.roomNo;
     if (!no) return;

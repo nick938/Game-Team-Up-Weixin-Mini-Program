@@ -43,7 +43,6 @@ function compressAvatar(path) {
 
 Component({
   properties: {
-    expanded: { type: Boolean, value: false },
     show: {
       type: Boolean,
       value: false,
@@ -55,11 +54,8 @@ Component({
     avatarFileID: "",
     nickName: "",
     currentName: "",
-    steamFriendCode: "",
-    gameId: "",
-    kookId: "",
     bio: "",
-    showGameFields: false,
+    bioLength: 0,
     saving: false,
   },
   observers: {
@@ -67,18 +63,15 @@ Component({
       if (val) {
         const app = getApp();
         const user = (app.globalData && app.globalData.user) || {};
+        const bio = user.bio || "";
         this.setData({
           avatarUrl: user.avatarUrl || "",
           avatarBase64: user.avatarBase64 || "",
           avatarFileID: user.avatarFileID || "",
           nickName: user.nickName || "",
           currentName: user.nickName || "",
-          steamFriendCode: user.steamFriendCode || "",
-          gameId: user.gameId || "",
-          kookId: user.kookId || "",
-          bio: user.bio || "",
-          showGameFields: this.properties.expanded,
-
+          bio,
+          bioLength: bio.length,
         });
       }
     },
@@ -88,12 +81,9 @@ Component({
     close() {
       if (!this.data.saving) this.triggerEvent("close");
     },
-    toggleGameFields() { this.setData({ showGameFields: !this.data.showGameFields }); },
-    onPublicField(e) {
-      const field = e.currentTarget.dataset.field;
-      if (["steamFriendCode", "gameId", "kookId", "bio"].includes(field)) {
-        this.setData({ [field]: e.detail.value });
-      }
+    onBio(e) {
+      const bio = (e.detail && e.detail.value) || "";
+      this.setData({ bio, bioLength: bio.length });
     },
     onChooseAvatar(e) {
       this.setData({
@@ -112,9 +102,9 @@ Component({
         wx.showToast({ title: "请点输入框选择微信昵称", icon: "none" });
         return;
       }
-      const steamFriendCode = this.data.steamFriendCode.trim();
-      if (steamFriendCode && !/^\d+$/.test(steamFriendCode)) {
-        wx.showToast({ title: "Steam 好友代码请填写数字", icon: "none" });
+      const bio = (this.data.bio || "").trim();
+      if (bio.length > 50) {
+        wx.showToast({ title: "签名最多 50 字", icon: "none" });
         return;
       }
       this.setData({ saving: true });
@@ -133,10 +123,7 @@ Component({
         const res = await callTeam("saveProfile", {
           nickName,
           avatarUrl,
-          steamFriendCode,
-          gameId: this.data.gameId.trim(),
-          kookId: this.data.kookId.trim(),
-          bio: this.data.bio.trim(),
+          bio,
         });
         const app = getApp();
         app.globalData.user = res.user;

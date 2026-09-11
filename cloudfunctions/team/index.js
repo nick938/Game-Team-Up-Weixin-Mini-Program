@@ -725,41 +725,30 @@ function validateTeamInput(input, { isCreate }) {
   };
 }
 
-const PUBLIC_PROFILE_FIELDS = {
-  steamFriendCode: { max: 20, label: "Steam 好友代码" },
-  gameId: { max: 40, label: "游戏内 ID" },
-  kookId: { max: 40, label: "KOOK ID" },
-  bio: { max: 80, label: "个人简介" },
-};
+// 公开资料只保留一个自由填写、上限 50 字的签名，用户可自行写入 Steam 好友码 / KOOK 等信息。
+const PROFILE_BIO_MAX = 50;
 
 function validatePublicProfile(event) {
   const value = {};
-  for (const [key, rule] of Object.entries(PUBLIC_PROFILE_FIELDS)) {
-    // 老版本只保存昵称头像时，保留已填写的公开资料；空字符串表示主动清空。
-    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
-    if (typeof event[key] !== "string") return { error: `${rule.label}格式不正确` };
-    const text = event[key].trim();
-    if (text.length > rule.max) return { error: `${rule.label}最多 ${rule.max} 字` };
-    if (key === "steamFriendCode" && text && !/^\d+$/.test(text)) {
-      return { error: "Steam 好友代码请填写数字" };
-    }
-    if (key !== "steamFriendCode" && BAD.test(text)) return { error: `${rule.label}包含不支持的内容` };
-    value[key] = text;
+  // 老版本只保存昵称头像时，保留已填写的签名；空字符串表示主动清空。
+  if (Object.prototype.hasOwnProperty.call(event, "bio")) {
+    if (typeof event.bio !== "string") return { error: "签名格式不正确" };
+    const text = event.bio.trim();
+    if (text.length > PROFILE_BIO_MAX) return { error: `签名最多 ${PROFILE_BIO_MAX} 字` };
+    if (BAD.test(text)) return { error: "签名包含不支持的内容" };
+    value.bio = text;
   }
   return { value };
 }
 
 function publicProfile(user, member) {
   // 仅返回明确公开的字段，不透传 OpenID、提醒偏好或其他账户信息。
-  const profile = {
+  return {
     nickName: (user && user.nickName) || member.nickName || "玩家",
     avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
     avatarBase64: safeAvatarBase64(user && user.avatarBase64),
+    bio: (user && typeof user.bio === "string") ? user.bio : "",
   };
-  for (const key of Object.keys(PUBLIC_PROFILE_FIELDS)) {
-    profile[key] = (user && typeof user[key] === "string") ? user[key] : "";
-  }
-  return profile;
 }
 
 async function getPublicProfile(event) {
@@ -789,7 +778,7 @@ async function saveProfile(event, openid) {
   const existed = await getUser(openid);
   if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
-  const profileFields = ["gameId", "kookId", "bio", "steamFriendCode"];
+  const profileFields = ["bio"];
   const nickChanged = !existed || existed.nickName !== nickName;
   const fieldsChanged = profileFields.some(
     (key) =>
