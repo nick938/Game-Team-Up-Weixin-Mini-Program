@@ -74,6 +74,7 @@
 | --- | --- | --- |
 | 发车 `createTeam` | 30 分钟 | 8 次 |
 | 上车 `joinTeam` | 60 秒 | 6 次 |
+| 反馈 `submitFeedback` | 30 分钟 | 5 次 |
 | 举报 `submitReport` | 10 分钟 | 5 次 |
 | 报错 `submitBug` | 5 分钟 | 3 次 |
 

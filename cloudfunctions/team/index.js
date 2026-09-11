@@ -42,6 +42,7 @@ const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMITS = {
   createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
   joinTeam: { windowMs: 60 * 1000, max: 6, message: "上车太频繁，稍等一下再试" },
+  submitFeedback: { windowMs: 30 * 60 * 1000, max: 5, message: "反馈太频繁了，先歇一歇再来" },
   submitReport: { windowMs: 10 * 60 * 1000, max: 5, message: "举报太频繁，请稍后再试" },
   submitBug: { windowMs: 5 * 60 * 1000, max: 3, message: "刚刚已经收到，请稍后再报" },
 };
@@ -1219,7 +1220,9 @@ async function joinTeam(event, openid) {
       if (hostUid(team) === openid) {
         throw new Error("你已经是车头，不用再上车");
       }
-      const exist = await transaction.collection("members").where({ teamId }).get();
+      // 事务内只支持单记录操作（官方不支持 where）；改用非事务连接查重，
+      // 冲突自动重试会重跑整个回调，仍能查到其他事务刚提交的成员。
+      const exist = await db.collection("members").where({ teamId }).get();
       if (exist.data.some((m) => memberUid(m) === openid)) {
         throw new Error("你已经在车上了");
       }
@@ -1273,7 +1276,8 @@ async function leaveTeam(event, openid) {
       if (team.status === "cancelled") throw new Error("这趟已经散了");
       if (!isOngoing(team, nowMs())) throw new Error("队伍已结束");
 
-      const mem = await transaction.collection("members").where({ teamId }).get();
+      // 同 joinTeam：事务内不支持 where，用非事务连接找自己的成员记录。
+      const mem = await db.collection("members").where({ teamId }).get();
       const mineList = mem.data.filter((m) => memberUid(m) === openid);
       if (!mineList.length) throw new Error("你不在这趟车上");
 
@@ -1623,6 +1627,8 @@ async function submitFeedback(event, openid) {
   if (BAD.test(content)) return fail("内容包含不允许提交的信息");
   const textError = await textSafeError(openid, [content], "内容包含不允许提交的信息");
   if (textError) return fail(textError);
+  const limited = await rateLimitExceeded(openid, "submitFeedback");
+  if (limited) return fail(limited);
 
   try {
     const recent = await db
@@ -1663,6 +1669,7 @@ async function submitFeedback(event, openid) {
   payload.mailed = result.status === "sent";
   payload.mailError = result.error || "";
   await db.collection("feedback").add({ data: payload });
+  await recordAction(openid, "submitFeedback");
   return ok({ mailed: payload.mailed, mailError: payload.mailError });
 }
 

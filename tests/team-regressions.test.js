@@ -41,7 +41,23 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
         },
       };
     },
-    async runTransaction(fn) { return fn(this); },
+    async runTransaction(fn) {
+      // 官方限制：事务内只支持单记录操作（collection.doc / collection.add），
+      // where 等批量操作会报错。事务包装成只暴露 doc 和 add，防止代码退回旧写法。
+      const self = this;
+      const tx = {
+        collection(name) {
+          const ref = self.collection(name);
+          return {
+            doc: (id) => ref.doc(id),
+            add: (args) => ref.add(args),
+            where() { throw new Error("事务中不支持 where 批量操作"); },
+            get() { throw new Error("事务中不支持批量读取"); },
+          };
+        },
+      };
+      return fn(tx);
+    },
   };
   const cloud = {
     init() {},
@@ -824,6 +840,23 @@ test('feedback is stored even if mail is not configured', async () => {
   assert.equal(res.mailed, false);
   assert.match(res.mailError, /未配置发信授权码/);
   assert.equal(feedback.length, 1);
+});
+
+test('feedback is rate limited like the other write endpoints', async () => {
+  const ctx = backend({
+    feedback: [],
+    rateLimits: [{
+      _id: 'submitFeedback_u',
+      openid: 'u',
+      action: 'submitFeedback',
+      hits: Array(5).fill(Date.now()),
+    }],
+  });
+  const blocked = await ctx.submitFeedback({
+    kind: '其他', page: '我的', content: '写下具体的反馈内容',
+  }, 'u');
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.errMsg, /反馈太频繁/);
 });
 
 test('feedback keeps the record and returns SMTP auth errors', async () => {
