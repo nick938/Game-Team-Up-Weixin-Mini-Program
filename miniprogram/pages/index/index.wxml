@@ -35,8 +35,9 @@
     wx:for="{{filtered}}"
     wx:key="_id"
     team="{{item}}"
+    team-id="{{item.id || item._id}}"
     mark="{{item.mark}}"
-    bind:tap="onOpen"
+    bind:open="onOpen"
   />
   <welcome-letter />
 </view>

@@ -198,6 +198,7 @@ async function textSafeError(openid, texts, errorMsg) {
 
 function stripSecret(team, showPwd) {
   const copy = { ...team };
+  copy.id = String((team && (team._id || team.id)) || "");
   delete copy.startRemindedOpenids;
   delete copy.startRemindedAt;
   // 不向客户端下发任何身份标识；车头身份由服务端 role 判定。
@@ -1219,8 +1220,8 @@ async function dedupeTeamMembers(teamId, team, list) {
 }
 
 async function getTeam(event, openid) {
-  const teamId = event.teamId;
-  if (!teamId) return fail("缺少队伍");
+  const teamId = trim(event.teamId, 80);
+  if (!teamId || teamId === "undefined" || teamId === "null") return fail("缺少队伍");
   let team;
   try {
     const teamRes = await db.collection("teams").doc(teamId).get();

@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "来开黑",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "enablePullDownRefresh": true,
   "usingComponents": {
     "team-card": "/components/team-card/index"

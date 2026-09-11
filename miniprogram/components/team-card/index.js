@@ -1,8 +1,14 @@
+const { usableTeamId } = require("../../utils/team-entry");
+
 Component({
   properties: {
     team: {
       type: Object,
       value: {},
+    },
+    teamId: {
+      type: String,
+      value: "",
     },
     mark: {
       type: String,
@@ -11,9 +17,10 @@ Component({
   },
   methods: {
     onTap() {
-      const id = this.data.team && this.data.team._id;
+      const team = this.data.team || {};
+      const id = usableTeamId(this.data.teamId || team.id || team._id);
       if (!id) return;
-      this.triggerEvent("tap", { id });
+      this.triggerEvent("open", { id, gameName: team.gameName || "" });
     },
   },
 });

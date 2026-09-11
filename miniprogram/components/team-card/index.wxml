@@ -1,4 +1,4 @@
-<view class="card" hover-class="card-pressed" bindtap="onTap">
+<view class="card" hover-class="card-pressed" catchtap="onTap">
   <view class="top"><view class="game">{{team.gameName}}</view><view class="status status-{{team.displayStatus}}">{{team.statusText}}</view></view>
   <view class="meta">{{team.timeText}}</view>
   <view class="tags"><text wx:if="{{team.platform}}">{{team.platform}}</text><text wx:if="{{team.voice && team.voice !== '不限'}}">{{team.voice}}</text><text wx:if="{{team.server}}">{{team.server}}</text><text wx:if="{{team.started}}" class="started">进行中</text><text wx:elif="{{team.soon}}" class="soon">即将开始</text></view>

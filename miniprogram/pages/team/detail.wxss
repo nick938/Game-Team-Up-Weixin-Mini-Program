@@ -36,6 +36,8 @@ button.notify-link { display: inline-flex; width: auto; min-height: 68rpx; align
 .actions button { flex: 1; min-width: 0; }
 .actions .compact-action { flex: 0 0 160rpx; }
 .over-tip { width: 100%; text-align: center; color: #777e92; font-size: 24rpx; }
+.empty-hint { margin-top: 8rpx; font-size: 24rpx; color: #969cb0; }
+.empty-btn { width: 300rpx !important; margin: 36rpx auto 0; }
 
 .manage-mask { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .45); display: flex; align-items: flex-end; }
 .manage-sheet { width: 100%; background: #fff; border-radius: 26rpx 26rpx 0 0; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); }

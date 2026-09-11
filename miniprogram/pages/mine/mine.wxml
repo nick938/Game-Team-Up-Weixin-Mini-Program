@@ -12,7 +12,7 @@
     <button size="mini" class="tab {{teamTab === 'joined' ? 'tab-active' : ''}}" data-tab="joined" bindtap="pickTeamTab">我加入的</button>
   </view>
   <view class="list-head"><view class="phases"><button size="mini" class="phase {{phase === 'Ongoing' ? 'phase-active' : ''}}" data-phase="Ongoing" bindtap="pickPhase">进行中</button><button size="mini" class="phase {{phase === 'Past' ? 'phase-active' : ''}}" data-phase="Past" bindtap="pickPhase">历史</button></view><text class="list-total">{{visibleTeams.length}} 趟组队</text></view>
-  <team-card wx:for="{{visibleTeams}}" wx:key="_id" team="{{item}}" mark="{{teamTab === 'hosted' ? '车头' : '队员'}}" bind:tap="onOpen" />
+  <team-card wx:for="{{visibleTeams}}" wx:key="_id" team="{{item}}" team-id="{{item.id || item._id}}" mark="{{teamTab === 'hosted' ? '车头' : '队员'}}" bind:open="onOpen" />
   <view wx:if="{{!visibleTeams.length}}" class="empty"><image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" /><view>{{phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'}}</view><view class="empty-sub">{{phase === 'Past' ? '结束的组队会留在这里' : '发起一局，或去大厅找队友'}}</view><button wx:if="{{phase === 'Ongoing'}}" class="btn-ghost" bindtap="goPlaza">去大厅看看</button></view>
   <view class="legal">
     <text data-type="agreement" bindtap="openLegal">用户协议</text>

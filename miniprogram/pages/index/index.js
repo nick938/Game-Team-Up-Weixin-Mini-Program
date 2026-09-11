@@ -1,5 +1,7 @@
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
+const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { teamDetailPath } = require("../../utils/team-entry");
 
 function uniqueGames(list) {
   const seen = {};
@@ -28,7 +30,16 @@ Page({
   },
 
   onShow() {
+    bindCopyUrl(wx, () => plazaShare());
     this.loadList();
+  },
+
+  onHide() {
+    unbindCopyUrl(wx);
+  },
+
+  onUnload() {
+    unbindCopyUrl(wx);
   },
 
   onPullDownRefresh() {
@@ -66,10 +77,10 @@ Page({
   },
 
   onOpen(e) {
-    const id = e.detail.id;
-    wx.navigateTo({
-      url: `/pages/team/detail?id=${id}`,
-    });
+    const id = e.detail && e.detail.id;
+    const url = teamDetailPath(id, { gameName: e.detail && e.detail.gameName });
+    if (!url) return;
+    wx.navigateTo({ url });
   },
 
   goPublish() {
@@ -77,16 +88,12 @@ Page({
   },
 
   onShareAppMessage() {
-    return {
-      title: "来开黑 - 一起组队开黑",
-      path: "/pages/index/index",
-    };
+    const share = plazaShare();
+    return { title: share.title, path: share.path };
   },
 
   onShareTimeline() {
-    return {
-      title: "来开黑 - 一起组队开黑",
-      path: "/pages/index/index",
-    };
+    const share = plazaShare();
+    return { title: share.title, query: share.query };
   },
 });

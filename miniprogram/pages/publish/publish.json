@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "发车",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "usingComponents": {
     "profile-gate": "/components/profile-gate/index"
   }

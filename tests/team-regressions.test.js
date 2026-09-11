@@ -141,6 +141,188 @@ test('joining requests authorization first and still joins after rejection', asy
   assert.equal(page.joining, false);
 });
 
+test('share, copy-link and scene entry all keep the team id', async () => {
+  const { resolveTeamId, teamShareQuery } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
+  assert.equal(resolveTeamId({ id: 'team-1' }), 'team-1');
+  assert.equal(resolveTeamId({ teamId: 'team-2' }), 'team-2');
+  assert.equal(resolveTeamId({ scene: 'id%3Dteam-3' }), 'team-3');
+  assert.equal(resolveTeamId({}, { enter: { query: { id: 'team-4' } } }), 'team-4');
+  assert.equal(resolveTeamId({}), '');
+  assert.equal(teamShareQuery('abc'), 'id=abc');
+
+  let page;
+  let copyHandler;
+  const ctx = {
+    Page: p => { page = p; },
+    require: (name) => {
+      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
+      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
+      return require(path.resolve(root, 'miniprogram/pages/team', name));
+    },
+    wx: {
+      onCopyUrl(fn) { copyHandler = fn; },
+      offCopyUrl() { copyHandler = null; },
+      getEnterOptionsSync: () => ({ query: {} }),
+      getLaunchOptionsSync: () => ({ query: {} }),
+      setNavigationBarTitle() {},
+      showLoading() {},
+      hideLoading() {},
+      showToast() {},
+    },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
+  page.setData = function (patch) { Object.assign(this.data, patch); };
+  page.loadDetail = async function () { this.setData({ loading: false }); };
+
+  page.onLoad({ scene: 'id=isaac-team' });
+  page.data.team = { gameName: '以撒的重生', displayStatus: 'recruiting', needCount: 2, startAt: Date.now() };
+  page.onShow();
+  assert.equal(page.data.teamId, 'isaac-team');
+  assert.equal(copyHandler().query, 'id=isaac-team');
+  assert.equal(copyHandler().title, '以撒的重生');
+  assert.equal(page.onShareAppMessage().path, '/pages/team/detail?id=isaac-team');
+  assert.equal(page.onShareTimeline().query, 'id=isaac-team');
+  assert.equal(page.onShareTimeline().path, undefined);
+});
+
+test('plaza pages share into the lobby and timeline uses query not path', () => {
+  const share = require(path.join(root, 'miniprogram/utils/share.js'));
+  const plaza = share.plazaShare();
+  assert.equal(plaza.path, '/pages/index/index');
+  assert.equal(plaza.query, '');
+
+  function loadPage(rel, extraRequire) {
+    let page;
+    vm.runInNewContext(fs.readFileSync(path.join(root, rel), 'utf8'), {
+      Page: value => { page = value; },
+      getApp: () => ({ globalData: {} }),
+      require: extraRequire,
+      wx: { onCopyUrl() {}, offCopyUrl() {} },
+    });
+    return page;
+  }
+
+  const index = loadPage('miniprogram/pages/index/index.js', (name) => {
+    if (name.endsWith('/share')) return share;
+    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
+    return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
+  });
+  assert.equal(index.onShareAppMessage().path, '/pages/index/index');
+  assert.equal(index.onShareTimeline().query, '');
+  assert.equal(index.onShareTimeline().path, undefined);
+
+  const publish = loadPage('miniprogram/pages/publish/publish.js', (name) => {
+    if (name.endsWith('/share')) return share;
+    if (name.endsWith('/constants')) return { PLATFORMS: ['Steam'], VOICES: ['KOOK'], MAX_TEAM_HOURS: 24 };
+    if (name.endsWith('/format')) return { dateParts: () => ({ date: '2026-09-11', time: '21:00' }), combineDateTime: () => Date.now(), defaultStartAt: () => Date.now(), defaultEndAt: () => Date.now() };
+    if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
+    if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
+    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
+    return {};
+  });
+  assert.equal(publish.onShareAppMessage().path, '/pages/index/index');
+  assert.equal(publish.onShareTimeline().query, '');
+  assert.equal(publish.onShareTimeline().path, undefined);
+  assert.match(publish.onShareAppMessage().title, /发起组队/);
+
+  const { page: mine } = minePage();
+  assert.equal(mine.onShareAppMessage().path, '/pages/index/index');
+  assert.equal(mine.onShareTimeline().query, '');
+  assert.equal(mine.onShareTimeline().path, undefined);
+
+  for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail']) {
+    const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
+    assert.equal(json.enableShareAppMessage, true);
+    assert.equal(json.enableShareTimeline, true);
+  }
+  const appJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/app.json'), 'utf8'));
+  assert.equal(appJson['mp-weixin'], undefined);
+});
+
+test('lobby cards open with a real team id even if component objects drop _id', async () => {
+  const { usableTeamId, teamDetailPath, resolveTeamId } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
+  assert.equal(usableTeamId('undefined'), '');
+  assert.equal(usableTeamId('null'), '');
+  assert.equal(resolveTeamId({ id: 'undefined' }), '');
+  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /teamId=abc/);
+  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /name=/);
+  assert.equal(teamDetailPath('undefined'), '');
+
+  let card;
+  const events = [];
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/team-card/index.js'), 'utf8'), {
+    Component: value => { card = value; },
+    require: (name) => name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js')) : {},
+  });
+  card.data = { team: { gameName: '以撒' }, teamId: 'real-team', mark: '' };
+  card.triggerEvent = (name, detail) => events.push([name, detail]);
+  Object.assign(card, card.methods);
+  card.onTap();
+  assert.equal(events.length, 1);
+  assert.equal(events[0][0], 'open');
+  assert.equal(events[0][1].id, 'real-team');
+  assert.equal(events[0][1].gameName, '以撒');
+
+  card.data.teamId = '';
+  card.data.team = { gameName: '以撒' };
+  card.onTap();
+  assert.equal(events.length, 1);
+
+  let page;
+  const urls = [];
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), {
+    Page: value => { page = value; },
+    require: (name) => {
+      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
+      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
+      return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
+    },
+    wx: { navigateTo: ({ url }) => urls.push(url), onCopyUrl() {}, offCopyUrl() {} },
+  });
+  page.onOpen({ detail: { x: 10, y: 20 } });
+  page.onOpen({ detail: { id: 'undefined' } });
+  page.onOpen({ detail: { id: 'real-team', gameName: '以撒' } });
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /id=real-team/);
+  assert.match(urls[0], /teamId=real-team/);
+
+  const ctx = backend({ teams: [{ _id: 't', gameName: '以撒', startAt: 1, endAt: Date.now() + 3600000, status: 'recruiting' }] });
+  assert.equal(ctx.stripSecret({ _id: 't', gameName: '以撒', startAt: 1 }, false).id, 't');
+  assert.match((await ctx.getTeam({ teamId: 'undefined' }, 'u')).errMsg, /缺少/);
+  assert.equal((await ctx.getTeam({ teamId: 't' }, 'u')).ok, true);
+});
+
+test('empty team id does not query the cloud', async () => {
+  let page;
+  const cloudCalls = [];
+  const ctx = {
+    Page: p => { page = p; },
+    require: (name) => {
+      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
+      if (name.endsWith('/cloud')) return {
+        callTeam: async (type, data) => { cloudCalls.push([type, data]); return { ok: true }; },
+        showError() {},
+      };
+      return require(path.resolve(root, 'miniprogram/pages/team', name));
+    },
+    wx: {
+      onCopyUrl() {},
+      offCopyUrl() {},
+      getEnterOptionsSync: () => ({ query: {} }),
+      getLaunchOptionsSync: () => ({ query: {} }),
+      setNavigationBarTitle() {},
+    },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
+  page.setData = function (patch) { Object.assign(this.data, patch); };
+  page.onLoad({});
+  page.onShow();
+  await page.loadDetail();
+  assert.equal(page.data.teamId, '');
+  assert.equal(cloudCalls.length, 0);
+  assert.equal(page.data.loading, false);
+});
+
 test('reminder query covers ten minutes ahead and five minutes past, timer runs every minute', async () => {
   const ctx = backend();
   const before = Date.now();
@@ -226,7 +408,10 @@ function minePage() {
     Page: value => { page = value; }, getApp: () => app,
     require: name => name.endsWith('/format') ? { decorateTeam: (team) => team }
       : name.endsWith('/cloud') ? { showError() {}, callTeam: async () => ({ user: null }) }
-      : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) } : {},
+      : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) }
+      : name.endsWith('/share') ? require(path.join(root, 'miniprogram/utils/share.js'))
+      : name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js'))
+      : {},
     wx: {},
   });
   page.setData = patch => Object.assign(page.data, patch);
@@ -473,6 +658,8 @@ function publishPage() {
         };
       }
       if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
+      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
+      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
       return {};
     },
     wx: {

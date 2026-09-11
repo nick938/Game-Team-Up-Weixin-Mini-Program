@@ -8,6 +8,8 @@ const {
 } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
+const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { teamDetailPath } = require("../../utils/team-entry");
 
 function emptyForm() {
   const startAt = defaultStartAt();
@@ -45,6 +47,7 @@ Page({
   data: emptyForm(),
 
   async onShow() {
+    bindCopyUrl(wx, () => plazaShare("来开黑 - 发起组队"));
     const app = getApp();
     const editingId = app.globalData.editingTeamId;
     const draft = app.globalData.republishTeam;
@@ -59,6 +62,14 @@ Page({
       app.globalData.republishTeam = null;
       this.applyDraft(draft);
     }
+  },
+
+  onHide() {
+    unbindCopyUrl(wx);
+  },
+
+  onUnload() {
+    unbindCopyUrl(wx);
   },
 
   async loadEdit(id) {
@@ -215,7 +226,7 @@ Page({
         wx.showToast({ title: "已保存", icon: "success" });
         setTimeout(() => {
           wx.navigateTo({
-            url: `/pages/team/detail?id=${editingId}`,
+            url: teamDetailPath(editingId, { gameName: team.gameName }),
           });
         }, 400);
       } else {
@@ -224,7 +235,7 @@ Page({
         wx.showToast({ title: "已发车", icon: "success" });
         setTimeout(() => {
           wx.navigateTo({
-            url: `/pages/team/detail?id=${res.teamId}`,
+            url: teamDetailPath(res.teamId, { gameName: team.gameName }),
           });
         }, 400);
       }
@@ -256,16 +267,12 @@ Page({
   },
 
   onShareAppMessage() {
-    return {
-      title: "来开黑 - 发起组队",
-      path: "/pages/index/index",
-    };
+    const share = plazaShare("来开黑 - 发起组队");
+    return { title: share.title, path: share.path };
   },
 
   onShareTimeline() {
-    return {
-      title: "来开黑 - 发起组队",
-      path: "/pages/index/index",
-    };
+    const share = plazaShare("来开黑 - 发起组队");
+    return { title: share.title, query: share.query };
   },
 });
