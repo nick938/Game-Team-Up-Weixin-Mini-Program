@@ -323,6 +323,31 @@ test('empty team id does not query the cloud', async () => {
   assert.equal(page.data.loading, false);
 });
 
+test('team detail prefers the current page query over the launch query', () => {
+  let page;
+  const ctx = {
+    Page: p => { page = p; },
+    require: (name) => {
+      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
+      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
+      return require(path.resolve(root, 'miniprogram/pages/team', name));
+    },
+    wx: {
+      onCopyUrl() {},
+      offCopyUrl() {},
+      getEnterOptionsSync: () => ({ query: { id: 'from-launch' } }),
+      getLaunchOptionsSync: () => ({ query: { id: 'from-launch' } }),
+      setNavigationBarTitle() {},
+    },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
+  page.setData = function (patch) { Object.assign(this.data, patch); };
+  page.loadDetail = function () {};
+  page.options = { id: 'from-page' };
+  page.onShow();
+  assert.equal(page.data.teamId, 'from-page');
+});
+
 test('reminder query covers ten minutes ahead and five minutes past, timer runs every minute', async () => {
   const ctx = backend();
   const before = Date.now();

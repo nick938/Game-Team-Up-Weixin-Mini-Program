@@ -40,8 +40,8 @@ Page({
   },
 
   onLoad(options) {
-    const teamId = resolveTeamId(options, readLaunchExtras());
-    this.setData({ teamId });
+    this.entryOptions = options || {};
+    const teamId = this.syncTeamId(this.entryOptions);
     const rawName = options && (options.name || options.gameName);
     if (rawName) {
       let name = String(rawName);
@@ -52,6 +52,13 @@ Page({
       }
       wx.setNavigationBarTitle({ title: name.slice(0, 40) });
     }
+    if (!teamId) this.setData({ loading: false, team: null });
+  },
+
+  syncTeamId(options) {
+    const teamId = resolveTeamId(options || this.options || {}, readLaunchExtras());
+    if (teamId !== this.data.teamId) this.setData({ teamId });
+    return teamId;
   },
 
   onPullDownRefresh() {
@@ -63,11 +70,7 @@ Page({
       query: teamShareQuery(this.data.teamId),
       title: (this.data.team && this.data.team.gameName) || "来开黑",
     }));
-    let teamId = usableTeamId(this.data.teamId);
-    if (!teamId) {
-      teamId = resolveTeamId({}, readLaunchExtras());
-      if (teamId) this.setData({ teamId });
-    }
+    const teamId = this.syncTeamId(this.entryOptions || this.options);
     if (teamId) {
       this.loadDetail();
     } else {
@@ -120,9 +123,12 @@ Page({
       this.setData({ loading: false, team: null, teamId: "" });
       return;
     }
+    const requestId = (this.detailRequest || 0) + 1;
+    this.detailRequest = requestId;
     this.setData({ loading: true });
     try {
       const res = await callTeam("getTeam", { teamId });
+      if (requestId !== this.detailRequest) return;
       const role = res.role;
       this.setData({
         team: decorateTeam(res.team),
@@ -138,6 +144,7 @@ Page({
         title: (res.team && res.team.gameName) || "组队详情",
       });
     } catch (e) {
+      if (requestId !== this.detailRequest) return;
       this.setData({ team: null, loading: false });
       showError(e);
     }

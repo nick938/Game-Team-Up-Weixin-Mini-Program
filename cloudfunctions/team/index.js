@@ -1227,7 +1227,10 @@ async function getTeam(event, openid) {
     const teamRes = await db.collection("teams").doc(teamId).get();
     team = teamRes.data;
   } catch (e) {
-    return fail("队伍不存在");
+    const msg = String((e && (e.errMsg || e.message)) || "");
+    if (/not exist|not found|不存在/i.test(msg)) return fail("队伍不存在");
+    console.error("getTeam", msg || e);
+    return fail("队伍读取失败");
   }
   if (!teamExists(team)) return fail("队伍不存在");
 
