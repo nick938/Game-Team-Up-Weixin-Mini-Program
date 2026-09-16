@@ -645,6 +645,68 @@ test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
   assert.equal(ok.value.endAt - ok.value.startAt, 24 * 60 * 60 * 1000);
 });
 
+test('team note supports up to 500 characters and clamps beyond', () => {
+  const ctx = backend();
+  const startAt = Date.now() + 60 * 1000;
+  const longNote = 'A'.repeat(550);
+  const validated = ctx.validateTeamInput({
+    gameName: 'CS2',
+    capacity: 5,
+    startAt,
+    endAt: startAt + 3600 * 1000,
+    platform: 'Steam',
+    voice: 'KOOK',
+    note: longNote,
+  }, { isCreate: true });
+  assert.equal(validated.error, undefined);
+  assert.equal(validated.value.note.length, 500);
+});
+
+test('detail note collapses when long or multi-line and can toggle expand', async () => {
+  let page;
+  let pageTeam;
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
+    Page: value => { page = value; },
+    require: () => ({
+      isSinglePage: () => false,
+      decorateTeam: (t) => t,
+      callTeam: async () => ({ team: pageTeam, members: [], role: 'member' }),
+      showError: () => {},
+      requestTeamNotify: async () => {},
+      resolveTeamId: (opts) => opts.id,
+      teamShareQuery: () => '',
+      usableTeamId: (id) => id,
+      bindCopyUrl: () => {},
+      unbindCopyUrl: () => {},
+    }),
+    wx: { setNavigationBarTitle() {} },
+  });
+  page.setData = patch => Object.assign(page.data, patch);
+
+  // 1. 短备注（<=80 字且 <=3 行）：不需要折叠
+  page.data.teamId = 't1';
+  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '短备注，无需折叠' };
+  await page.loadDetail();
+  assert.equal(page.data.noteCanFold, false);
+  assert.equal(page.data.noteExpanded, false);
+
+  // 2. 超长备注（>80 字）：折叠并支持展开/收起切换
+  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '这是超长的队伍说明备注，'.repeat(10) };
+  await page.loadDetail();
+  assert.equal(page.data.noteCanFold, true);
+  assert.equal(page.data.noteExpanded, false);
+  page.toggleNoteExpand();
+  assert.equal(page.data.noteExpanded, true);
+  page.toggleNoteExpand();
+  assert.equal(page.data.noteExpanded, false);
+
+  // 3. 多行备注（换行 > 3 行）：哪怕字数少也支持折叠
+  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '1. 规则一\n2. 规则二\n3. 规则三\n4. 规则四' };
+  await page.loadDetail();
+  assert.equal(page.data.noteCanFold, true);
+  assert.equal(page.data.noteExpanded, false);
+});
+
 test('welcome letter shows once then stays dismissed', () => {
   const store = {};
   const navigated = [];
@@ -794,6 +856,16 @@ test('successful create clears the form so a second submit does not post again',
   assert.equal(page.data.gameName, '');
   await page.onSubmit();
   assert.equal(calls.length, 1);
+});
+
+test('publish form inputs update field values correctly for word counting', () => {
+  const { page } = publishPage();
+  page.onGameName({ detail: { value: '永劫无间' } });
+  assert.equal(page.data.gameName, '永劫无间');
+  page.onRoomNo({ detail: { value: 'Steam: 12345678' } });
+  assert.equal(page.data.roomNo, 'Steam: 12345678');
+  page.onNote({ detail: { value: '长文说明测试内容'.repeat(10) } });
+  assert.equal(page.data.note.length, 80);
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {

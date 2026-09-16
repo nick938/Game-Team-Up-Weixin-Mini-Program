@@ -110,8 +110,11 @@
     <view class="label">水平（选填）</view>
     <input class="field" placeholder="如 娱乐局、上分、萌新友好" maxlength="20" value="{{rankReq}}" bindinput="onRank" />
 
-    <view class="label">备注（选填）</view>
-    <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="80" value="{{note}}" bindinput="onNote" />
+    <view class="field-head">
+      <view class="label">备注（选填）</view>
+      <view class="field-count {{note && note.length >= 500 ? 'field-count-max' : ''}}">{{note ? note.length : 0}}/500</view>
+    </view>
+    <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="500" value="{{note}}" bindinput="onNote" />
     </view>
 
     <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">

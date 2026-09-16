@@ -14,7 +14,37 @@
 .need { margin-left: 16rpx; font-size: 25rpx; font-weight: 400; color: #6255e7; }
 .tags { margin-top: 20rpx; display: flex; flex-wrap: wrap; gap: 10rpx; }
 .tags text { background: #f1f2f9; color: #697188; font-size: 23rpx; padding: 7rpx 14rpx; border-radius: 9rpx; }
-.note { margin-top: 22rpx; padding-top: 20rpx; border-top: 1rpx solid #e9ebf3; font-size: 27rpx; color: #535b72; line-height: 1.7; word-break: break-all; }
+.note-wrap { margin-top: 22rpx; padding-top: 20rpx; border-top: 1rpx solid #e9ebf3; }
+.note { font-size: 27rpx; color: #535b72; line-height: 1.7; word-break: break-all; white-space: pre-wrap; }
+.note-collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #6255e7;
+  font-weight: 500;
+  padding: 6rpx 0;
+}
+.note-toggle:active { opacity: 0.7; }
+.note-chevron {
+  width: 10rpx;
+  height: 10rpx;
+  border-right: 3rpx solid currentColor;
+  border-bottom: 3rpx solid currentColor;
+  transform: translateY(-3rpx) rotate(45deg);
+  transition: transform 0.2s ease;
+}
+.note-chevron-up {
+  transform: translateY(3rpx) rotate(225deg);
+}
 button.notify-link { display: inline-flex; width: auto; min-height: 68rpx; align-items: center; padding: 8rpx 0; box-sizing: border-box; font-size: 24rpx; color: #6255e7; line-height: 1.5; text-align: left; }
 .notify-authorized { color: #777e92; }
 .notify-arrow { margin-left: 12rpx; font-size: 28rpx; }

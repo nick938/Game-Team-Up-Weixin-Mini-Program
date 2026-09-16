@@ -9,7 +9,7 @@ const _ = db.command;
 
 let collectionsReady = false;
 
-const NOTE_MAX = 80;
+const NOTE_MAX = 500;
 const ROOM_MAX = 80;
 const GAME_MAX = 40;
 const SERVER_MAX = 20;

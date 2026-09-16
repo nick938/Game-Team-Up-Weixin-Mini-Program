@@ -26,7 +26,13 @@
       <text wx:if="{{team.voice && team.voice !== '不限'}}">{{team.voice}}</text>
       <text wx:if="{{team.rankReq}}">{{team.rankReq}}</text>
     </view>
-    <view class="note" wx:if="{{team.note}}">{{team.note}}</view>
+    <view class="note-wrap" wx:if="{{team.note}}">
+      <view class="note {{noteCanFold && !noteExpanded ? 'note-collapsed' : ''}}">{{team.note}}</view>
+      <view class="note-toggle" wx:if="{{noteCanFold}}" bindtap="toggleNoteExpand">
+        <text>{{noteExpanded ? '收起' : '展开全部'}}</text>
+        <view class="note-chevron {{noteExpanded ? 'note-chevron-up' : ''}}"></view>
+      </view>
+    </view>
   </view>
 
 

@@ -14,6 +14,11 @@
 .step-btn { width: 100rpx; line-height: 84rpx; text-align: center; color: #6255e7; font-size: 38rpx; }
 .step-num { flex: 1; text-align: center; font-weight: 700; font-size: 34rpx; }
 .area { width: 100%; min-height: 170rpx; padding: 20rpx; line-height: 1.6; }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; margin: 28rpx 0 14rpx; }
+.field-head .label { margin: 0; }
+.field-count { font-size: 22rpx; color: #858ba0; }
+.field-count-max { color: #e5484d; font-weight: 600; }
+
 .from-last { color: #6255e7; font-size: 24rpx; margin-top: 12rpx; }
 .time-hint { margin-top: 12rpx; font-size: 23rpx; color: #858ba0; }
 button.more-toggle { width: 100% !important; margin-top: 32rpx; padding: 24rpx 20rpx; box-sizing: border-box; border: 2rpx solid #d8d2ff; border-radius: 18rpx; background: #f3f0ff; display: flex; gap: 16rpx; justify-content: space-between; align-items: center; text-align: left; line-height: 1.5; }

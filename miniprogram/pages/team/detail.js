@@ -20,6 +20,15 @@ function readLaunchExtras() {
   return extras;
 }
 
+function shouldFoldNote(note) {
+  if (!note || typeof note !== "string") return false;
+  const trimmed = note.trim();
+  if (trimmed.length > 80) return true;
+  const lines = trimmed.split("\n");
+  if (lines.length > 3) return true;
+  return false;
+}
+
 Page({
   data: {
     teamId: "",
@@ -38,6 +47,8 @@ Page({
     pendingAction: "",
     notifyHint: "",
     notifyAuthorized: false,
+    noteCanFold: false,
+    noteExpanded: false,
   },
 
   onLoad(options) {
@@ -58,7 +69,9 @@ Page({
 
   syncTeamId(options) {
     const teamId = resolveTeamId(options || this.options || {}, readLaunchExtras());
-    if (teamId !== this.data.teamId) this.setData({ teamId });
+    if (teamId !== this.data.teamId) {
+      this.setData({ teamId, noteExpanded: false, noteCanFold: false });
+    }
     return teamId;
   },
 
@@ -135,8 +148,12 @@ Page({
       const res = await callTeam("getTeam", { teamId });
       if (requestId !== this.detailRequest) return;
       const role = res.role;
+      const note = (res.team && res.team.note) || "";
+      const noteCanFold = shouldFoldNote(note);
       this.setData({
         team: decorateTeam(res.team),
+        noteCanFold,
+        noteExpanded: false,
         members: res.members || [],
         seats: Array.from({ length: res.team.capacity }, (_, i) => ({
           key: i,
@@ -153,6 +170,10 @@ Page({
       this.setData({ team: null, loading: false });
       showError(e);
     }
+  },
+
+  toggleNoteExpand() {
+    this.setData({ noteExpanded: !this.data.noteExpanded });
   },
 
   onMemberProfile(e) {
