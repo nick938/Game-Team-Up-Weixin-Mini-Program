@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/game/game",
     "pages/publish/publish",
     "pages/mine/mine",
     "pages/team/detail",
@@ -14,7 +15,7 @@
     "backgroundColor": "#F5F6FA",
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#F5F6FA",
-    "navigationBarTitleText": "图一乐",
+    "navigationBarTitleText": "游戏搭子｜开黑找队友",
     "navigationBarTextStyle": "black"
   },
   "tabBar": {

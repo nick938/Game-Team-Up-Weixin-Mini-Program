@@ -8,6 +8,7 @@ App({
       user: null,
       editingTeamId: null,
       republishTeam: null,
+      prefillGame: null,
     };
     this.profileReady = Promise.resolve();
     if (isSinglePage(options)) return;

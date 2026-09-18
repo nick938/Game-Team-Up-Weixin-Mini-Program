@@ -1,0 +1,61 @@
+<timeline-preview wx:if="{{singlePage}}" />
+<block wx:else>
+<view class="page">
+  <view class="seo-header">
+    <view class="seo-title">{{seoHeading}}</view>
+    <view class="seo-desc">{{seoDescription}}</view>
+    <button wx:if="{{game}}" size="mini" class="hero-create" bindtap="goPublish">发起{{game.entryLabel}} ＋</button>
+    <button wx:else size="mini" class="hero-create" bindtap="goPlaza">回大厅看看</button>
+  </view>
+
+  <block wx:if="{{game}}">
+    <view class="section-head">
+      <view class="zone">正在找队友的车<text class="section-count">{{filtered.length}}</text></view>
+      <view class="sorts">
+        <view
+          class="sort {{sortMode === item.key ? 'sort-on' : ''}}"
+          wx:for="{{sorts}}"
+          wx:key="key"
+          data-key="{{item.key}}"
+          bindtap="pickSort"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{loading && !filtered.length}}" class="empty">正在找队伍…</view>
+    <view wx:elif="{{listError && !filtered.length}}" class="empty">
+      <view>队伍列表暂时加载失败，过一会再试。</view>
+      <button class="btn-ghost empty-btn" bindtap="loadList">再试一次</button>
+    </view>
+    <view wx:elif="{{!filtered.length}}" class="empty">
+      <view>暂时还没有队伍，发布一个组队邀请吧。</view>
+      <button class="btn-primary empty-btn" bindtap="goPublish">去发{{game.entryLabel}}</button>
+    </view>
+
+    <team-card
+      wx:for="{{filtered}}"
+      wx:key="_id"
+      team="{{item}}"
+      team-id="{{item.id || item._id}}"
+      mark="{{item.mark}}"
+      bind:open="onOpen"
+    />
+    <view wx:if="{{filtered.length && loadingMore}}" class="load-more">正在加载更多…</view>
+    <view wx:elif="{{filtered.length && !hasMore}}" class="load-more">没有更多了</view>
+    <view wx:elif="{{filtered.length && hasMore}}" class="load-more">上拉加载更多</view>
+  </block>
+
+  <view class="seo-games">
+    <view class="seo-kicker">{{game ? '其他游戏搭子' : '热门游戏搭子'}}</view>
+    <view class="seo-game-list">
+      <navigator
+        wx:for="{{others}}"
+        wx:key="seoKey"
+        class="seo-game"
+        url="/pages/game/game?game={{item.seoKey}}"
+        hover-class="seo-game-hover"
+      >{{item.entryLabel}}</navigator>
+    </view>
+  </view>
+</view>
+</block>

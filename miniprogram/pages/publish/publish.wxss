@@ -4,6 +4,7 @@
 .field, .picker { height: 84rpx; line-height: 84rpx; padding: 0 20rpx; }
 .field-lg { font-size: 32rpx; font-weight: 600; }
 .games { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.suggest-games { margin-top: 14rpx; }
 .game { padding: 15rpx 23rpx; background: #f5f6fa; color: #697188; border-radius: 14rpx; font-size: 25rpx; }
 .game-on { background: #eeecff; color: #6255e7; box-shadow: inset 0 0 0 1rpx #c8c1fb; }
 .time-row { display: flex; gap: 14rpx; }

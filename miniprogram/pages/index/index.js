@@ -8,6 +8,7 @@ const {
   DEFAULT_SORT,
   buildLobbyView,
 } = require("../../utils/lobby");
+const { FEATURED_GAMES } = require("../../utils/games");
 
 const PAGE_SIZE = 20;
 // 搜索框每敲一个字都会在已加载的数据上重跑筛选+排序，防抖后再算。
@@ -45,6 +46,7 @@ Page({
     games: ["全部"],
     gameFilter: "全部",
     keyword: "",
+    featured: FEATURED_GAMES,
     sorts: SORT_MODES,
     sortMode: DEFAULT_SORT,
     hasMore: false,

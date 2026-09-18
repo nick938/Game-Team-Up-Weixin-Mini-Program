@@ -1,6 +1,6 @@
 function plazaShare(title) {
   return {
-    title: title || "图一乐 - 一起组队开黑",
+    title: title || "游戏搭子｜开黑找队友",
     path: "/pages/index/index",
     query: "",
   };

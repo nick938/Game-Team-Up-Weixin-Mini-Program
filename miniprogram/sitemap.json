@@ -1,7 +1,27 @@
 {
-  "desc": "关于本文件的更多信息，请参考文档 https://developers.weixin.qq.com/miniprogram/dev/framework/sitemap.html",
-  "rules": [{
-    "action": "allow",
-    "page": "*"
-  }]
+  "desc": "只收录首页和标准游戏搜索落地页；其他页面及非规范参数不参与索引。",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/index/index",
+      "params": [],
+      "matching": "exact",
+      "priority": 100
+    },
+    {
+      "action": "allow",
+      "page": "pages/game/game",
+      "params": ["game"],
+      "matching": "exact",
+      "priority": 100
+    },
+    {
+      "action": "disallow",
+      "page": "pages/game/game"
+    },
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
 }

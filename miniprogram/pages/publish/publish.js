@@ -11,6 +11,7 @@ const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
 const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
 const { teamDetailPath } = require("../../utils/team-entry");
+const { GAME_CATALOG, findGame } = require("../../utils/games");
 
 function emptyForm() {
   const startAt = defaultStartAt();
@@ -50,26 +51,36 @@ function emptyForm() {
 }
 
 Page({
-  data: Object.assign(emptyForm(), { canProxy: false }),
+  data: Object.assign(emptyForm(), { canProxy: false, suggestedGames: GAME_CATALOG }),
 
   async onShow() {
     const singlePage = isSinglePage();
     this.setData({ singlePage });
     if (singlePage) return;
-    bindCopyUrl(wx, () => plazaShare("图一乐 - 发起组队"));
+    bindCopyUrl(wx, () => plazaShare("图一乐 - 发起组队开黑"));
     const app = getApp();
     const editingId = app.globalData.editingTeamId;
     const draft = app.globalData.republishTeam;
+    const prefill = app.globalData.prefillGame;
     if (editingId) {
       app.globalData.editingTeamId = null;
       app.globalData.republishTeam = null;
+      app.globalData.prefillGame = null;
       if (this.data.editingId === editingId) return;
       await this.loadEdit(editingId);
       return;
     }
     if (draft) {
       app.globalData.republishTeam = null;
+      app.globalData.prefillGame = null;
       this.applyDraft(draft);
+    } else if (prefill) {
+      app.globalData.prefillGame = null;
+      const patch = { gameName: prefill.name || "" };
+      if (prefill.platform && PLATFORMS.indexOf(prefill.platform) >= 0) {
+        patch.platform = prefill.platform;
+      }
+      this.setData(patch);
     }
     await this.loadProxyAccess();
   },
@@ -152,6 +163,13 @@ Page({
 
   onGameName(e) {
     this.setData({ gameName: e.detail.value });
+  },
+  pickSuggestedGame(e) {
+    const game = findGame(e.currentTarget.dataset.slug);
+    if (!game) return;
+    const patch = { gameName: game.name };
+    if (PLATFORMS.indexOf(game.platform) >= 0) patch.platform = game.platform;
+    this.setData(patch);
   },
   onStartDate(e) {
     this.setData({ startDate: e.detail.value });
@@ -373,12 +391,12 @@ Page({
   },
 
   onShareAppMessage() {
-    const share = plazaShare("图一乐 - 发起组队");
+    const share = plazaShare("图一乐 - 发起组队开黑");
     return { title: share.title, path: share.path };
   },
 
   onShareTimeline() {
-    const share = plazaShare("图一乐 - 发起组队");
+    const share = plazaShare("图一乐 - 发起组队开黑");
     return { title: share.title, query: share.query };
   },
 });

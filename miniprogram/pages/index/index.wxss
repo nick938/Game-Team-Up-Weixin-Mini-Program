@@ -25,3 +25,8 @@
 .hero-art { width: 280rpx; height: 230rpx; flex-shrink: 0; border-radius: 24rpx; }
 button.hero-create { margin: 16rpx 0 0; padding: 10rpx 18rpx; width: auto; line-height: 36rpx; font-size: 24rpx; color: #6255e7; background: #eeecff; border-radius: 12rpx; }
 .empty { padding-top: 24rpx; }
+.seo-games { margin: 0 0 28rpx; }
+.seo-kicker { margin-bottom: 16rpx; font-size: 26rpx; font-weight: 600; }
+.seo-game-list { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.seo-game { padding: 12rpx 22rpx; background: #fff; border: 1rpx solid #e8eaf2; border-radius: 30rpx; color: #4437b5; font-size: 24rpx; line-height: 1.3; }
+.seo-game-hover { background: #eeecff; border-color: #c8c1fb; }

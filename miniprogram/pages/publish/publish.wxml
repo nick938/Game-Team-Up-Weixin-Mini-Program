@@ -38,6 +38,15 @@
       value="{{gameName}}"
       bindinput="onGameName"
     />
+    <view class="games suggest-games">
+      <view
+        class="game {{gameName === item.name ? 'game-on' : ''}}"
+        wx:for="{{suggestedGames}}"
+        wx:key="slug"
+        data-slug="{{item.slug}}"
+        bindtap="pickSuggestedGame"
+      >{{item.name}}</view>
+    </view>
     <view class="from-last" wx:if="{{fromLast}}">已填入上一趟，时间改到最近</view>
 
     <view class="label">平台</view>

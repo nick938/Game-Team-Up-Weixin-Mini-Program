@@ -238,6 +238,7 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
     if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
     if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
     if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
+    if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
     return {};
   });
   assert.equal(publish.onShareAppMessage().path, '/pages/index/index');
@@ -250,7 +251,7 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
   assert.equal(mine.onShareTimeline().query, '');
   assert.equal(mine.onShareTimeline().path, undefined);
 
-  for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail']) {
+  for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail', 'game/game']) {
     const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
     assert.equal(json.enableShareAppMessage, true);
     assert.equal(json.enableShareTimeline, true);
@@ -820,6 +821,7 @@ function publishPage(searchUsers) {
       if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
       if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
       if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
+      if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
       return {};
     },
     wx: {
@@ -858,14 +860,18 @@ test('successful create clears the form so a second submit does not post again',
   assert.equal(calls.length, 1);
 });
 
-test('publish form inputs update field values correctly for word counting', () => {
-  const { page } = publishPage();
-  page.onGameName({ detail: { value: '永劫无间' } });
+test('publish prefills a game from the landing page and suggested chips', async () => {
+  const { page, app } = publishPage();
+  app.globalData.prefillGame = { name: '三角洲行动', platform: 'Steam' };
+  await page.onShow();
+  assert.equal(page.data.gameName, '三角洲行动');
+  assert.equal(page.data.platform, 'Steam');
+  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'naraka' } } });
   assert.equal(page.data.gameName, '永劫无间');
-  page.onRoomNo({ detail: { value: 'Steam: 12345678' } });
-  assert.equal(page.data.roomNo, 'Steam: 12345678');
-  page.onNote({ detail: { value: '长文说明测试内容'.repeat(10) } });
-  assert.equal(page.data.note.length, 80);
+  assert.equal(page.data.platform, 'Steam');
+  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
+  assert.equal(page.data.gameName, '王者荣耀');
+  assert.equal(page.data.platform, '手游');
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {

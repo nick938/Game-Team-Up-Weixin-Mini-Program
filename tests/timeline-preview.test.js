@@ -65,9 +65,9 @@ for (const options of [{ mode: 'singlePage', scene: 1154 }, { scene: 1154 }]) {
   test(`timeline startup and all shareable pages avoid cloud, storage and popups: ${JSON.stringify(options)}`, async () => {
     const r = runtime(options);
     await r.app().profileReady;
-    for (const route of ['index/index', 'team/detail', 'mine/mine', 'publish/publish']) {
+    for (const route of ['index/index', 'team/detail', 'mine/mine', 'publish/publish', 'game/game']) {
       const p = r.page(route);
-      if (p.onLoad) p.onLoad({ id: 'team-123' });
+      if (p.onLoad) p.onLoad(route === 'game/game' ? { g: 'cs2' } : { id: 'team-123' });
       await p.onShow();
       if (p.onPullDownRefresh) await p.onPullDownRefresh();
       assert.equal(p.data.singlePage, true);
