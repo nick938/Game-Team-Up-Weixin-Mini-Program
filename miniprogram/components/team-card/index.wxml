@@ -1,10 +1,22 @@
 <view class="card" hover-class="card-pressed" catchtap="onTap">
-  <view class="top"><view class="game">{{team.gameName}}</view><view class="status status-{{team.displayStatus}}">{{team.statusText}}</view></view>
+  <view class="top">
+    <view class="game">{{team.gameName}}<text wx:if="{{team.rankReq}}" class="game-extra"> · {{team.rankReq}}</text></view>
+    <view class="status status-{{team.displayStatus}}">
+      <block wx:if="{{team.displayStatus === 'recruiting' && team.needCount > 0}}">缺{{team.needCount}}人</block>
+      <block wx:else>{{team.statusText}}</block>
+    </view>
+  </view>
   <view class="meta">{{team.timeText}}</view>
-  <view class="tags"><text wx:if="{{team.platform}}" class="tag">{{team.platform}}</text><text wx:if="{{team.voice && team.voice !== '不限'}}" class="tag">{{team.voice}}</text><text wx:if="{{team.server}}" class="tag">{{team.server}}</text><text wx:if="{{team.started}}" class="tag started">进行中</text><text wx:elif="{{team.soon}}" class="tag soon">即将开始</text></view>
+  <view class="tags">
+    <text wx:if="{{team.platform}}" class="tag">{{team.platform}}</text>
+    <text wx:if="{{team.voice && team.voice !== '不限'}}" class="tag">{{team.voice}}</text>
+    <text wx:if="{{team.server}}" class="tag">{{team.server}}</text>
+    <text wx:if="{{team.started}}" class="tag started">进行中</text>
+    <text wx:elif="{{team.soon}}" class="tag soon">即将开始</text>
+  </view>
   <view class="bottom">
     <view class="count"><text class="count-current">{{team.memberCount}}</text><text class="count-total"> / {{team.capacity}} 人</text></view>
-    <view class="need" wx:if="{{team.displayStatus === 'recruiting'}}">还差 {{team.needCount}} 人</view>
-    <view class="mark" wx:if="{{mark}}">{{mark}}</view><text class="arrow">›</text>
+    <view class="mark" wx:if="{{mark}}">{{mark}}</view>
+    <view class="card-action">查看队伍</view>
   </view>
 </view>

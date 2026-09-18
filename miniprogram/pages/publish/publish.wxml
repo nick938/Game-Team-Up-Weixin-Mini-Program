@@ -1,18 +1,24 @@
 <timeline-preview wx:if="{{singlePage}}" />
 <block wx:else>
-<view class="page">
-  <view class="publish-heading"><view class="publish-copy"><view class="page-heading">{{editingId ? '调整这趟车' : (proxyMode ? '帮群友开一局' : '喊上好友，开一局')}}</view><view class="page-caption">{{editingId ? '先定游戏和时间，发车后分享给好友。' : (proxyMode ? '车头是群友，发车后出现在他的「我发起的」里。' : '先定游戏和时间，发车后分享给好友。')}}</view></view><image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="开黑星球" /></view>
+<view class="page publish-page">
+  <view class="publish-heading">
+    <view class="publish-copy">
+      <view class="page-heading">{{editingId ? '调整这趟车' : (proxyMode ? '帮群友开一局' : '喊上好友，开一局')}}</view>
+      <view class="page-caption">{{editingId ? '选定游戏和时间，发车后分享给好友。' : (proxyMode ? '车头是群友，发车后出现在他的「我发起的」里。' : '选定游戏和时间，发车后分享给好友。')}}</view>
+    </view>
+    <image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="开黑星球" />
+  </view>
   <view class="form">
     <label wx:if="{{canProxy && !editingId}}" class="proxy-switch {{proxyMode ? 'proxy-switch-on' : ''}}">
       <view class="proxy-switch-copy">
         <view class="proxy-switch-title">帮群友发车</view>
-        <view class="proxy-switch-hint">群里有人喊了但没自己发车时，可以代开一趟</view>
+        <view class="proxy-switch-hint">帮朋友代发一辆车</view>
       </view>
       <switch class="proxy-toggle" checked="{{proxyMode}}" color="#6255e7" bindchange="toggleProxy" aria-label="帮群友发车" />
     </label>
 
     <block wx:if="{{proxyMode && !editingId}}">
-      <view class="label">帮谁发车</view>
+      <view id="field-proxy" class="label">帮谁发车</view>
       <view wx:if="{{proxyHost}}" class="proxy-picked">
         <image class="proxy-avatar" src="{{proxyHost.avatarBase64 ? 'data:image/jpeg;base64,' + proxyHost.avatarBase64 : (proxyHost.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
         <view class="proxy-picked-name">{{proxyHost.nickName}}</view>
@@ -30,10 +36,10 @@
       </block>
     </block>
 
-    <view class="label">玩什么</view>
+    <view id="field-game" class="label">玩什么</view>
     <input
       class="field field-lg"
-      placeholder="CS2、三角洲行动、永劫无间…"
+      placeholder="搜索游戏..."
       maxlength="40"
       value="{{gameName}}"
       bindinput="onGameName"
@@ -49,7 +55,7 @@
     </view>
     <view class="from-last" wx:if="{{fromLast}}">已填入上一趟，时间改到最近</view>
 
-    <view class="label">平台</view>
+    <view id="field-platform" class="label">平台</view>
     <view class="games">
       <view
         class="game {{platform === item ? 'game-on' : ''}}"
@@ -60,8 +66,17 @@
       >{{item}}</view>
     </view>
 
-    <view class="label">开始时间</view>
-    <view class="time-row">
+    <view id="field-start" class="label">什么时候开始</view>
+    <view class="games">
+      <view
+        class="game {{startPreset === item.key ? 'game-on' : ''}}"
+        wx:for="{{startPresets}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="pickStartPreset"
+      >{{item.label}}</view>
+    </view>
+    <view wx:if="{{startPreset === 'custom'}}" class="time-row time-row-follow">
       <picker mode="date" value="{{startDate}}" start="{{minDate}}" bindchange="onStartDate">
         <view class="picker">{{startDate}}</view>
       </picker>
@@ -70,39 +85,48 @@
       </picker>
     </view>
 
-    <view class="label">结束时间</view>
-    <view class="time-row">
-      <picker mode="date" value="{{endDate}}" start="{{startDate}}" bindchange="onEndDate">
-        <view class="picker">{{endDate}}</view>
-      </picker>
-      <picker mode="time" value="{{endTime}}" bindchange="onEndTime">
-        <view class="picker">{{endTime}}</view>
+    <view id="field-end" class="label">玩多久</view>
+    <view class="games">
+      <view
+        class="game {{durationHours === item.hours ? 'game-on' : ''}}"
+        wx:for="{{durationPresets}}"
+        wx:key="label"
+        wx:if="{{item.hours !== 0}}"
+        data-hours="{{item.hours}}"
+        bindtap="pickDuration"
+      >{{item.label}}</view>
+      <picker mode="selector" range="{{durationPickerLabels}}" value="{{durationPickerIndex}}" bindchange="pickCustomDuration">
+        <view class="game {{durationHours === 0 ? 'game-on' : ''}}">自定义{{durationHours === 0 ? ' · ' + durationLabel : ''}}</view>
       </picker>
     </view>
-    <view class="time-hint">一局最长 24 小时，到点自动散</view>
+    <view class="time-summary">
+      <view class="time-summary-line1">{{timeSummaryLine1}}</view>
+      <view class="time-summary-line2">{{timeSummaryLine2}}</view>
+    </view>
 
-    <view class="label">几个人（含{{proxyMode && proxyHost ? '车头' : '你自己'}}）</view>
+    <view class="label">队伍人数</view>
     <view class="stepper">
       <view class="step-btn" bindtap="decCap">−</view>
       <view class="step-num">{{capacity}}</view>
       <view class="step-btn" bindtap="incCap">+</view>
     </view>
+    <view class="step-hint">包含{{proxyMode && proxyHost ? '车头' : '你自己'}}</view>
 
     <button class="more-toggle" bindtap="toggleMore" hover-class="more-toggle-hover" aria-label="更多设置，{{showMore ? '点击收起' : '点击展开'}}">
       <view class="more-copy">
-        <view class="more-title">更多设置<text class="more-optional">选填</text></view>
-        <view class="more-hint">房间号、密码、区服、语音、水平、备注</view>
+        <view class="more-title">更多设置</view>
+        <view class="more-hint">{{moreHint}}</view>
       </view>
-      <view class="more-action">{{showMore ? '收起' : '展开'}}<text class="more-chevron {{showMore ? 'more-chevron-up' : ''}}"></text></view>
+      <text class="more-chevron {{showMore ? 'more-chevron-up' : ''}}"></text>
     </button>
     <view hidden="{{!showMore}}" class="more-fields">
-    <view class="label">怎么进（选填）</view>
+    <view class="label">房间 / 加入方式</view>
     <input class="field" placeholder="房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
 
-    <view class="label">进房密码（选填，仅队员可见）</view>
+    <view class="label">房间密码</view>
     <input class="field" placeholder="没有就空着" maxlength="32" value="{{roomPwd}}" bindinput="onRoomPwd" />
 
-    <view class="label">服务器 / 区服（选填）</view>
+    <view class="label">服务器 / 区服</view>
     <input class="field" placeholder="如 欧服、微信区、国服" maxlength="20" value="{{server}}" bindinput="onServer" />
 
     <view class="label">语音</view>
@@ -116,18 +140,21 @@
       >{{item}}</view>
     </view>
 
-    <view class="label">水平（选填）</view>
+    <view class="label">队友要求</view>
     <input class="field" placeholder="如 娱乐局、上分、萌新友好" maxlength="20" value="{{rankReq}}" bindinput="onRank" />
 
     <view class="field-head">
-      <view class="label">备注（选填）</view>
+      <view class="label">备注</view>
       <view class="field-count {{note && note.length >= 500 ? 'field-count-max' : ''}}">{{note ? note.length : 0}}/500</view>
     </view>
     <textarea class="area" placeholder="玩法、麦序、怎么加好友" maxlength="500" value="{{note}}" bindinput="onNote" />
     </view>
+  </view>
+  <view class="submit-spacer"></view>
 
-    <button class="btn-primary submit" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">
-      {{editingId ? '保存修改' : (proxyMode && proxyHost ? '帮 TA 发车 · 共 ' + capacity + ' 人' : '发车 · 共 ' + capacity + ' 人')}}
+  <view class="submit-bar">
+    <button class="btn-primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">
+      {{editingId ? '保存修改' : (proxyMode && proxyHost ? '帮 TA 发车 · ' + capacity + '人' : '发车 · ' + capacity + '人')}}
     </button>
   </view>
 

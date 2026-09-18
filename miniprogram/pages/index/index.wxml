@@ -2,7 +2,10 @@
 <block wx:else>
 <view class="page">
   <view class="hero">
-    <view class="hero-copy"><view class="hero-title">找游戏搭子，一起开黑</view><view class="hero-sub">王者开黑、三角洲搭子、瓦搭子、和平精英搭子，快速找到一起玩的队友。</view><button size="mini" class="hero-create" bindtap="goPublish">发起组队 ＋</button></view>
+    <view class="hero-copy">
+      <view class="hero-title">找游戏搭子，一起开黑</view>
+      <view class="hero-sub">王者开黑、三角洲搭子、瓦搭子、和平精英搭子，快速找到一起玩的队友。</view>
+    </view>
     <image class="hero-art" src="/images/brand/lobby-v1.jpg" mode="aspectFit" aria-hidden="true" />
   </view>
 
@@ -32,12 +35,12 @@
     </view>
   </view>
 
-  <view class="toolbar {{games.length > 1 ? '' : 'toolbar-solo'}}">
+  <view class="toolbar">
     <view class="search">
       <input
         class="search-input"
         type="text"
-        placeholder="搜游戏 / 区服"
+        placeholder="搜索游戏 / 区服"
         value="{{keyword}}"
         maxlength="20"
         confirm-type="search"
@@ -61,9 +64,9 @@
   <view wx:if="{{loading && !total}}" class="empty">正在找车…</view>
   <view wx:elif="{{!total}}" class="empty">
     <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />
-    <view>队友还在路上</view>
-    <view>找游戏搭子就差你发一趟，把卡片丢进群。</view>
-    <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
+    <view class="empty-title">没找到合适的队伍？</view>
+    <view class="empty-sub">可以去发车，等队友来上车</view>
+    <button class="list-end-btn" bindtap="goPublish">去发车</button>
   </view>
   <view wx:elif="{{!filtered.length && keyword}}" class="empty">
     <view>已加载的车里没搜到「{{keyword}}」。</view>
@@ -72,8 +75,9 @@
   </view>
   <view wx:elif="{{!filtered.length}}" class="empty">
     <image class="empty-art" src="/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" />
-    <view>这个游戏现在没车。</view>
-    <button class="btn-primary empty-btn" bindtap="goPublish">去发车</button>
+    <view class="empty-title">没找到合适的队伍？</view>
+    <view class="empty-sub">可以去发车，等队友来上车</view>
+    <button class="list-end-btn" bindtap="goPublish">去发车</button>
   </view>
 
   <team-card
@@ -85,7 +89,11 @@
     bind:open="onOpen"
   />
   <view wx:if="{{filtered.length && loadingMore}}" class="load-more">正在加载更多…</view>
-  <view wx:elif="{{filtered.length && !hasMore}}" class="load-more">没有更多了</view>
+  <view wx:elif="{{filtered.length && !hasMore}}" class="list-end">
+    <view class="list-end-title">没找到合适的队伍？</view>
+    <view class="list-end-sub">可以去发车，等队友来上车</view>
+    <button class="list-end-btn" bindtap="goPublish">去发车</button>
+  </view>
   <view wx:elif="{{filtered.length && hasMore}}" class="load-more">上拉加载更多</view>
   <welcome-letter />
 </view>

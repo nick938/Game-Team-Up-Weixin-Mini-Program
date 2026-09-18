@@ -240,6 +240,7 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
     if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
     if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
     if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
+    if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
     return {};
   });
   assert.equal(publish.onShareAppMessage().path, '/pages/index/index');
@@ -779,6 +780,7 @@ function publishPage(searchUsers) {
   let page;
   const app = { globalData: { editingTeamId: null, republishTeam: null } };
   const calls = [];
+  const toasts = [];
   const now = Date.now();
   vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/publish/publish.js'), 'utf8'), {
     setTimeout,
@@ -830,17 +832,18 @@ function publishPage(searchUsers) {
       if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
       if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
       if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
+      if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
       return {};
     },
     wx: {
       showLoading() {},
       hideLoading() {},
-      showToast() {},
+      showToast({ title }) { toasts.push(title); },
       navigateTo() {},
     },
   });
   page.setData = (patch) => Object.assign(page.data, patch);
-  return { page, app, calls };
+  return { page, app, calls, toasts };
 }
 
 test('editing a team survives a second onShow and updates instead of creating', async () => {
@@ -1684,4 +1687,81 @@ test('proxy switch uses checked value and more settings preserve entered fields'
   assert.equal(page.data.showMore, false);
   assert.equal(page.data.roomNo, '123');
   assert.equal(page.data.note, '娱乐局');
+});
+
+test('publish form starts collapsed and time presets still submit startAt/endAt', async () => {
+  const { page, calls, toasts } = publishPage();
+  assert.equal(page.data.showMore, false);
+  assert.equal(page.data.startPreset, 'custom');
+  page.pickStartPreset({ currentTarget: { dataset: { key: 'now' } } });
+  assert.equal(page.data.startPreset, 'now');
+  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
+  assert.equal(page.data.durationHours, 3);
+  page.pickStartPreset({ currentTarget: { dataset: { key: 'custom' } } });
+  assert.equal(page.data.startPreset, 'custom');
+  const team = page.buildTeam();
+  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startAt'), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(team, 'endAt'), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startPreset'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(team, 'durationHours'), false);
+  await page.onSubmit();
+  assert.equal(toasts[0], '请选择游戏');
+  assert.equal(calls.length, 0);
+  page.data.gameName = 'CS2';
+  await page.onSubmit();
+  assert.equal(calls[0][0], 'createTeam');
+  assert.deepEqual(Object.keys(calls[0][1].team).sort(), [
+    'capacity', 'endAt', 'gameName', 'note', 'platform', 'rankReq', 'roomNo', 'roomPwd', 'server', 'startAt', 'voice',
+  ]);
+});
+
+test('picking a mobile game only reorders existing platform values', () => {
+  const { page } = publishPage();
+  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
+  assert.equal(page.data.gameName, '王者荣耀');
+  assert.equal(page.data.platform, '手游');
+  assert.deepEqual(page.data.platforms, ['手游', 'Steam']);
+});
+
+test('custom duration picker sets minutes and recomputes endAt, never exceeds 24h', () => {
+  const { page } = publishPage();
+  // 默认时长来自 defaultEndAt（mock 里 +1h → 60 分钟）
+  assert.equal(page.data.durationMinutes, 60);
+  // 选 30 分钟
+  page.pickCustomDuration({ detail: { value: 0 } });
+  assert.equal(page.data.durationMinutes, 30);
+  assert.equal(page.data.durationHours, 0);
+  assert.equal(page.data.durationLabel, '30分钟');
+  // 选 24 小时（最后一项）
+  const last = page.data.durationPickerLabels.length - 1;
+  page.pickCustomDuration({ detail: { value: last } });
+  assert.equal(page.data.durationMinutes, 1440);
+  assert.equal(page.data.durationLabel, '24小时');
+  // 越界 index 不生效
+  page.pickCustomDuration({ detail: { value: 999 } });
+  assert.equal(page.data.durationMinutes, 1440);
+});
+
+test('changing start time auto-recomputes endAt from current duration', () => {
+  const { page } = publishPage();
+  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
+  assert.equal(page.data.durationMinutes, 180);
+  const before = page.buildTeam().endAt;
+  // 改开始时间，结束时间应跟随（mock 的 combineDateTime 让 endAt 随 startTime 变化）
+  page.onStartTime({ detail: { value: '22:00' } });
+  const after = page.buildTeam().endAt;
+  assert.ok(after >= before - 60 * 60 * 1000);
+  assert.equal(page.data.durationMinutes, 180);
+});
+
+test('durationMinutes and durationLabel never enter the submit payload', async () => {
+  const { page, calls } = publishPage();
+  page.pickCustomDuration({ detail: { value: 2 } }); // 1小时
+  page.data.gameName = 'CS2';
+  await page.onSubmit();
+  assert.equal(calls[0][0], 'createTeam');
+  const keys = Object.keys(calls[0][1].team);
+  assert.equal(keys.indexOf('durationMinutes'), -1);
+  assert.equal(keys.indexOf('durationLabel'), -1);
+  assert.equal(keys.indexOf('durationHours'), -1);
 });
