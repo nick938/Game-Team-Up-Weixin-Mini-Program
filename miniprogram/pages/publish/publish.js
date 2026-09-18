@@ -57,7 +57,7 @@ Page({
     const singlePage = isSinglePage();
     this.setData({ singlePage });
     if (singlePage) return;
-    bindCopyUrl(wx, () => plazaShare("图一乐 - 发起组队开黑"));
+    bindCopyUrl(wx, () => plazaShare("开黑星球｜发起组队开黑"));
     const app = getApp();
     const editingId = app.globalData.editingTeamId;
     const draft = app.globalData.republishTeam;
@@ -391,12 +391,12 @@ Page({
   },
 
   onShareAppMessage() {
-    const share = plazaShare("图一乐 - 发起组队开黑");
+    const share = plazaShare("开黑星球｜发起组队开黑");
     return { title: share.title, path: share.path };
   },
 
   onShareTimeline() {
-    const share = plazaShare("图一乐 - 发起组队开黑");
+    const share = plazaShare("开黑星球｜发起组队开黑");
     return { title: share.title, query: share.query };
   },
 });

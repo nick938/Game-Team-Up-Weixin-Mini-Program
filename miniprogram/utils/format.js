@@ -89,6 +89,7 @@ function decorateTeam(team) {
     statusText: statusText(displayStatus),
     soon: isSoon(team.startAt),
     ongoing: displayStatus === "recruiting" || displayStatus === "full",
+    mark: team.mark == null ? "" : String(team.mark),
   };
 }
 

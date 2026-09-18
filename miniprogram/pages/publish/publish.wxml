@@ -1,7 +1,7 @@
 <timeline-preview wx:if="{{singlePage}}" />
 <block wx:else>
 <view class="page">
-  <view class="publish-heading"><view class="publish-copy"><view class="page-heading">{{editingId ? '调整这趟车' : (proxyMode ? '帮群友开一局' : '喊上好友，开一局')}}</view><view class="page-caption">{{editingId ? '先定游戏和时间，发车后分享给好友。' : (proxyMode ? '车头是群友，发车后出现在他的「我发起的」里。' : '先定游戏和时间，发车后分享给好友。')}}</view></view><image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="图一乐" /></view>
+  <view class="publish-heading"><view class="publish-copy"><view class="page-heading">{{editingId ? '调整这趟车' : (proxyMode ? '帮群友开一局' : '喊上好友，开一局')}}</view><view class="page-caption">{{editingId ? '先定游戏和时间，发车后分享给好友。' : (proxyMode ? '车头是群友，发车后出现在他的「我发起的」里。' : '先定游戏和时间，发车后分享给好友。')}}</view></view><image class="brand-avatar" src="/images/brand/avatar-v1.jpg" mode="aspectFit" aria-label="开黑星球" /></view>
   <view class="form">
     <label wx:if="{{canProxy && !editingId}}" class="proxy-switch {{proxyMode ? 'proxy-switch-on' : ''}}">
       <view class="proxy-switch-copy">

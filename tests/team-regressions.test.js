@@ -210,6 +210,7 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
   const plaza = share.plazaShare();
   assert.equal(plaza.path, '/pages/index/index');
   assert.equal(plaza.query, '');
+  assert.equal(plaza.title, '开黑星球｜游戏搭子');
 
   function loadPage(rel, extraRequire) {
     let page;
@@ -253,11 +254,18 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
 
   for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail', 'game/game']) {
     const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
-    assert.equal(json.enableShareAppMessage, true);
-    assert.equal(json.enableShareTimeline, true);
+    assert.equal(json.enableShareAppMessage, undefined);
+    assert.equal(json.enableShareTimeline, undefined);
   }
   const appJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/app.json'), 'utf8'));
   assert.equal(appJson['mp-weixin'], undefined);
+});
+
+test('decorateTeam keeps shareable team fields and coerces null mark to empty string', () => {
+  const { decorateTeam } = require(path.join(root, 'miniprogram/utils/format.js'));
+  assert.equal(decorateTeam({ gameName: '以撒', mark: null }).mark, '');
+  assert.equal(decorateTeam({ gameName: '以撒' }).mark, '');
+  assert.equal(decorateTeam({ gameName: '以撒', mark: '我发的' }).mark, '我发的');
 });
 
 test('lobby cards open with a real team id even if component objects drop _id', async () => {

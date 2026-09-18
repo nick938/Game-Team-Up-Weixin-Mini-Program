@@ -1,7 +1,5 @@
 {
-  "navigationBarTitleText": "游戏搭子｜开黑组队",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "navigationBarTitleText": "开黑星球｜游戏搭子",
   "enablePullDownRefresh": true,
   "usingComponents": {
     "team-card": "/components/team-card/index"

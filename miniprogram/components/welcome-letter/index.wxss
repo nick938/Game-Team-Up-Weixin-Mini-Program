@@ -72,7 +72,7 @@
   color: #858ba0;
 }
 
-button.agree {
+.agree {
   width: 100% !important;
   margin-top: 32rpx;
   height: 88rpx;
@@ -98,7 +98,7 @@ button.agree {
   line-height: 72rpx;
 }
 
-button.rules-link {
+.rules-link {
   width: auto !important;
   margin: 0;
   padding: 0 12rpx;

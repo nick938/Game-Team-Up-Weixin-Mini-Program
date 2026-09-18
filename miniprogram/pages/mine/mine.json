@@ -1,7 +1,5 @@
 {
   "navigationBarTitleText": "我的",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
     "team-card": "/components/team-card/index",
     "profile-gate": "/components/profile-gate/index"

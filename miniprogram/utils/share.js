@@ -1,6 +1,6 @@
 function plazaShare(title) {
   return {
-    title: title || "游戏搭子｜开黑找队友",
+    title: title || "开黑星球｜游戏搭子",
     path: "/pages/index/index",
     query: "",
   };
@@ -13,7 +13,7 @@ function bindCopyUrl(api, getPayload) {
     const payload = typeof getPayload === "function" ? getPayload() : getPayload || {};
     return {
       query: payload.query || "",
-      title: payload.title || "图一乐",
+      title: payload.title || "开黑星球",
     };
   });
 }

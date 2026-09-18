@@ -1,7 +1,7 @@
 {
   "name": "team",
   "version": "1.0.0",
-  "description": "图一乐游戏组局助手组队服务",
+  "description": "开黑星球｜游戏搭子组队服务",
   "main": "index.js",
   "dependencies": {
     "nodemailer": "^6.10.1",

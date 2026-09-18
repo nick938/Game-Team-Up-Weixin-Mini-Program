@@ -1,7 +1,5 @@
 {
   "navigationBarTitleText": "发起组队开黑",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
     "profile-gate": "/components/profile-gate/index"
   }

@@ -25,7 +25,7 @@ const GAME_SEO = {
 };
 
 const FALLBACK_SEO = {
-  title: "游戏搭子｜开黑找队友",
+  title: "开黑星球｜游戏搭子",
   heading: "找游戏搭子，一起开黑",
   description:
     "王者开黑、三角洲搭子、瓦搭子、和平精英搭子，快速找到一起玩的队友。",

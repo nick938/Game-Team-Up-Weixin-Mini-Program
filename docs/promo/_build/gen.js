@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const BRAND = "图一乐游戏组局助手";
+const BRAND = "开黑星球｜游戏搭子";
 const buildDir = __dirname;
 const outDir = path.resolve(buildDir, "..");
 const imgDir = path.resolve(buildDir, "../../../miniprogram/images/brand");
