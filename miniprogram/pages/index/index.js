@@ -1,7 +1,7 @@
 const { isSinglePage } = require("../../utils/runtime");
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
-const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } = require("../../utils/share");
 const { teamDetailPath } = require("../../utils/team-entry");
 const {
   SORT_MODES,
@@ -195,12 +195,10 @@ Page({
   },
 
   onShareAppMessage() {
-    const share = plazaShare();
-    return { title: share.title, path: share.path };
+    return shareToFriend(plazaShare());
   },
 
   onShareTimeline() {
-    const share = plazaShare();
-    return { title: share.title, query: share.query };
+    return shareToTimeline(plazaShare());
   },
 });

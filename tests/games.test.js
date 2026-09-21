@@ -15,6 +15,7 @@ const {
   gameNavTitle,
   gameShare,
 } = require(path.join(root, 'miniprogram/utils/games.js'));
+const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
 
 test('game catalog resolves slugs, aliases and live team names', () => {
   assert.equal(findGame('cs2').name, 'CS2');
@@ -177,6 +178,8 @@ test('game landing page shares the current game and prefills publish', async () 
   assert.equal(page.onShareAppMessage().path, '/pages/game/game?game=delta');
   assert.equal(page.onShareTimeline().query, 'game=delta');
   assert.equal(page.onShareTimeline().path, undefined);
+  assert.equal(page.onShareAppMessage().imageUrl, SHARE_COVER);
+  assert.equal(page.onShareTimeline().imageUrl, SHARE_COVER);
   await page.loadList();
   assert.deepEqual(calls.map((item) => item[0]), ['listTeams']);
   assert.equal(page.data.filtered.length, 1);

@@ -203,6 +203,9 @@ test('share, copy-link and scene entry all keep the team id', async () => {
   assert.equal(page.onShareAppMessage().path, '/pages/team/detail?id=isaac-team');
   assert.equal(page.onShareTimeline().query, 'id=isaac-team');
   assert.equal(page.onShareTimeline().path, undefined);
+  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
+  assert.equal(page.onShareAppMessage().imageUrl, SHARE_COVER);
+  assert.equal(page.onShareTimeline().imageUrl, SHARE_COVER);
 });
 
 test('plaza pages share into the lobby and timeline uses query not path', () => {
@@ -231,6 +234,8 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
   assert.equal(index.onShareAppMessage().path, '/pages/index/index');
   assert.equal(index.onShareTimeline().query, '');
   assert.equal(index.onShareTimeline().path, undefined);
+  assert.equal(index.onShareAppMessage().imageUrl, share.SHARE_COVER);
+  assert.equal(index.onShareTimeline().imageUrl, share.SHARE_COVER);
 
   const publish = loadPage('miniprogram/pages/publish/publish.js', (name) => {
     if (name.endsWith('/share')) return share;
@@ -247,11 +252,15 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
   assert.equal(publish.onShareTimeline().query, '');
   assert.equal(publish.onShareTimeline().path, undefined);
   assert.match(publish.onShareAppMessage().title, /发起组队/);
+  assert.equal(publish.onShareAppMessage().imageUrl, share.SHARE_COVER);
+  assert.equal(publish.onShareTimeline().imageUrl, share.SHARE_COVER);
 
   const { page: mine } = minePage();
   assert.equal(mine.onShareAppMessage().path, '/pages/index/index');
   assert.equal(mine.onShareTimeline().query, '');
   assert.equal(mine.onShareTimeline().path, undefined);
+  assert.equal(mine.onShareAppMessage().imageUrl, share.SHARE_COVER);
+  assert.equal(mine.onShareTimeline().imageUrl, share.SHARE_COVER);
 
   for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail', 'game/game']) {
     const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
@@ -260,6 +269,34 @@ test('plaza pages share into the lobby and timeline uses query not path', () => 
   }
   const appJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/app.json'), 'utf8'));
   assert.equal(appJson['mp-weixin'], undefined);
+});
+
+test('share cover is a package-local 5:4 JPEG so cards never fall back to a page screenshot', () => {
+  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
+  // 微信只接受包内相对路径和网络地址；写成绝对路径或漏掉前导斜杠会静默退回自动截图。
+  assert.match(SHARE_COVER, /^\/images\/[A-Za-z0-9._/-]+\.jpg$/);
+
+  const file = path.join(root, 'miniprogram', SHARE_COVER);
+  assert.ok(fs.existsSync(file), `${SHARE_COVER} 不存在，卡片会退回页面截图`);
+  const buf = fs.readFileSync(file);
+  assert.equal(buf.readUInt16BE(0), 0xffd8, '封面不是 JPEG');
+
+  // 微信推荐 5:4，这里直接读 SOF 段校验，省掉图片库依赖。
+  let offset = 2;
+  let size = null;
+  while (offset + 8 < buf.length) {
+    if (buf[offset] !== 0xff) { offset += 1; continue; }
+    const marker = buf[offset + 1];
+    // 无长度字段的独立标记
+    if (marker === 0x01 || marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) { offset += 2; continue; }
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      size = { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
+      break;
+    }
+    offset += 2 + buf.readUInt16BE(offset + 2);
+  }
+  assert.ok(size, '读不出 JPEG 尺寸');
+  assert.equal(size.width / size.height, 5 / 4);
 });
 
 test('decorateTeam keeps shareable team fields and coerces null mark to empty string', () => {

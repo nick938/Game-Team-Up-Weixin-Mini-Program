@@ -9,7 +9,7 @@ const {
 } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
-const { plazaShare, bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } = require("../../utils/share");
 const { teamDetailPath } = require("../../utils/team-entry");
 const { GAME_CATALOG, findGame } = require("../../utils/games");
 const {
@@ -578,12 +578,10 @@ Page({
   },
 
   onShareAppMessage() {
-    const share = plazaShare("开黑星球｜发起组队开黑");
-    return { title: share.title, path: share.path };
+    return shareToFriend(plazaShare("开黑星球｜发起组队开黑"));
   },
 
   onShareTimeline() {
-    const share = plazaShare("开黑星球｜发起组队开黑");
-    return { title: share.title, query: share.query };
+    return shareToTimeline(plazaShare("开黑星球｜发起组队开黑"));
   },
 });

@@ -85,7 +85,11 @@
   </view>
 </view>
 
-<view class="empty" wx:elif="{{!loading}}">
+<view class="empty" wx:elif="{{loading}}">
+  <view>正在找这趟车…</view>
+</view>
+
+<view class="empty" wx:else>
   <view>找不到这趟车</view>
   <view class="empty-hint">{{teamId ? "这趟可能已经散了，或链接失效了。" : "链接不完整。让车头点「邀请好友」，把卡片直接发过来。"}}</view>
   <button class="btn-primary empty-btn" bindtap="goPlaza">去大厅看看</button>

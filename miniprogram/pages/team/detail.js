@@ -3,7 +3,7 @@ const { decorateTeam, formatStartAt } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
 const { resolveTeamId, teamShareQuery, usableTeamId } = require("../../utils/team-entry");
-const { bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } = require("../../utils/share");
 
 function readLaunchExtras() {
   const extras = {};
@@ -125,13 +125,11 @@ Page({
   },
 
   onShareAppMessage() {
-    const share = this.buildShare();
-    return { title: share.title, path: share.path };
+    return shareToFriend(this.buildShare());
   },
 
   onShareTimeline() {
-    const share = this.buildShare();
-    return { title: share.title, query: share.query };
+    return shareToTimeline(this.buildShare());
   },
 
   async loadDetail() {

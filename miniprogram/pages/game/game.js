@@ -1,7 +1,7 @@
 const { isSinglePage } = require("../../utils/runtime");
 const { decorateTeam } = require("../../utils/format");
 const { callTeam, showError } = require("../../utils/cloud");
-const { bindCopyUrl, unbindCopyUrl } = require("../../utils/share");
+const { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } = require("../../utils/share");
 const { teamDetailPath } = require("../../utils/team-entry");
 const { SORT_MODES, DEFAULT_SORT, sortTeams } = require("../../utils/lobby");
 const {
@@ -192,17 +192,17 @@ Page({
 
   onShareAppMessage() {
     const share = this.sharePayload || gameShare(this.game);
-    return {
+    return shareToFriend({
       title: this.data.seoTitle || share.title,
       path: share.path,
-    };
+    });
   },
 
   onShareTimeline() {
     const share = this.sharePayload || gameShare(this.game);
-    return {
+    return shareToTimeline({
       title: this.data.seoTitle || share.title,
       query: share.query,
-    };
+    });
   },
 });
