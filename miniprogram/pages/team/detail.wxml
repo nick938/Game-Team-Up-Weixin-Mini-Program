@@ -96,6 +96,7 @@
 </view>
 
 <profile-gate show="{{showProfile}}" bind:done="onProfileDone" bind:close="onProfileClose" />
+<canvas type="2d" id="shareCover" class="share-cover-canvas" wx:if="{{team}}"></canvas>
 <welcome-letter />
 
 <view wx:if="{{showManage && role === 'host'}}" class="manage-mask" bindtap="closeManage" catchtouchmove="stopManageTouch">

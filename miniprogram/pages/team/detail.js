@@ -4,6 +4,40 @@ const { callTeam, showError } = require("../../utils/cloud");
 const { requestTeamNotify } = require("../../utils/subscribe");
 const { resolveTeamId, teamShareQuery, usableTeamId } = require("../../utils/team-entry");
 const { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } = require("../../utils/share");
+const { renderTeamCover } = require("../../utils/team-cover");
+
+function queryCanvasNode() {
+  return new Promise((resolve) => {
+    if (typeof wx.createSelectorQuery !== "function") {
+      resolve(null);
+      return;
+    }
+    wx.createSelectorQuery()
+      .select("#shareCover")
+      .fields({ node: true, size: true })
+      .exec((res) => resolve((res && res[0] && res[0].node) || null));
+  });
+}
+
+// canvas 节点要等渲染完才查得到。setData 回调里通常已经在，偶发查不到时退一步重试。
+async function waitForCanvasNode(attempts) {
+  for (let i = 0; i < attempts; i += 1) {
+    const node = await queryCanvasNode();
+    if (node) return node;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return null;
+}
+
+function pixelRatio() {
+  try {
+    if (typeof wx.getWindowInfo === "function") return wx.getWindowInfo().pixelRatio || 1;
+    if (typeof wx.getSystemInfoSync === "function") return wx.getSystemInfoSync().pixelRatio || 1;
+  } catch (e) {
+    // 取不到就按 1 倍画，图糊一点但不影响分享
+  }
+  return 1;
+}
 
 function readLaunchExtras() {
   const extras = {};
@@ -125,11 +159,32 @@ Page({
   },
 
   onShareAppMessage() {
-    return shareToFriend(this.buildShare());
+    return shareToFriend(this.buildShare(), this.shareCoverPath);
   },
 
   onShareTimeline() {
-    return shareToTimeline(this.buildShare());
+    return shareToTimeline(this.buildShare(), this.shareCoverPath);
+  },
+
+  // 封面画的是这趟车的信息（游戏、几点、还差几人）。画好之前、或画失败时用静态品牌图，
+  // 两种都不会让卡片变空白。
+  async prepareShareCover() {
+    const team = this.data.team;
+    const requestId = (this.coverRequest || 0) + 1;
+    this.coverRequest = requestId;
+    this.shareCoverPath = "";
+    if (!team) return;
+
+    let path = "";
+    try {
+      const canvas = await waitForCanvasNode(3);
+      if (requestId !== this.coverRequest) return;
+      path = await renderTeamCover(canvas, team, pixelRatio());
+    } catch (e) {
+      path = "";
+    }
+    if (requestId !== this.coverRequest) return;
+    this.shareCoverPath = path;
   },
 
   async loadDetail() {
@@ -148,24 +203,30 @@ Page({
       const role = res.role;
       const note = (res.team && res.team.note) || "";
       const noteCanFold = shouldFoldNote(note);
-      this.setData({
-        team: decorateTeam(res.team),
-        noteCanFold,
-        noteExpanded: false,
-        members: res.members || [],
-        seats: Array.from({ length: res.team.capacity }, (_, i) => ({
-          key: i,
-          member: (res.members || [])[i] || null,
-        })),
-        role,
-        loading: false,
-      });
+      this.setData(
+        {
+          team: decorateTeam(res.team),
+          noteCanFold,
+          noteExpanded: false,
+          members: res.members || [],
+          seats: Array.from({ length: res.team.capacity }, (_, i) => ({
+            key: i,
+            member: (res.members || [])[i] || null,
+          })),
+          role,
+          loading: false,
+        },
+        // 回调里 canvas 节点才渲染出来，此时才画得了封面
+        () => this.prepareShareCover()
+      );
       wx.setNavigationBarTitle({
         title: (res.team && res.team.gameName) || "组队详情",
       });
     } catch (e) {
       if (requestId !== this.detailRequest) return;
       this.setData({ team: null, loading: false });
+      // 数据没取到，别让分享还用着上一趟车的封面
+      this.prepareShareCover();
       showError(e);
     }
   },

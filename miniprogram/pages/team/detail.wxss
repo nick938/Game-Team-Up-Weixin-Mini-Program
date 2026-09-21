@@ -89,3 +89,6 @@ button.public-close { margin: 0; padding: 0; width: 72rpx; line-height: 72rpx; f
 .profile-placeholder { padding: 50rpx 8rpx; color: #777e92; font-size: 26rpx; line-height: 1.6; text-align: center; }
 button.profile-retry { margin: 24rpx auto 0; color: #6255e7; font-size: 26rpx; background: #eeecff; }
 .report-entry { margin: 40rpx 0 120rpx; text-align: center; color: #969cb0; font-size: 23rpx; text-decoration: underline; }
+
+/* 分享封面离屏预渲染用。得留在布局里（display:none 就查不到 canvas 节点），所以推出可视区藏起来 */
+.share-cover-canvas { position: fixed; top: 0; left: -9999px; width: 375px; height: 300px; pointer-events: none; }

@@ -13,13 +13,14 @@ function plazaShare(title) {
 }
 
 // 把「分享什么」和「怎么交给微信」分开：各页只管算 title/path/query，
-// 封面统一在这里挂上，新增页面不会漏。
-function shareToFriend(share) {
-  return { title: share.title, path: share.path, imageUrl: SHARE_COVER };
+// 封面统一在这里挂上，新增页面不会漏。第二参数可覆盖封面 —— 详情页会传自己画的
+// 那张「这趟车」信息图（见 utils/team-cover.js），画不出来时传空值就用品牌图兜底。
+function shareToFriend(share, imageUrl) {
+  return { title: share.title, path: share.path, imageUrl: imageUrl || SHARE_COVER };
 }
 
-function shareToTimeline(share) {
-  return { title: share.title, query: share.query, imageUrl: SHARE_COVER };
+function shareToTimeline(share, imageUrl) {
+  return { title: share.title, query: share.query, imageUrl: imageUrl || SHARE_COVER };
 }
 
 function bindCopyUrl(api, getPayload) {

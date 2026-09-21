@@ -204,8 +204,14 @@ test('share, copy-link and scene entry all keep the team id', async () => {
   assert.equal(page.onShareTimeline().query, 'id=isaac-team');
   assert.equal(page.onShareTimeline().path, undefined);
   const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
+  // 封面还没画出来（或画失败）时用静态品牌图，绝不能是空白
   assert.equal(page.onShareAppMessage().imageUrl, SHARE_COVER);
   assert.equal(page.onShareTimeline().imageUrl, SHARE_COVER);
+
+  // 画好之后换成这张带「这趟车」信息的图，朋友圈也一起换
+  page.shareCoverPath = 'wxfile://tmp_team_cover.jpg';
+  assert.equal(page.onShareAppMessage().imageUrl, 'wxfile://tmp_team_cover.jpg');
+  assert.equal(page.onShareTimeline().imageUrl, 'wxfile://tmp_team_cover.jpg');
 });
 
 test('plaza pages share into the lobby and timeline uses query not path', () => {
@@ -297,6 +303,87 @@ test('share cover is a package-local 5:4 JPEG so cards never fall back to a page
   }
   assert.ok(size, '读不出 JPEG 尺寸');
   assert.equal(size.width / size.height, 5 / 4);
+});
+
+test('team share cover content mirrors the detail page hero card', () => {
+  const { coverContent, WIDTH, HEIGHT } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  assert.equal(WIDTH / HEIGHT, 5 / 4);
+
+  const recruiting = coverContent({
+    gameName: '房车（我们到了吗？）',
+    displayStatus: 'recruiting',
+    needCount: 7,
+    memberCount: 5,
+    capacity: 12,
+    startAt: new Date(2026, 8, 21, 21, 0).getTime(),
+    platform: 'Steam',
+    server: '亚服',
+    voice: '不限',
+    rankReq: '',
+  });
+  assert.equal(recruiting.gameName, '房车（我们到了吗？）');
+  assert.equal(recruiting.statusText, '缺人');
+  assert.equal(recruiting.needText, '还差 7 人');
+  assert.equal(recruiting.countText, '5/12');
+  assert.match(recruiting.timeText, /21:00/);
+  // 「不限」和空值不该占位置
+  assert.deepEqual(recruiting.tags, ['Steam', '亚服']);
+
+  assert.equal(coverContent(null), null);
+  // 满员后不再显示「还差 N 人」，否则分享出去人数是矛盾的
+  const full = coverContent({ displayStatus: 'full', memberCount: 12, capacity: 12 });
+  assert.equal(full.statusText, '满员');
+  assert.equal(full.needText, '');
+  assert.equal(coverContent({ displayStatus: 'cancelled' }).statusText, '已散');
+  assert.equal(coverContent({ displayStatus: 'expired' }).statusText, '已结束');
+  // 缺 capacity 时退化成纯人数；缺游戏名也要有东西可画
+  assert.equal(coverContent({ memberCount: 3 }).countText, '3 人');
+  assert.equal(coverContent({}).gameName, '开黑');
+});
+
+test('team share cover wraps long game names and clamps to two lines', () => {
+  const { wrapText } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  // 汉字算 10、拉丁字母算 5，所以 maxWidth=100 刚好放下 10 个汉字
+  const ctx = {
+    measureText(text) {
+      let width = 0;
+      for (const ch of String(text)) {
+        width += /[A-Za-z0-9'’\-.]/.test(ch) ? 5 : 10;
+      }
+      return { width };
+    },
+  };
+
+  assert.deepEqual(wrapText(ctx, '房车来了', 100, 2), ['房车来了']);
+  assert.deepEqual(wrapText(ctx, '', 100, 2), []);
+
+  // 折两行要配平。贪心填充会断成「一二三四五六七八九十」+「甲乙丙」，第二行只剩三个字
+  assert.deepEqual(wrapText(ctx, '一二三四五六七八九十甲乙丙', 100, 2), ['一二三四五六', '七八九十甲乙丙']);
+
+  const clamped = wrapText(ctx, '一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅卯', 100, 2);
+  assert.equal(clamped.length, 2);
+  assert.ok(clamped[1].endsWith('…'), `超出行数要省略号收尾，实际 ${clamped[1]}`);
+  assert.ok(ctx.measureText(clamped[1]).width <= 100, '省略后仍不能超宽');
+
+  // 拉丁词不能从中间劈开
+  assert.deepEqual(wrapText(ctx, 'Counter-Strike 2 开黑', 60, 2), ['Counter-Strike', '2 开黑']);
+
+  // 真机上的实际问题：封面用 36px 字号，10 个字的车名折行后第二行只剩一个「）」
+  const real = {
+    measureText(text) {
+      let width = 0;
+      for (const ch of String(text)) {
+        width += /[A-Za-z0-9'’\-.]/.test(ch) ? 18 : 36;
+      }
+      return { width };
+    },
+  };
+  const inner = 375 - 48;
+  assert.deepEqual(wrapText(real, '房车（我们到了吗？）', inner, 2), ['房车（我们', '到了吗？）']);
+  assert.deepEqual(wrapText(real, '永劫无间手游双排冲分', inner, 2), ['永劫无间手', '游双排冲分']);
+  // 短名字仍然单行，别为了配平硬折
+  assert.deepEqual(wrapText(real, '地平线 5', inner, 2), ['地平线 5']);
+  assert.deepEqual(wrapText(real, '三角洲行动', inner, 2), ['三角洲行动']);
 });
 
 test('decorateTeam keeps shareable team fields and coerces null mark to empty string', () => {
