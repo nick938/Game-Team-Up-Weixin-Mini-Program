@@ -10,6 +10,9 @@ const {
 } = require("../../utils/lobby");
 const { FEATURED_GAMES } = require("../../utils/games");
 
+// 主页转发到群/朋友圈的卡片文案
+const HOME_SHARE_TITLE = "找一些朋友，玩一些游戏";
+
 const PAGE_SIZE = 20;
 // 搜索框每敲一个字都会在已加载的数据上重跑筛选+排序，防抖后再算。
 const SEARCH_DEBOUNCE_MS = 280;
@@ -58,7 +61,7 @@ Page({
     const singlePage = isSinglePage();
     this.setData({ singlePage });
     if (singlePage) return;
-    bindCopyUrl(wx, () => plazaShare());
+    bindCopyUrl(wx, () => plazaShare(HOME_SHARE_TITLE));
     this.loadList();
   },
 
@@ -195,10 +198,10 @@ Page({
   },
 
   onShareAppMessage() {
-    return shareToFriend(plazaShare());
+    return shareToFriend(plazaShare(HOME_SHARE_TITLE));
   },
 
   onShareTimeline() {
-    return shareToTimeline(plazaShare());
+    return shareToTimeline(plazaShare(HOME_SHARE_TITLE));
   },
 });
