@@ -1522,14 +1522,14 @@ test('admin endpoints are gated and expose aggregated stats', async () => {
     { _id: 't3', gameName: '永劫无间', platform: '端游', status: 'cancelled', memberCount: 1, capacity: 5, startAt: now, endAt: now + 3600000, createdAt: now },
   ];
   const reports = [
-    { _id: 'r1', kind: 'report', status: 'open', createdAt: now },
+    { _id: 'r1', kind: 'report', status: 'open', createdAt: now, openid: 'u1', hostOpenid: 'h', nickName: '' },
     { _id: 'r2', kind: 'bug', status: 'handled', createdAt: now },
   ];
   const ctx = backend({ teams, reports, users: [{ _id: 'a', nickName: 'A' }] });
 
   assert.equal((await ctx.adminOverview('nobody')).ok, false);
 
-  const adminCtx = backend({ teams, reports, users: [{ _id: 'a', nickName: 'A' }], env: { ADMIN_OPENIDS: 'a, b' } });
+  const adminCtx = backend({ teams, reports, users: [{ _id: 'a', nickName: 'A' }, { _id: 'h', nickName: '车头' }, { _id: 'u1', nickName: '举报人' }], env: { ADMIN_OPENIDS: 'a, b' } });
   const res = await adminCtx.adminOverview('a');
   assert.equal(res.ok, true);
   assert.equal(res.stats.teams.total, 3);
@@ -1548,6 +1548,9 @@ test('admin endpoints are gated and expose aggregated stats', async () => {
   const openOnly = await adminCtx.adminReports({ status: 'open' }, 'a');
   assert.equal(openOnly.list.length, 1);
   assert.equal(openOnly.list[0]._id, 'r1');
+  // 管理端用昵称指人：车头与提交人都换算成 users 集合里的最新昵称。
+  assert.equal(openOnly.list[0].hostNickName, '车头');
+  assert.equal(openOnly.list[0].nickName, '举报人');
 
   await adminCtx.adminHandleReport({ reportId: 'r1', status: 'handled' }, 'a');
   assert.equal(reports.find((r) => r._id === 'r1').status, 'handled');

@@ -131,7 +131,7 @@
         <view class="record-error" wx:if="{{item.errorMsg}}">报错：{{item.errorMsg}}</view>
         <view class="record-meta">
           <text wx:if="{{item.targetName}}">对象：{{item.targetName}}</text>
-          <text wx:if="{{item.kind === 'report' && item.hostOpenid}}">车头：{{item.hostOpenid}}</text>
+          <text wx:if="{{item.kind === 'report' && (item.hostNickName || item.hostOpenid)}}">车头：{{item.hostNickName || item.hostOpenid}}</text>
           <text wx:if="{{item.page}}">页面：{{item.page}}</text>
           <text wx:if="{{item.nickName}}">用户：{{item.nickName}}</text>
           <text wx:if="{{item.version}}">版本：{{item.version}}</text>
