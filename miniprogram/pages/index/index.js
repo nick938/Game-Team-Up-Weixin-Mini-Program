@@ -62,7 +62,22 @@ Page({
     this.setData({ singlePage });
     if (singlePage) return;
     bindCopyUrl(wx, () => plazaShare(HOME_SHARE_TITLE));
+    this.resetGameFilter();
     this.loadList();
+  },
+
+  // 页面实例切走再回来时 onShow 会重跑，游戏筛选不保留上次的选择，回到默认的「全部」。
+  // 先用本地缓存的车重算列表，让筛选片和列表立刻一致，不等网络返回。
+  resetGameFilter() {
+    if (this.data.gameFilter === "全部") return;
+    this.setData({
+      gameFilter: "全部",
+      filtered: this.buildView(this.teams, {
+        gameFilter: "全部",
+        keyword: this.data.keyword,
+        sortMode: this.data.sortMode,
+      }),
+    });
   },
 
   onHide() {
