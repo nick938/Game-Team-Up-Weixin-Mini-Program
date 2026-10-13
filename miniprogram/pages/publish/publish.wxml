@@ -112,6 +112,13 @@
     </view>
     <view class="step-hint">包含{{proxyMode && proxyHost ? '车头' : '你自己'}}</view>
 
+    <view id="field-room" class="label">房间 / 加入方式（必填）</view>
+    <input class="field" placeholder="请填写房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
+
+    <view class="label">房间密码</view>
+    <input class="field" placeholder="没有就空着" maxlength="32" value="{{roomPwd}}" bindinput="onRoomPwd" />
+    <view class="step-hint">房间密码仅车头和已上车成员可见</view>
+
     <button class="more-toggle" bindtap="toggleMore" hover-class="more-toggle-hover" aria-label="更多设置，{{showMore ? '点击收起' : '点击展开'}}">
       <view class="more-copy">
         <view class="more-title">更多设置</view>
@@ -120,12 +127,6 @@
       <text class="more-chevron {{showMore ? 'more-chevron-up' : ''}}"></text>
     </button>
     <view hidden="{{!showMore}}" class="more-fields">
-    <view class="label">房间 / 加入方式</view>
-    <input class="field" placeholder="房间号 / Steam 好友代码 / 房间码" maxlength="80" value="{{roomNo}}" bindinput="onRoomNo" />
-
-    <view class="label">房间密码</view>
-    <input class="field" placeholder="没有就空着" maxlength="32" value="{{roomPwd}}" bindinput="onRoomPwd" />
-
     <view class="label">服务器 / 区服</view>
     <input class="field" placeholder="如 欧服、微信区、国服" maxlength="20" value="{{server}}" bindinput="onServer" />
 

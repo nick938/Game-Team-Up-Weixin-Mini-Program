@@ -2,7 +2,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
 const MIN_DURATION_MIN = 30;
 const MAX_DURATION_MIN = 24 * 60;
-const MORE_HINT = "区服、语音、队友要求、房间信息、备注";
+const MORE_HINT = "区服、语音、队友要求、备注";
 
 const START_PRESETS = [
   { key: "now", label: "现在" },
@@ -38,8 +38,6 @@ function sortPlatforms(preferred, all) {
 function hasExtraSettings(data) {
   if (!data) return false;
   return !!(
-    String(data.roomNo || "").trim() ||
-    String(data.roomPwd || "").trim() ||
     String(data.server || "").trim() ||
     String(data.rankReq || "").trim() ||
     String(data.note || "").trim()
@@ -54,8 +52,6 @@ function moreSettingsHint(data) {
   const rankReq = String(data.rankReq || "").trim();
   if (server) bits.push(server);
   if (rankReq) bits.push(rankReq);
-  if (String(data.roomNo || "").trim()) bits.push("有房间信息");
-  if (String(data.roomPwd || "").trim()) bits.push("有密码");
   if (String(data.note || "").trim()) bits.push("有备注");
   return bits.filter(Boolean).join(" · ") || MORE_HINT;
 }
@@ -240,6 +236,9 @@ function validatePublishTeam(team, extra) {
   }
   if (team.endAt <= now) {
     return { message: "结束时间必须晚于现在", anchor: "field-end" };
+  }
+  if (!String(team.roomNo || "").trim()) {
+    return { message: "请填写房间 / 加入方式", anchor: "field-room" };
   }
   if (opts.needProxyHost) {
     return { message: "请先选择要帮谁发车", anchor: "field-proxy" };
