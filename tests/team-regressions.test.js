@@ -1238,6 +1238,42 @@ test('lobby search matches game, server, rank and note, and composes with filter
   assert.deepEqual(buildLobbyView(teams, { keyword: '不存在' }), []);
 });
 
+test('returning to the lobby resets the game filter back to 全部', async () => {
+  let page;
+  const teams = [
+    { _id: 'a', gameName: 'CS2', createdAt: 200 },
+    { _id: 'b', gameName: '永劫无间', createdAt: 100 },
+  ];
+  const ctx = {
+    Page: (p) => { page = p; },
+    require: (name) => {
+      if (name.endsWith('/runtime')) return { isSinglePage: () => false };
+      if (name.endsWith('/share')) return { plazaShare: () => ({ title: 't', path: '/pages/index/index', query: '' }), bindCopyUrl() {}, unbindCopyUrl() {} };
+      if (name.endsWith('/cloud')) return { callTeam: async () => ({ list: teams, hasMore: false, nextOffset: teams.length }), showError() {} };
+      return require(path.resolve(root, 'miniprogram/pages/index', name));
+    },
+    wx: { onCopyUrl() {}, offCopyUrl() {} },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), ctx);
+  page.setData = function (patch) { Object.assign(this.data, patch); };
+
+  page.onShow();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(page.data.gameFilter, '全部');
+  assert.equal(page.data.filtered.length, 2);
+
+  page.pickGame({ currentTarget: { dataset: { name: 'CS2' } } });
+  assert.equal(page.data.gameFilter, 'CS2');
+  // filtered 数组来自 vm 上下文，原型不同不能直接 deepEqual，用 join 比较。
+  assert.equal(page.data.filtered.map((t) => t._id).join(','), 'a');
+
+  // 模拟切到别的页面再回来：onShow 重跑，筛选必须回到默认的「全部」。
+  page.onShow();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(page.data.gameFilter, '全部');
+  assert.equal(page.data.filtered.length, 2);
+});
+
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
   const team = { _id: 't', gameName: 'CS2', startAt: Date.now() + 240000, endAt: Date.now() + 7200000, status: 'recruiting', openid: 'host' };
   const calls = [];

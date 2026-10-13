@@ -100,11 +100,12 @@ test('sitemap only indexes the homepage and canonical game= URLs', () => {
   assert.equal(appJson.pages[0], 'pages/index/index');
   assert.ok(appJson.pages.includes('pages/game/game'));
   assert.equal(appJson.sitemapLocation, 'sitemap.json');
-  assert.match(appJson.window.navigationBarTitleText, /游戏搭子｜开黑找队友/);
+  assert.equal(appJson.window.navigationBarTitleText, '开黑星球｜游戏搭子');
+  assert.match(appJson.window.navigationBarTitleText, /游戏搭子/);
   const indexJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.json'), 'utf8'));
-  assert.equal(indexJson.navigationBarTitleText, '游戏搭子｜开黑找队友');
+  assert.equal(indexJson.navigationBarTitleText, '开黑星球｜游戏搭子');
   const gameJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages/game/game.json'), 'utf8'));
-  assert.equal(gameJson.navigationBarTitleText, '游戏搭子｜开黑组队');
+  assert.equal(gameJson.navigationBarTitleText, '开黑星球｜游戏搭子');
 });
 
 test('lobby and game pages expose crawlable game landing links', () => {
