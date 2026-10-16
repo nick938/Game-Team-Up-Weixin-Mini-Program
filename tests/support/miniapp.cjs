@@ -62,8 +62,8 @@ function harness(options = {}) {
       if (!specifier.startsWith('.')) return appRequire(specifier);
       return load(path.relative(sourceRoot, path.resolve(path.dirname(file), specifier)));
     };
-    const execute = vm.runInThisContext(`(function(require, module, exports, uni, __BUILD_TARGET__) { ${outputText}\n})`, { filename: file });
-    execute(localRequire, module, module.exports, { ...platform, compressImage: ({ src, success }) => success({ tempFilePath: src }), ...options.uni }, target);
+    const execute = vm.runInThisContext(`(function(require, module, exports, uni, __BUILD_TARGET__, __APP_VERSION__) { ${outputText}\n})`, { filename: file });
+    execute(localRequire, module, module.exports, { ...platform, compressImage: ({ src, success }) => success({ tempFilePath: src }), ...options.uni }, target, appRequire('./package.json').version);
     if (!isVue) { cache.set(name, module.exports); return module.exports; }
     const hooks = {}, previousHooks = activeHooks;
     activeHooks = hooks;

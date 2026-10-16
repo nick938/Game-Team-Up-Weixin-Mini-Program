@@ -1,0 +1,124 @@
+name: Miniapp Upload
+run-name: Upload ${{ inputs.targets }} · ${{ inputs.version || 'package version' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'all / weixin / qq / 应用 ID，支持逗号分隔'
+        required: true
+        default: weixin
+        type: string
+      version:
+        description: '上传版本 x.y.z；留空使用 apps/miniapp/package.json'
+        required: false
+        type: string
+      description:
+        description: '本次更新说明'
+        required: true
+        default: '开黑星球版本更新'
+        type: string
+      qq_experience:
+        description: 'QQ 上传成功后设置为体验版'
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - id: plan
+        run: node scripts/miniapp/release.mjs plan
+        env:
+          MINIAPP_TARGETS: ${{ inputs.targets }}
+          MINIAPP_VERSION: ${{ inputs.version }}
+      - run: npm ci --ignore-scripts
+        working-directory: apps/miniapp
+      - run: node --test tests/*.test.js
+      - run: npm test
+        working-directory: apps/miniapp
+      - run: npm run typecheck
+        working-directory: apps/miniapp
+
+  upload:
+    needs: prepare
+    name: Upload ${{ matrix.id }}
+    runs-on: ${{ fromJSON(vars.MINIAPP_UPLOAD_RUNNER || '"ubuntu-latest"') }}
+    environment: ${{ matrix.environment }}
+    timeout-minutes: 30
+    concurrency:
+      group: miniapp-upload-${{ matrix.id }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    env:
+      MINIAPP_TARGETS: ${{ matrix.id }}
+      MINIAPP_VERSION: ${{ needs.prepare.outputs.version }}
+      MINIAPP_DESCRIPTION: ${{ inputs.description }}
+      MINIAPP_APP_ID: ${{ vars.APP_ID }}
+      MINIAPP_API_BASE_URL: ${{ vars.API_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Check application configuration and credentials
+        run: node scripts/miniapp/release.mjs preflight
+        env:
+          WEIXIN_UPLOAD_PRIVATE_KEY: ${{ secrets.WEIXIN_UPLOAD_PRIVATE_KEY }}
+          QQ_APP_TOKEN: ${{ secrets.QQ_APP_TOKEN }}
+          QQ_EXPERIENCE: ${{ inputs.qq_experience }}
+      - run: npm ci --ignore-scripts
+        working-directory: apps/miniapp
+      - name: Build selected application
+        run: node scripts/miniapp/release.mjs build
+      - name: Store the exact upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-upload-${{ matrix.id }}-${{ needs.prepare.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/miniapp/dist/build/mp-${{ matrix.platform }}/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Install WeChat upload SDK
+        if: matrix.platform == 'weixin'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: tools/miniapp-release
+      - name: Upload developer version
+        run: node scripts/miniapp/release.mjs upload
+        env:
+          WEIXIN_UPLOAD_PRIVATE_KEY: ${{ secrets.WEIXIN_UPLOAD_PRIVATE_KEY }}
+          QQ_APP_TOKEN: ${{ secrets.QQ_APP_TOKEN }}
+          QQ_EXPERIENCE: ${{ inputs.qq_experience }}
+          QQ_CI_IMAGE: ${{ vars.QQ_CI_IMAGE }}
+      - name: Summarize result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          printf '\n### %s\n\nVersion: %s\n\nJob: %s\n\n上传不包含提审或正式上线。\n' "$MINIAPP_TARGETS" "$MINIAPP_VERSION" "$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
+      - name: Store upload receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-receipt-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/miniapp/dist/release/*.json
+          if-no-files-found: ignore
+          retention-days: 14

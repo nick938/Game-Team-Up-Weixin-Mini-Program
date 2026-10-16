@@ -1,0 +1,16 @@
+[
+  {
+    "id": "weixin",
+    "name": "开黑星球 · 微信",
+    "platform": "weixin",
+    "environment": "miniapp-weixin",
+    "appid": "wxa1af4fb6a4c66334"
+  },
+  {
+    "id": "qq",
+    "name": "开黑星球 · QQ",
+    "platform": "qq",
+    "environment": "miniapp-qq",
+    "appid": ""
+  }
+]

@@ -55,6 +55,10 @@ npm --prefix apps/miniapp run check:matrix
 - `pages.config.ts`、`manifest.config.ts` 是配置源；`src/pages.json`、`src/manifest.json` 和页面类型由构建生成。
 - 微信专属能力集中放在 `src/platform/`，业务请求统一经过 `src/api/`。
 - 业务类型集中在 `src/types/domain.ts`。共享工具暂保留部分 JS，`checkJs` 尚未开启。
-- 版本号维护在 `apps/miniapp/src/utils/constants.js`；正式版显示宿主提供的发布版本号。
+- 默认版本号维护在 `apps/miniapp/package.json`；正式版显示宿主提供的发布版本号。
 - 品牌运行资源位于 `apps/miniapp/src/static/images/`；宣传素材源文件与生成脚本位于 `docs/`。
 - `docs` 中旧验证记录保留为历史证据，其中旧目录和旧测试数量不代表当前工程状态。
+
+## 微信与 QQ CI 上传
+
+相关代码 push / PR 后自动测试并编译两端。手动运行 **Miniapp Upload**，选择目标和版本，即可批量构建上传。首次需配置 GitHub Environments、上传凭据与微信 IP 白名单，见 [完整配置说明](docs/微信QQ自动上传.md)。本工作流不执行提审、正式上线或云函数部署。

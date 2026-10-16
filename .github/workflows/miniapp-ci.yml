@@ -1,0 +1,80 @@
+name: Miniapp CI
+
+on:
+  push:
+    paths:
+      - 'apps/miniapp/**'
+      - 'cloudfunctions/**'
+      - 'tests/**'
+      - 'scripts/miniapp/**'
+      - 'tools/miniapp-release/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'apps/miniapp/**'
+      - 'cloudfunctions/**'
+      - 'tests/**'
+      - 'scripts/miniapp/**'
+      - 'tools/miniapp-release/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniapp-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHOKIDAR_USEPOLLING: '1'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/miniapp/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: apps/miniapp
+      - run: node --test tests/*.test.js
+      - run: npm test
+        working-directory: apps/miniapp
+      - run: npm run typecheck
+        working-directory: apps/miniapp
+
+  build:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [weixin, qq]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/miniapp/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: apps/miniapp
+      # Compilation does not require an AppID, token, API or upload permissions.
+      - run: npm run build:${{ matrix.platform }}
+        working-directory: apps/miniapp
+      - uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-ci-${{ matrix.platform }}-${{ github.sha }}
+          path: apps/miniapp/dist/build/mp-${{ matrix.platform }}/
+          if-no-files-found: error
+          retention-days: 7

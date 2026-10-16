@@ -1,11 +1,13 @@
 // Adapted from unibest base; platform AppIDs belong to their own applications.
 import { defineManifestConfig } from '@uni-helper/vite-plugin-uni-manifest';
+import pkg from './package.json';
+const version = process.env.MINIAPP_VERSION || pkg.version;
 export default defineManifestConfig({
   "name": "开黑星球｜游戏搭子",
   "description": "游戏搭子组队",
   "appid": "",
-  "versionName": "0.1.0",
-  "versionCode": "1",
+  "versionName": version,
+  "versionCode": String(version.split('.').reduce((code, part) => code * 1000 + Number(part), 0)),
   "vueVersion": "3",
   "uniStatistics": {
     "enable": false
@@ -17,7 +19,7 @@ export default defineManifestConfig({
   },
   "mp-weixin": {
     "sitemapLocation": "static/sitemap.json",
-    "appid": "wxa1af4fb6a4c66334",
+    "appid": process.env.VITE_WEIXIN_APP_ID || "wxa1af4fb6a4c66334",
     "setting": {
       "urlCheck": true
     }
