@@ -1,2 +1,6 @@
 cloudfunctions/team/mail.local.js
 node_modules/
+
+# Local browser verification artifacts
+.playwright-cli/
+output/playwright/
