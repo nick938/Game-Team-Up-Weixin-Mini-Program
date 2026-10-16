@@ -21,7 +21,7 @@ uni-app 的 `view/text/image/scroll-view/canvas`、路由和原生 tabBar 继续
 - 根目录业务、权限、头像、身份、分享等行为测试：96 项通过。
 - 前端会话、页面行为和组件回归测试：37 项通过，包含时间跨日、弹层取消、选择器值转换和导航恢复。
 - ESLint、Prettier、严格 vue-tsc（含请求契约检查）通过。
-- H5、微信、QQ、支付宝、抖音五端构建通过，记录见 [构建结果](migration-evidence/wot-unocss-build-results-2026-10-16.json)。
+- 历史微信、QQ 构建与 H5 检查通过，记录见 [构建结果](migration-evidence/wot-unocss-build-results-2026-10-16.json)。
 - 两个 GitHub 工作流通过 actionlint；Husky 已指向 `.husky/_`，提交前入口可运行。
 - 静态扫描确认自有源码无 `.js/.css/.scss` 文件、Vue style 块、行内 style、旧 dataset/state/cloud 适配器及原生表单控件。
 

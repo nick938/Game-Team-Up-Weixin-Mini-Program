@@ -20,8 +20,6 @@
     "build:h5": "pnpm --filter game-team-miniapp build:h5",
     "build:weixin": "pnpm --filter game-team-miniapp build:weixin",
     "build:qq": "pnpm --filter game-team-miniapp build:qq",
-    "build:alipay": "pnpm --filter game-team-miniapp build:alipay",
-    "build:toutiao": "pnpm --filter game-team-miniapp build:toutiao",
     "release:plan": "node scripts/miniapp/release.mjs plan",
     "release:build": "node scripts/miniapp/release.mjs build",
     "release:upload": "node scripts/miniapp/release.mjs upload",

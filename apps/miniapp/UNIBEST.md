@@ -1,5 +1,7 @@
 # unibest 基础模板来源与裁剪
 
+发布目标仅微信和独立 QQ 小程序；H5 为本地开发检查用途，不新增其他宿主适配。
+
 来源：<https://github.com/unibest-tech/unibest/tree/base>
 核对提交：`dc3af8ddb99b78fa806078c80434b664a4b1ce93`，模板版本 4.4.1。
 MIT 许可保留于 `LICENSE.unibest`。

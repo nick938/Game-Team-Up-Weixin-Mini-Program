@@ -62,3 +62,10 @@ test('lookup failure does not fall back to an unverified or newly invented user'
   const resolver = createWechatIdentityResolver({ expectedAppId: appId, getTrustedContext: () => ({ APPID: appId, OPENID: subject }), findIdentity: async () => { throw new Error('database-unavailable'); } });
   await assert.rejects(resolver.currentActor(), /database-unavailable/);
 });
+
+
+test('identity keys reject unsupported providers', () => {
+  for (const provider of ['unsupported-provider', '', undefined]) {
+    assert.throws(() => identityKey({ ...verified, provider }), { code: 'INVALID_IDENTITY' });
+  }
+});

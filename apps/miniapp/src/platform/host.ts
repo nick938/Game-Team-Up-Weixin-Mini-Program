@@ -34,7 +34,7 @@ platform.offCopyUrl = wx.offCopyUrl?.bind(wx);
 export const buildTarget = __BUILD_TARGET__;
 export const capabilities = Object.freeze({
   wechatCloud: buildTarget === 'mp-weixin',
-  nativeLogin: ['mp-weixin', 'mp-qq', 'mp-alipay', 'mp-toutiao'].includes(buildTarget),
+  nativeLogin: ['mp-weixin', 'mp-qq'].includes(buildTarget),
   wechatSubscription: buildTarget === 'mp-weixin',
   nicknameInput: buildTarget === 'mp-weixin',
 });

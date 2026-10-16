@@ -27,10 +27,4 @@ export default defineManifestConfig({
   'mp-qq': {
     appid: process.env.VITE_QQ_APP_ID || '',
   },
-  'mp-alipay': {
-    appid: '',
-  },
-  'mp-toutiao': {
-    appid: '',
-  },
 });

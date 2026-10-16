@@ -19,7 +19,7 @@
 - 根目录 `node --test tests/*.test.js`：88 项通过。
 - 前端 `npm --prefix apps/miniapp test`：33 项通过。
 - `vue-tsc --noEmit` 严格类型检查通过。
-- H5、微信、独立 QQ、支付宝、抖音五端构建通过。
+- 历史微信、QQ 构建与 H5 检查通过。
 - 本机默认文件监听遇到 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 npm run check:matrix` 完成构建。保留现有工程配置。
 - 构建仍有工具链 Sass legacy API 弃用提示。
 - 静态图片引用核对无缺失，`git diff --check` 通过。

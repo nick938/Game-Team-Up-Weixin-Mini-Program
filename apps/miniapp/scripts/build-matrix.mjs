@@ -6,17 +6,7 @@ import path from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, 'dist/p0');
 mkdirSync(output, { recursive: true });
-const jobs = [
-  'lint',
-  'format:check',
-  'test',
-  'typecheck',
-  'build:h5',
-  'build:weixin',
-  'build:qq',
-  'build:alipay',
-  'build:toutiao',
-];
+const jobs = ['lint', 'format:check', 'test', 'typecheck', 'build:h5', 'build:weixin', 'build:qq'];
 const results = [];
 
 // 顺序运行避免多个 uni 编译进程共享临时文件；某端失败仍继续收集其他端结果。

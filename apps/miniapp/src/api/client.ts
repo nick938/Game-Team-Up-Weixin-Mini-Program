@@ -45,14 +45,13 @@ export function createTeamClient(options: {
   let authenticating: Promise<void> | null = null;
   const pending = new Map<string, Promise<Result>>();
   async function ensureSession() {
+    if (options.target !== 'mp-qq') throw new ApiError('请在微信或 QQ 小程序中使用', 'PLATFORM_UNAVAILABLE');
     if (options.state.session && options.state.session.expiresAt > Date.now() + 30_000) return;
     options.state.session = null;
     if (!authenticating) {
       authenticating = (async () => {
-        const provider = { 'mp-qq': 'qq', 'mp-alipay': 'alipay', 'mp-toutiao': 'douyin' }[options.target];
-        if (!provider) throw new ApiError('请在小程序中登录', 'PLATFORM_UNAVAILABLE');
         const code = await options.loginCode();
-        const result = checked(await options.request('/v1/auth/' + provider, { code }));
+        const result = checked(await options.request('/v1/auth/qq', { code }));
         if (
           typeof result.accessToken !== 'string' ||
           !result.accessToken ||

@@ -2,6 +2,8 @@
 
 使用 pnpm workspace 管理前端和上传工具。前端基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码，微信原生工程与早期 P0 实验工程已移除。
 
+产品发布平台仅限 **微信小程序和独立 QQ 小程序**。H5 仅供本地开发、界面检查和 HTTP 诊断，不作为产品发布端。后续接入与验收见 [微信 / QQ 迁移计划](docs/微信QQ迁移与发布计划.md)。
+
 ## 项目结构
 
 ```text
@@ -28,7 +30,7 @@ pnpm dev
 
 若当前系统文件监听报 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 pnpm dev` 启用轮询。
 
-H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；QQ 等平台的 HTTPS 登录、业务和头像接口需要独立后端实现，当前不具备真实跨端业务闭环。配置方式见 [前端说明](apps/miniapp/README.md)。
+H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；QQ 的 HTTPS 登录、业务和头像接口需要独立后端实现，当前不具备真实跨端业务闭环。配置方式见 [前端说明](apps/miniapp/README.md)。
 
 ## 微信开发与发布
 
@@ -53,7 +55,7 @@ pnpm check:matrix
 
 根目录测试包含服务端身份、组队规则、提醒、权限、头像和朋友圈单页行为；前端测试覆盖会话、Vue 页面交互和组件事件。前端测试工具通过 Vue SFC 编译器执行实际 setup 与响应式状态，替换宿主 API 和网络请求。
 
-`check:matrix` 执行 ESLint、Prettier、前端测试、严格类型检查以及 H5、微信、QQ、支付宝、抖音编译，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
+`check:matrix` 执行 ESLint、Prettier、前端测试、严格类型检查以及 微信、QQ 构建和 H5 开发检查，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
 
 本次前端统一迁移与浏览器检查见 [Wot UI / UnoCSS 迁移验收](docs/Wot-UI与UnoCSS统一迁移验收.md)。
 
@@ -61,7 +63,7 @@ pnpm check:matrix
 
 - workspace 只包含 `apps/miniapp` 和 `tools/miniapp-release`，统一由根 `pnpm-lock.yaml` 锁定；不在子目录生成 npm 或 pnpm 锁文件。
 - 云函数不加入 workspace，保留独立 `package.json`，继续通过微信开发者工具在云端安装依赖和部署。
-- `pnpm dev` 开发 H5；`pnpm check` 执行规范、格式、类型与前后端测试；`pnpm check:matrix` 执行服务端测试与完整五端检查。单独操作前端可使用 `pnpm --filter game-team-miniapp <命令>`。
+- `pnpm dev` 开发 H5；`pnpm check` 执行规范、格式、类型与前后端测试；`pnpm check:matrix` 执行服务端测试与微信、QQ 构建与 H5 开发检查。单独操作前端可使用 `pnpm --filter game-team-miniapp <命令>`。
 
 - 所有页面交互控件采用 Wot UI；自有样式采用 UnoCSS，颜色与公共布局统一维护在 `uno.config.ts`。
 - 页面和组件使用 `<script setup lang="ts">`，应用状态由 Pinia 管理，页面状态使用 Vue 响应式 API。

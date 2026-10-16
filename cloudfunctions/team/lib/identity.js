@@ -1,6 +1,6 @@
 const { createHash } = require('node:crypto');
 
-const PROVIDERS = new Set(['weixin', 'qq', 'douyin', 'alipay']);
+const PROVIDERS = new Set(['weixin', 'qq']);
 
 function identityError(code) {
   const error = new Error(code);

@@ -1,6 +1,6 @@
 # 开黑星球 · uni-app 前端
 
-本地迁移工程：微信回归 + **独立 QQ 小程序**优先。使用裁剪后的 unibest 工程配置、uni-app / Vue 3 / TypeScript / Vite / UnoCSS / Pinia / Wot UI。模板来源和裁剪见 [UNIBEST.md](UNIBEST.md)。
+产品仅面向微信和**独立 QQ 小程序**；H5 仅供开发、界面检查和诊断。使用裁剪后的 unibest 工程配置、uni-app / Vue 3 / TypeScript / Vite / UnoCSS / Pinia / Wot UI。模板来源和裁剪见 [UNIBEST.md](UNIBEST.md)。
 
 ## 开发和检查
 
@@ -13,7 +13,7 @@ pnpm dev
 pnpm check:matrix
 ```
 
-`check:matrix` 顺序执行 ESLint、Prettier 格式检查、本地行为测试、严格类型检查和 H5/微信/QQ/支付宝/抖音编译，输出 `dist/p0/build-results.json`。在受限文件监听环境中可加 `CHOKIDAR_USEPOLLING=1` 运行命令。本仓库根目录的服务端、共享规则及 Vue 组件回归为 `pnpm run test:server`。
+`check:matrix` 顺序执行 ESLint、Prettier 格式检查、本地行为测试、严格类型检查和 微信/QQ 构建与 H5 开发检查，输出 `dist/p0/build-results.json`。在受限文件监听环境中可加 `CHOKIDAR_USEPOLLING=1` 运行命令。本仓库根目录的服务端、共享规则及 Vue 组件回归为 `pnpm run test:server`。
 
 - 微信产物：`dist/build/mp-weixin/`，导入微信开发者工具；使用现有微信 AppID 与云函数环境。
 - QQ 产物：`dist/build/mp-qq/`，后续导入 QQ 开发工具；需要独立 QQ AppID、服务端配置及合法域名。
@@ -69,7 +69,7 @@ VITE_API_BASE_URL=https://你的测试API域名
 
 - 根目录业务/头像/身份/探测测试：121 项通过；新前端会话和迁移行为测试：10 项通过。
 - 类型检查通过，包含 API、Pinia、资料组件、页面模板与工程配置；旧 JS 的 checkJs 未开启，不能据此宣称旧业务已全部类型化。
-- H5、微信、独立 QQ、支付宝、抖音五端构建通过；完整结果位于 `docs/p0-evidence/miniapp-build-results-2026-10-16.json`。
+- 历史微信、QQ 构建及 H5 检查通过；保留目标的历史结果位于 `docs/p0-evidence/miniapp-build-results-2026-10-16.json`。
 - H5 发布产物在 375×812 浏览器检查：欢迎说明已读持久化、切页后不重复出现；大厅未登录错误提示、路由跳转、游戏选择、时长更新、加入方式必填和底部按钮可点击；最终控制台 0 错误、0 警告。
 - 修复了迁移中 H5 底部导航遮挡发车按钮，以及 uni 命名空间别名导致编译漏掉存储等 API 的问题。页面行为仍需微信与 QQ 真机继续回归。
 - 依赖审计仍有已知安全告警（含工具链 c12/giget 引入的 tar）；当前是本地迁移版本，未完成生产发布前的依赖升级审计，详见 UNIBEST.md。
