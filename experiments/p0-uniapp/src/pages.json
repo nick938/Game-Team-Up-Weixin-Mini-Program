@@ -1,0 +1,14 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": { "^wd-(.*)": "@wot-ui/ui/components/wd-$1/wd-$1.vue" }
+  },
+  "pages": [
+    { "path": "pages/probe/index", "style": { "navigationBarTitleText": "P0 组件与宿主验证" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#f5f6fa",
+    "backgroundColor": "#f5f6fa"
+  }
+}

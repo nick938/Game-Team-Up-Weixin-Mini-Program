@@ -1,0 +1,75 @@
+{
+  "checkedAt": "2026-10-15T14:46:15.049Z",
+  "endpoint": "https://cloud1-d9gniyjzh4e2ffb1c-1312971366.ap-shanghai.app.tcloudbase.com/p0/health",
+  "scope": "public HTTP transport only; no platform login or business data",
+  "results": [
+    {
+      "name": "GET constant response",
+      "passed": true,
+      "expectedStatus": 200,
+      "status": 200,
+      "requestId": "205cbbcc-21ff-4bb5-9666-0be118a177b9",
+      "response": {
+        "ok": true,
+        "service": "game-team-p0",
+        "version": "p0-health-v1"
+      },
+      "corsOrigin": null
+    },
+    {
+      "name": "HEAD no body",
+      "passed": true,
+      "expectedStatus": 200,
+      "status": 200,
+      "requestId": "3f553de7-9ce3-4bef-82e6-d25ba0d8e2e1",
+      "response": null,
+      "corsOrigin": null
+    },
+    {
+      "name": "POST rejected",
+      "passed": true,
+      "expectedStatus": 405,
+      "status": 405,
+      "requestId": "096eafa6-a7fd-4352-8fd2-6bd3db4e9a94",
+      "response": {
+        "ok": false,
+        "code": "METHOD_NOT_ALLOWED"
+      },
+      "corsOrigin": null
+    },
+    {
+      "name": "Local preview CORS",
+      "passed": true,
+      "expectedStatus": 200,
+      "status": 200,
+      "requestId": "3c822168-12c1-4187-92b1-c262fe71fc75",
+      "response": {
+        "ok": true,
+        "service": "game-team-p0",
+        "version": "p0-health-v1"
+      },
+      "corsOrigin": "http://127.0.0.1:5187"
+    },
+    {
+      "name": "Local read preflight",
+      "passed": true,
+      "expectedStatus": 204,
+      "status": 204,
+      "requestId": "c19d9b94-e967-498d-9c8f-4a7aa7104bc0",
+      "response": null,
+      "corsOrigin": "http://127.0.0.1:5187"
+    },
+    {
+      "name": "Unknown subpath rejected",
+      "passed": true,
+      "expectedStatus": 404,
+      "status": 404,
+      "requestId": "99010356-449e-4ecc-b128-94758a784665",
+      "response": {
+        "ok": false,
+        "code": "NOT_FOUND"
+      },
+      "corsOrigin": null
+    }
+  ]
+}

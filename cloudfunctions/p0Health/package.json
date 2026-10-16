@@ -1,0 +1,8 @@
+{
+  "name": "game-team-p0-health",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.js",
+  "description": "Isolated HTTP transport probe without business data access",
+  "dependencies": {}
+}
