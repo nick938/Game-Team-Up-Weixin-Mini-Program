@@ -1,6 +1,6 @@
 # 开黑星球 · uni-app 前端
 
-产品仅面向微信和**独立 QQ 小程序**；H5 仅供开发、界面检查和诊断。使用裁剪后的 unibest 工程配置、uni-app / Vue 3 / TypeScript / Vite / UnoCSS / Pinia / Wot UI。模板来源和裁剪见 [UNIBEST.md](UNIBEST.md)。
+工程构建目标为微信和**独立 QQ 小程序**；QQ 后端尚未完成接入。H5 仅供开发、界面检查和诊断。使用裁剪后的 unibest 工程配置、uni-app / Vue 3 / TypeScript / Vite / UnoCSS / Pinia / Wot UI。
 
 ## 开发和检查
 
@@ -19,9 +19,9 @@ pnpm check:matrix
 - QQ 产物：`dist/build/mp-qq/`，后续导入 QQ 开发工具；需要独立 QQ AppID、服务端配置及合法域名。
 - H5 主要用于前端检查。不提供假登录或自动读取生产业务的旁路；没有业务会话时不能把空列表当作线上数据。
 
-## 当前已迁移
+## 当前工程
 
-唯一业务前端，页面与组件全部使用 `<script setup lang="ts">`，共享业务工具全部使用严格 TypeScript。交互统一采用 Wot UI，自有样式统一采用 UnoCSS，已移除旧 CSS、行内样式及旧页面适配器。原生 `miniprogram` 和 `experiments/p0-uniapp` 已移除，测试读取当前 uni-app 源码。
+唯一业务前端，页面与组件全部使用 `<script setup lang="ts">`，共享业务工具全部使用严格 TypeScript。交互统一采用 Wot UI，自有样式统一采用 UnoCSS，测试读取当前 uni-app 源码。
 
 10 个业务页面和原路由：大厅、游戏页、发车、我的、详情、协议、反馈、报错、举报、管理端。公共组件包括统一页面壳、Wot 表单入口、队伍卡片、资料填写、欢迎信、成员资料、队伍管理和管理端统计。保留游戏目录、分页/排序、日期时长规则、必填加入方式、密码可见提示、代开和管理员交互。
 
@@ -38,7 +38,7 @@ pnpm check:matrix
 
 ## QQ 接入契约和未完成项
 
-目标后端采用腾讯云 CloudBase 控制台创建的新环境，并完成 QQ 小程序账号与腾讯云账号绑定；不直接使用微信 IDE 创建的旧环境作为 QQ 云开发环境。现有前端仍通过 HTTPS 接入，接口将在新环境实现与部署；完整步骤见 [迁移计划](../../docs/微信QQ迁移与发布计划.md#已确定的云环境方案)。
+现有微信云函数、数据库和存储继续保留。QQ 客户端已准备以下 HTTPS 契约，后端实现与接入方式仍待验证；本文不将新建环境、搬库或微信切换后端作为既定步骤。
 
 复制 `.env.example` 为 `.env.local`：
 
@@ -47,7 +47,7 @@ VITE_QQ_APP_ID=独立QQ小程序AppID
 VITE_API_BASE_URL=https://你的测试API域名
 ```
 
-这些是公开构建配置，不放 AppSecret、登录 code 或 token。当前尚无 QQ 账号/AppID，不能执行真实登录、真机运行或发布验收。
+这些是公开构建配置，不放 AppSecret、登录 code 或 token。真实登录、真机运行和发布验收需要有效 QQ AppID、已部署的接口及合法域名。
 
 客户端已经准备以下 **待后端实现/部署的兼容接口**，并非现有线上 API：
 
@@ -63,9 +63,17 @@ VITE_API_BASE_URL=https://你的测试API域名
 
 本地测试/类型检查/多端编译、H5 浏览器交互、微信真机回归、QQ 真机业务验收分别记录。当前构建成功不能作为 QQ 正常登录、共用大厅或跨端上车已完成的证据。
 
-后续先在腾讯云 CloudBase 控制台创建测试环境并完成 QQ 账号绑定，再实现后端身份映射、会话和业务接口，配置 QQ AppID/域名，执行两个真实账号的发车、跨端加入、密码/角色校验和头像互看。微信切换新后端还需新增 `/v1/auth/weixin`、客户端会话与头像适配，以及旧数据和文件引用迁移；这些均未完成。当前不迁生产数据。
+后续 QQ 接入需单独验证后端鉴权、业务权限、头像访问和两端组队流程；当前不以仅填 API 域名或编译成功作为业务可用的证据。
 
-历史构建与浏览器检查摘要见 [迁移与发布计划](../../docs/微信QQ迁移与发布计划.md#6-本次范围收拢验证)。工具链仍有已知依赖安全告警，来源与维护边界见 [UNIBEST.md](UNIBEST.md)。
+## 模板来源与裁剪
+
+工程配置参考 [unibest base](https://github.com/unibest-tech/unibest/tree/base)，核对提交 `dc3af8ddb99b78fa806078c80434b664a4b1ce93`、模板版本 4.4.1；MIT 许可保留在 [LICENSE.unibest](LICENSE.unibest)。
+
+保留 UniPages/UniManifest、UnoCSS、Pinia 与现有 `uni.request` 请求层；未引入 layouts、alova、z-paging、模板演示页及模板上传脚本。页面无需额外布局包装，工程和上传脚本由本仓库维护。DCloud、Vue、Wot UI 等依赖版本见 package.json，统一由仓库根 pnpm-lock.yaml 锁定。
+
+`pages.config.ts`、`manifest.config.ts` 是配置源；生成的 `src/pages.json`、`src/manifest.json` 和页面类型不手动修改或提交。检查使用 ESLint、Prettier、Husky 与 lint-staged，安装依赖后在根目录运行 `pnpm hooks:install` 启用提交前检查。
+
+2026-10-16 整理时仍记录有工具链依赖安全告警，包括 manifest 插件经 c12/giget 引入的 tar 6.2.1；删除未使用的 layouts 插件并未消除全部告警。该记录不代表已完成当前版本的依赖安全审计。
 
 ## 自动上传
 

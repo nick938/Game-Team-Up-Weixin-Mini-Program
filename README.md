@@ -1,8 +1,8 @@
 # 开黑星球｜游戏搭子
 
-使用 pnpm workspace 管理前端和上传工具。前端基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码，微信原生工程与早期 P0 实验工程已移除。
+使用 pnpm workspace 管理前端和上传工具。前端基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码。
 
-产品发布平台仅限 **微信小程序和独立 QQ 小程序**。H5 仅供本地开发、界面检查和 HTTP 诊断，不作为产品发布端。后续接入与验收见 [微信 / QQ 迁移计划](docs/微信QQ迁移与发布计划.md)。
+工程构建目标为**微信小程序和独立 QQ 小程序**。QQ 后端尚未完成接入；构建成功不代表 QQ 已可用。H5 仅供本地开发、界面检查和 HTTP 诊断，不作为产品发布端。
 
 ## 项目结构
 
@@ -15,7 +15,7 @@ apps/miniapp/         唯一前端，页面与组件全部采用 <script setup l
 cloudfunctions/team/ 现有微信业务后端：组队、资料、角色、审核和提醒
 cloudfunctions/p0Health/ 独立 HTTP 接入诊断，供前端诊断页使用
 tests/               服务端、共享业务规则与 Vue 组件回归测试
-docs/                产品资料、跨端接口契约、发布说明、品牌资源及接入证据
+docs/                产品资料、发布说明和品牌资源
 project.config.json  微信开发者工具入口，指向新前端的微信构建产物
 ```
 
@@ -30,7 +30,7 @@ pnpm dev
 
 若当前系统文件监听报 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 pnpm dev` 启用轮询。
 
-H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；后续确定在腾讯云 CloudBase 控制台创建新环境并绑定 QQ 账号，在新环境实现共享 HTTPS 登录、业务和头像接口，再迁移微信接入与数据。当前尚未创建该目标环境或完成跨端业务闭环，详见 [迁移计划](docs/微信QQ迁移与发布计划.md)；前端配置见 [前端说明](apps/miniapp/README.md)。
+微信业务继续调用现有 `team` 云函数，保留当前数据库和存储。QQ 前端已准备 HTTPS 请求契约，后端接入方式与真实业务可用性仍待验证。前端配置见 [前端说明](apps/miniapp/README.md)。
 
 ## 微信开发与发布
 
@@ -43,6 +43,12 @@ pnpm build:weixin
 云函数有改动时，单独上传并部署 `cloudfunctions/team`（云端安装依赖，保留定时触发器）。前端上传、云函数部署、体验版及正式发布是独立步骤。本次源码整理不包含部署和发布。
 
 `cloudfunctions/team/mail.local.js` 是本地 SMTP 配置，不提交；可参考 `mail.example.js`。管理员通过 `ADMIN_OPENIDS` 环境变量或 `admins` 集合配置，组局员通过 `ORGANIZER_OPENIDS` 或管理端配置。业务入口仍由服务端校验角色和封禁状态。
+
+## 头像维护
+
+- 数据库存储原始 `cloud://` fileID，`team` 云函数返回可展示的 HTTPS `avatarUrl`；历史 base64 仅作无链接时的兼容。链接到期后重新进入页面或下拉刷新。
+- 更换头像时先上传新图片，上传失败不提示保存成功；只改昵称时复用原 fileID。头像相关改动需同步部署微信前端与 `team` 云函数，验收两个账号互看、更换头像、只改昵称及上传失败。
+- 云存储权限、套餐续费和文件是否存在由云端配置决定，不根据固定日期推断权限会自动变化。参考 [CloudBase 云存储 SDK](https://docs.cloudbase.net/storage/sdk)。
 
 ## 验证
 
@@ -74,10 +80,9 @@ pnpm check:matrix
 ## 文档导航
 
 - 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)。
-- 开发与模板：[前端说明](apps/miniapp/README.md)、[unibest 来源与裁剪](apps/miniapp/UNIBEST.md)。
-- QQ 后续接入：[迁移与发布计划](docs/微信QQ迁移与发布计划.md)、[统一身份接口契约](docs/统一身份接口契约.md)。
-- 部署与维护：[自动上传](docs/微信QQ自动上传.md)、[头像存储与权限兼容](docs/头像存储与权限兼容.md)。
-- HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)、[P0 接入记录](docs/P0接入验证记录.md)。P0 文档保留已执行的云端操作和探测证据，旧路径、命令与测试数量不代表当前工程状态。
+- 开发与模板：[前端说明](apps/miniapp/README.md)。
+- 部署与维护：[自动上传](docs/微信QQ自动上传.md)、本文的头像维护说明。
+- HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)。
 - 素材维护：[品牌设计说明](docs/brand/设计说明.md)、[推广配图说明](docs/promo/设计说明.md)。
 
 ## 微信与 QQ CI 上传

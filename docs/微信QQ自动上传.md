@@ -23,7 +23,7 @@
 | `miniapp-qq` | Secret | `QQ_APP_TOKEN` | QQ 管理后台 → 设置 → 开发设置生成的 appToken |
 | `miniapp-qq` | Variable | `QQ_CI_IMAGE` | 可选；默认使用已核对的官方 Linux amd64 镜像 digest，支持覆盖为官方镜像 tag 或 digest |
 
-QQ 的业务 API 将在腾讯云 CloudBase 控制台创建的新环境中实现并部署 `/v1/auth/qq`、`/v1/rpc` 和 `/v1/media/avatar`，先完成 QQ 小程序账号与腾讯云账号绑定。`API_BASE_URL` 填该新环境已部署的 HTTPS 业务入口，不填旧微信环境 ID 或探测地址；后端与数据迁移见 [迁移计划](微信QQ迁移与发布计划.md)。仅填一个域名不会完成业务接入。现在可以先使用微信上传，QQ 配置齐全并完成真机验收后再选 QQ。
+QQ 客户端要求 `/v1/auth/qq`、`/v1/rpc` 和 `/v1/media/avatar`，这些业务接口尚待实现与部署；现有微信数据库和存储保留。`API_BASE_URL` 应填实际部署并完成鉴权验证的 HTTPS 业务入口，不填环境 ID 或探测地址；前端契约见 [前端说明](../apps/miniapp/README.md)。仅填一个域名不会完成业务接入。现在可以先使用微信上传，QQ 配置齐全并完成真机验收后再选 QQ。
 
 ### 3. 微信 IP 白名单与上传 runner
 

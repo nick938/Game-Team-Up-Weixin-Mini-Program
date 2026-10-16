@@ -1,34 +1,27 @@
-# 独立 HTTP 探测函数 p0Health
+# HTTP 探测函数 p0Health
 
-这是 P0 阶段的传输链路探测，不代表多端登录、数据库访问或组队业务已完成。
+用于检查 HTTP 网关与云函数的传输链路，不提供用户登录、数据库访问或组队业务。
 
 ## 行为
 
-- GET `/p0/health`，或网关移除前缀后的 `/`，返回常量：`{"ok":true,"service":"game-team-p0","version":"p0-health-v1"}`。
-- HEAD 返回 200 和空响应体；其他写方法拒绝。
-- 不加载 wx-server-sdk，不访问数据库、云存储、邮件或其他云函数，不读取环境变量和用户身份，不记录请求数据。
-- 不回显请求参数、请求头、登录 code 或令牌，不接受模拟定时任务和业务 action。
-- CORS 仅允许本地 P0 页面 `http://127.0.0.1:5187`，不允许携带凭据，不修改网关全局跨域策略。非浏览器的无 Origin 探测可读常量响应；CORS 不是鉴权。
+- GET `/p0/health` 或网关移除前缀后的 `/` 返回 `{"ok":true,"service":"game-team-p0","version":"p0-health-v1"}`；HEAD 返回 200 和空响应体，写方法拒绝。
+- 无运行依赖，不访问数据库、云存储、邮件或其他云函数，不回显请求参数、请求头或身份信息。
+- CORS 仅允许 `http://127.0.0.1:5187`，不允许携带凭据；无 Origin 的请求可读取固定响应。CORS 不作为鉴权。
 
-## 部署方案与当前状态
+## 检查
 
-2026-10-15 已通过 CloudBase 控制台的普通 Node.js 模板创建 `p0Health`，函数 ID `lam-fyqfg2iv`，状态“正常”；创建前在线入口与 package.json 回读均与本地一致。运行时 Node.js 20.19、内存 128 MB、执行超时 3 秒，没有注入 API Key。控制台内 GET/POST 调用通过。用户随后确认继续后，已核对并保存默认测试域名 `/p0/health` 的匿名探测配置，公网六项检查和 H5 实际调用均通过。下列创建和绑定步骤已完成，后续不能重复创建或覆盖已有函数。
+在仓库根目录检查本地函数行为：
 
-探测地址：`https://cloud1-d9gniyjzh4e2ffb1c-1312971366.ap-shanghai.app.tcloudbase.com/p0/health`。这只是测试用传输探测，不是业务 API；默认域名只适合开发测试。
+```sh
+node --test tests/p0-health.test.js
+```
 
-验证：在 apps/miniapp 执行 `npm run check:http -- https://测试域名/p0/health`。检查 GET、HEAD、POST 拒绝、允许来源 CORS、OPTIONS 和未知子路径，报告保存在 dist/p0/http-results.json。
+检查已部署的独立探测路由：
 
-控制台限频选项标注标准版/企业版，当前个人版未启用自定义网关限频，未升级套餐。公开探测仍消耗环境额度；验证不用时可单独关闭此路由。
+```sh
+pnpm --filter game-team-miniapp check:http https://测试域名/p0/health
+```
 
-1. 在 cloud1 创建一个独立普通云函数，命名 `p0Health`；使用平台支持的 Node.js 运行时、入口 `index.main`，不绑定定时触发器、不配置业务密钥，不覆盖 team。
-2. 部署包根目录仅包含 index.js、package.json、config.json。没有 npm 运行依赖。上传后核对源代码与本地一致。
-3. 只读探测拟绑定默认测试域名的 `/p0/health`，仅关联 p0Health；默认域名不用于正式上线。
-4. 保存公网路由之前，确认最终访问范围、限频配置与平台实际计费说明。无需为了返回非敏感状态而关闭既有业务鉴权或开放其他路径。
-5. 部署后检查 GET 常量响应、HEAD、POST 405、未知路径 404；验证本地预览的 CORS。不对 team 做 HTTP 测试。
-6. 验证完成可以关闭该独立路由；保留测试记录。删除云资源时另行确认，不能改动现有生产业务。
+脚本检查 GET、HEAD、写方法拒绝、CORS、OPTIONS 和未知路径，报告写入 `apps/miniapp/dist/p0/http-results.json`。前端诊断页通过 `VITE_P0_HEALTH_URL` 指定探测地址。
 
-文件上传曾被 Chrome 扩展的本地文件访问权限限制阻止；没有修改浏览器扩展权限。改用控制台已有的在线模板编辑功能粘贴已测试源码并验证回读后创建。普通模板自带的日志/回显示例已被替换，不使用其默认处理器。
-
-本地检查：在仓库根目录运行 `node --test tests/p0-health.test.js`。
-
-当前没有独立测试环境，因此只准备无业务访问的函数。真实用户、队伍和数据迁移的验证仍需要独立测试资源方案。新增公开端点在浏览器操作规则中属于访问权限变更，须在保存路由时单独确认。
+探测成功仅代表传输可用，不代表 QQ 登录或业务接入完成。此函数与 `team` 业务入口独立。
