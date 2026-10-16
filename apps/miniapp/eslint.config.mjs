@@ -20,8 +20,6 @@ export default tseslint.config(
         console: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
-        URL: 'readonly',
-        setImmediate: 'readonly',
       },
     },
     rules: {
@@ -30,6 +28,18 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' },
       ],
       '@typescript-eslint/no-empty-object-type': 'off',
+    },
+  },
+  {
+    files: ['**/scripts/**/*.mjs', '**/tests/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        URL: 'readonly',
+        setImmediate: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        Buffer: 'readonly',
+      },
     },
   },
   prettier,
