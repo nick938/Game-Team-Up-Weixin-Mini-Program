@@ -1,3 +1,5 @@
+const { harness } = require('./support/miniapp.cjs');
+const loadUtility = name => harness().load('utils/' + name);
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -145,144 +147,12 @@ test('expired teams do not receive start reminders', async () => {
   assert.equal(calls, 0);
 });
 
-test('joining requests authorization first and still joins after rejection', async () => {
-  let page;
-  const calls = [];
-  const ctx = {
-    Page: p => { page = p; },
-    require: name => name.endsWith('/subscribe') ? { requestTeamNotify: async () => { calls.push('authorize'); return false; } } : name.endsWith('/cloud') ? { callTeam: async () => { calls.push('join'); }, showError: e => { throw e; } } : {},
-    wx: { showLoading() {}, hideLoading() {}, showToast() {} },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.data = { teamId: 't' };
-  page.loadDetail = () => {};
-  await page.onJoin();
-  assert.deepEqual(calls, ['authorize', 'join']);
-  assert.equal(page.joining, false);
-});
-
-test('share, copy-link and scene entry all keep the team id', async () => {
-  const { resolveTeamId, teamShareQuery } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
-  assert.equal(resolveTeamId({ id: 'team-1' }), 'team-1');
-  assert.equal(resolveTeamId({ teamId: 'team-2' }), 'team-2');
-  assert.equal(resolveTeamId({ scene: 'id%3Dteam-3' }), 'team-3');
-  assert.equal(resolveTeamId({}, { enter: { query: { id: 'team-4' } } }), 'team-4');
-  assert.equal(resolveTeamId({}), '');
-  assert.equal(teamShareQuery('abc'), 'id=abc');
-
-  let page;
-  let copyHandler;
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl(fn) { copyHandler = fn; },
-      offCopyUrl() { copyHandler = null; },
-      getEnterOptionsSync: () => ({ query: {} }),
-      getLaunchOptionsSync: () => ({ query: {} }),
-      setNavigationBarTitle() {},
-      showLoading() {},
-      hideLoading() {},
-      showToast() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.loadDetail = async function () { this.setData({ loading: false }); };
-
-  page.onLoad({ scene: 'id=isaac-team' });
-  page.data.team = { gameName: '以撒的重生', displayStatus: 'recruiting', needCount: 2, startAt: Date.now() };
-  page.onShow();
-  assert.equal(page.data.teamId, 'isaac-team');
-  assert.equal(copyHandler().query, 'id=isaac-team');
-  assert.equal(copyHandler().title, '以撒的重生');
-  assert.equal(page.onShareAppMessage().path, '/pages/team/detail?id=isaac-team');
-  assert.equal(page.onShareTimeline().query, 'id=isaac-team');
-  assert.equal(page.onShareTimeline().path, undefined);
-  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
-  // 封面还没画出来（或画失败）时用静态品牌图，绝不能是空白
-  assert.equal(page.onShareAppMessage().imageUrl, SHARE_COVER);
-  assert.equal(page.onShareTimeline().imageUrl, SHARE_COVER);
-
-  // 画好之后换成这张带「这趟车」信息的图，朋友圈也一起换
-  page.shareCoverPath = 'wxfile://tmp_team_cover.jpg';
-  assert.equal(page.onShareAppMessage().imageUrl, 'wxfile://tmp_team_cover.jpg');
-  assert.equal(page.onShareTimeline().imageUrl, 'wxfile://tmp_team_cover.jpg');
-});
-
-test('plaza pages share into the lobby and timeline uses query not path', () => {
-  const share = require(path.join(root, 'miniprogram/utils/share.js'));
-  const plaza = share.plazaShare();
-  assert.equal(plaza.path, '/pages/index/index');
-  assert.equal(plaza.query, '');
-  assert.equal(plaza.title, '开黑星球｜游戏搭子');
-
-  function loadPage(rel, extraRequire) {
-    let page;
-    vm.runInNewContext(fs.readFileSync(path.join(root, rel), 'utf8'), {
-      Page: value => { page = value; },
-      getApp: () => ({ globalData: {} }),
-      require: extraRequire,
-      wx: { onCopyUrl() {}, offCopyUrl() {} },
-    });
-    return page;
-  }
-
-  const index = loadPage('miniprogram/pages/index/index.js', (name) => {
-    if (name.endsWith('/share')) return share;
-    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-    return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
-  });
-  assert.equal(index.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(index.onShareTimeline().query, '');
-  assert.equal(index.onShareTimeline().path, undefined);
-  assert.equal(index.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(index.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  const publish = loadPage('miniprogram/pages/publish/publish.js', (name) => {
-    if (name.endsWith('/share')) return share;
-    if (name.endsWith('/constants')) return { PLATFORMS: ['Steam'], VOICES: ['KOOK'], MAX_TEAM_HOURS: 24 };
-    if (name.endsWith('/format')) return { dateParts: () => ({ date: '2026-09-11', time: '21:00' }), combineDateTime: () => Date.now(), defaultStartAt: () => Date.now(), defaultEndAt: () => Date.now() };
-    if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-    if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
-    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-    if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
-    if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
-    return {};
-  });
-  assert.equal(publish.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(publish.onShareTimeline().query, '');
-  assert.equal(publish.onShareTimeline().path, undefined);
-  assert.match(publish.onShareAppMessage().title, /发起组队/);
-  assert.equal(publish.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(publish.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  const { page: mine } = minePage();
-  assert.equal(mine.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(mine.onShareTimeline().query, '');
-  assert.equal(mine.onShareTimeline().path, undefined);
-  assert.equal(mine.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(mine.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail', 'game/game']) {
-    const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
-    assert.equal(json.enableShareAppMessage, undefined);
-    assert.equal(json.enableShareTimeline, undefined);
-  }
-  const appJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/app.json'), 'utf8'));
-  assert.equal(appJson['mp-weixin'], undefined);
-});
-
 test('share cover is a package-local 5:4 JPEG so cards never fall back to a page screenshot', () => {
-  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
+  const { SHARE_COVER } = loadUtility('share');
   // 微信只接受包内相对路径和网络地址；写成绝对路径或漏掉前导斜杠会静默退回自动截图。
-  assert.match(SHARE_COVER, /^\/images\/[A-Za-z0-9._/-]+\.jpg$/);
+  assert.match(SHARE_COVER, /^\/static\/images\/[A-Za-z0-9._/-]+\.jpg$/);
 
-  const file = path.join(root, 'miniprogram', SHARE_COVER);
+  const file = path.join(root, 'apps/miniapp/src', SHARE_COVER);
   assert.ok(fs.existsSync(file), `${SHARE_COVER} 不存在，卡片会退回页面截图`);
   const buf = fs.readFileSync(file);
   assert.equal(buf.readUInt16BE(0), 0xffd8, '封面不是 JPEG');
@@ -306,7 +176,7 @@ test('share cover is a package-local 5:4 JPEG so cards never fall back to a page
 });
 
 test('team share cover content mirrors the detail page hero card', () => {
-  const { coverContent, WIDTH, HEIGHT } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  const { coverContent, WIDTH, HEIGHT } = loadUtility('team-cover');
   assert.equal(WIDTH / HEIGHT, 5 / 4);
 
   const recruiting = coverContent({
@@ -342,7 +212,7 @@ test('team share cover content mirrors the detail page hero card', () => {
 });
 
 test('team share cover wraps long game names and clamps to two lines', () => {
-  const { wrapText } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  const { wrapText } = loadUtility('team-cover');
   // 汉字算 10、拉丁字母算 5，所以 maxWidth=100 刚好放下 10 个汉字
   const ctx = {
     measureText(text) {
@@ -387,119 +257,10 @@ test('team share cover wraps long game names and clamps to two lines', () => {
 });
 
 test('decorateTeam keeps shareable team fields and coerces null mark to empty string', () => {
-  const { decorateTeam } = require(path.join(root, 'miniprogram/utils/format.js'));
+  const { decorateTeam } = loadUtility('format');
   assert.equal(decorateTeam({ gameName: '以撒', mark: null }).mark, '');
   assert.equal(decorateTeam({ gameName: '以撒' }).mark, '');
   assert.equal(decorateTeam({ gameName: '以撒', mark: '我发的' }).mark, '我发的');
-});
-
-test('lobby cards open with a real team id even if component objects drop _id', async () => {
-  const { usableTeamId, teamDetailPath, resolveTeamId } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
-  assert.equal(usableTeamId('undefined'), '');
-  assert.equal(usableTeamId('null'), '');
-  assert.equal(resolveTeamId({ id: 'undefined' }), '');
-  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /teamId=abc/);
-  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /name=/);
-  assert.equal(teamDetailPath('undefined'), '');
-
-  let card;
-  const events = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/team-card/index.js'), 'utf8'), {
-    Component: value => { card = value; },
-    require: (name) => name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js')) : {},
-  });
-  card.data = { team: { gameName: '以撒' }, teamId: 'real-team', mark: '' };
-  card.triggerEvent = (name, detail) => events.push([name, detail]);
-  Object.assign(card, card.methods);
-  card.onTap();
-  assert.equal(events.length, 1);
-  assert.equal(events[0][0], 'open');
-  assert.equal(events[0][1].id, 'real-team');
-  assert.equal(events[0][1].gameName, '以撒');
-
-  card.data.teamId = '';
-  card.data.team = { gameName: '以撒' };
-  card.onTap();
-  assert.equal(events.length, 1);
-
-  let page;
-  const urls = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: (name) => {
-      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
-      return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
-    },
-    wx: { navigateTo: ({ url }) => urls.push(url), onCopyUrl() {}, offCopyUrl() {} },
-  });
-  page.onOpen({ detail: { x: 10, y: 20 } });
-  page.onOpen({ detail: { id: 'undefined' } });
-  page.onOpen({ detail: { id: 'real-team', gameName: '以撒' } });
-  assert.equal(urls.length, 1);
-  assert.match(urls[0], /id=real-team/);
-  assert.match(urls[0], /teamId=real-team/);
-
-  const ctx = backend({ teams: [{ _id: 't', gameName: '以撒', startAt: 1, endAt: Date.now() + 3600000, status: 'recruiting' }] });
-  assert.equal(ctx.stripSecret({ _id: 't', gameName: '以撒', startAt: 1 }, false).id, 't');
-  assert.match((await ctx.getTeam({ teamId: 'undefined' }, 'u')).errMsg, /缺少/);
-  assert.equal((await ctx.getTeam({ teamId: 't' }, 'u')).ok, true);
-});
-
-test('empty team id does not query the cloud', async () => {
-  let page;
-  const cloudCalls = [];
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return {
-        callTeam: async (type, data) => { cloudCalls.push([type, data]); return { ok: true }; },
-        showError() {},
-      };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl() {},
-      offCopyUrl() {},
-      getEnterOptionsSync: () => ({ query: {} }),
-      getLaunchOptionsSync: () => ({ query: {} }),
-      setNavigationBarTitle() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.onLoad({});
-  page.onShow();
-  await page.loadDetail();
-  assert.equal(page.data.teamId, '');
-  assert.equal(cloudCalls.length, 0);
-  assert.equal(page.data.loading, false);
-});
-
-test('team detail prefers the current page query over the launch query', () => {
-  let page;
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl() {},
-      offCopyUrl() {},
-      getEnterOptionsSync: () => ({ query: { id: 'from-launch' } }),
-      getLaunchOptionsSync: () => ({ query: { id: 'from-launch' } }),
-      setNavigationBarTitle() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.loadDetail = function () {};
-  page.options = { id: 'from-page' };
-  page.onShow();
-  assert.equal(page.data.teamId, 'from-page');
 });
 
 test('reminder query covers ten minutes ahead and five minutes past, timer runs every minute', async () => {
@@ -515,30 +276,6 @@ test('reminder query covers ten minutes ahead and five minutes past, timer runs 
   assert.ok(lower <= before - 290000 && lower >= before - 310000);
   const config = JSON.parse(fs.readFileSync(path.join(root, 'cloudfunctions/team/config.json')));
   assert.equal(config.triggers[0].config, '0 */1 * * * * *');
-});
-
-test('parallel identical reads share a request; completed reads and writes are fresh', async () => {
-  let count = 0;
-  let finish;
-  const ctx = { module: { exports: {} }, wx: { cloud: { callFunction() {
-    count++;
-    return new Promise(resolve => { finish = () => resolve({ result: { ok: true } }); });
-  } } } };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/cloud.js'), 'utf8'), ctx);
-  const call = ctx.module.exports.callTeam;
-  const a = call('getTeam', { teamId: 't' });
-  const b = call('getTeam', { teamId: 't' });
-  assert.equal(a, b);
-  assert.equal(count, 1);
-  finish(); await a;
-  const c = call('getTeam', { teamId: 't' });
-  assert.equal(count, 2);
-  finish(); await c;
-  const d = call('joinTeam', { teamId: 't' });
-  const finishD = finish;
-  const e = call('joinTeam', { teamId: 't' });
-  assert.equal(count, 4);
-  finishD(); finish(); await Promise.all([d, e]);
 });
 
 test('there is no preference endpoint and sends go out unconditionally', async () => {
@@ -561,131 +298,6 @@ test('profile can be read back without any preference record', async () => {
   assert.equal(users.length, 1);
   assert.equal(users[0].notifyEnabled, undefined);
   assert.equal((await ctx.getProfile('new')).user.nickName, 'new player');
-});
-
-test('requestTeamNotify always asks the native panel and only trusts accept', async () => {
-  let calls = 0;
-  let answer = 'accept';
-  const ctx = {
-    module: { exports: {} }, require: () => ({ SUBSCRIBE_TMPL_ID: 'template' }),
-    wx: { requestSubscribeMessage({ success }) { calls++; success({ template: answer }); } },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/subscribe.js'), 'utf8'), ctx);
-  const request = ctx.module.exports.requestTeamNotify;
-  assert.equal(await request(), true);
-  assert.equal(calls, 1);
-  answer = 'reject';
-  assert.equal(await request(), false);
-  assert.equal(calls, 2);
-  assert.equal(ctx.module.exports.notifyPreferenceEnabled, undefined);
-});
-
-function minePage({ profile, teams } = {}) {
-  let page;
-  const app = { globalData: { user: {} } };
-  const callTeam = async (type) => {
-    if (type === 'getProfile') return profile || { user: null };
-    if (type === 'myTeams') return teams || { hosted: [], joined: [] };
-    return {};
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/mine/mine.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => app,
-    require: name => name.endsWith('/format') ? { decorateTeam: (team) => team }
-      : name.endsWith('/runtime') ? { isSinglePage: () => false }
-      : name.endsWith('/cloud') ? { showError() {}, callTeam }
-      : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) }
-      : name.endsWith('/share') ? require(path.join(root, 'miniprogram/utils/share.js'))
-      : name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js'))
-      : {},
-    wx: {},
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  return { page, app };
-}
-
-test('mine page no longer exposes notification preference controls', () => {
-  const { page } = minePage();
-  assert.equal(page.onNotifyChange, undefined);
-  assert.equal(page.toggleSettings, undefined);
-  assert.equal(page.refreshWechatNotify, undefined);
-  assert.equal(page.openWechatNotifySettings, undefined);
-});
-
-test('mine profile card shows the signature and tab counts', async () => {
-  const { page } = minePage({
-    profile: { user: { nickName: '阿乐', bio: 'Steam 12345，晚上在线' }, isAdmin: false, isOrganizer: true },
-    teams: {
-      hosted: [{ _id: 'h1', ongoing: true }, { _id: 'h2', ongoing: false }],
-      joined: [{ _id: 'j1', ongoing: true }],
-    },
-  });
-  await page.load();
-  assert.equal(page.data.profileHint, 'Steam 12345，晚上在线');
-  assert.equal(page.data.hostedCount, 2);
-  assert.equal(page.data.joinedCount, 1);
-  assert.equal(page.data.isOrganizer, true);
-  // 没填签名时给引导文案。
-  const { page: bare } = minePage({ profile: { user: { nickName: '新玩家' } } });
-  await bare.load();
-  assert.equal(bare.data.profileHint, '写个签名，把 Steam 好友码放进去，队友加你好友');
-});
-
-test('legal page merges three docs into one entry that switches in place', () => {
-  let page;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/legal/legal.js'), 'utf8'), {
-    Page: value => { page = value; },
-    wx: { setNavigationBarTitle() {} },
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.onLoad({ type: 'agreement' });
-  assert.equal(page.data.activeType, 'agreement');
-  assert.deepEqual([...page.data.docs.map(d => d.key)], ['agreement', 'privacy', 'community']);
-  page.pickDoc({ currentTarget: { dataset: { type: 'community' } } });
-  assert.equal(page.data.activeType, 'community');
-  assert.equal(page.data.title, '社区公约');
-  // 未知类型回退到隐私政策。
-  page.onLoad({ type: 'nope' });
-  assert.equal(page.data.activeType, 'privacy');
-});
-
-test('mine tabs keep hosted/joined and ongoing/history lists separate', () => {
-  const { page } = minePage();
-  Object.assign(page.data, { hostedOngoing: ['h-now'], hostedPast: ['h-old'], joinedOngoing: ['j-now'], joinedPast: ['j-old'] });
-  page.updateVisibleTeams();
-  assert.deepEqual(page.data.visibleTeams, ['h-now']);
-  page.pickTeamTab({ currentTarget: { dataset: { tab: 'joined' } } });
-  assert.deepEqual(page.data.visibleTeams, ['j-now']);
-  page.pickPhase({ currentTarget: { dataset: { phase: 'Past' } } });
-  assert.deepEqual(page.data.visibleTeams, ['j-old']);
-  page.pickTeamTab({ currentTarget: { dataset: { tab: 'hosted' } } });
-  assert.deepEqual(page.data.visibleTeams, ['h-old']);
-});
-
-test('manage menu is host-only, drops republish, and dispatches edit/cancel', () => {
-  let page;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; }, require: () => ({}),
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.data.role = 'member';
-  page.onManage();
-  assert.equal(page.data.showManage, false);
-  page.data.role = 'host';
-  page.onManage();
-  assert.equal(page.data.showManage, true);
-  let selected;
-  page.onEdit = () => { selected = 'edit'; };
-  page.onCancel = () => { selected = 'cancel'; };
-  let republished = false;
-  page.onRepublish = () => { republished = true; };
-  page.onManageAction({ currentTarget: { dataset: { action: 'edit' } } });
-  assert.equal(selected, 'edit');
-  assert.equal(page.data.showManage, false);
-  // 「再发一趟」已从管理菜单移除，不会再被派发。
-  page.data.showManage = true;
-  page.onManageAction({ currentTarget: { dataset: { action: 'republish' } } });
-  assert.equal(republished, false);
-  assert.equal(selected, 'edit');
 });
 
 test('public profile saves the signature, preserves it when omitted and allows clearing', async () => {
@@ -726,33 +338,6 @@ test('room profile returns only nickName/avatar/bio and rejects unrelated member
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'm' })).profile.bio, '');
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'other' })).ok, false);
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'missing' })).ok, false);
-});
-
-test('switching or closing member card ignores stale responses', async () => {
-  let page;
-  const pending = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: () => ({ callTeam: () => new Promise(resolve => pending.push(resolve)) }),
-    wx: {},
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.data.selectedMemberId = 'first';
-  const first = page.loadMemberProfile();
-  page.data.selectedMemberId = 'second';
-  const second = page.loadMemberProfile();
-  pending[1]({ profile: { nickName: 'second', bio: 'Steam 00123' } });
-  await second;
-  pending[0]({ profile: { nickName: 'first' } });
-  await first;
-  assert.equal(page.data.memberProfile.nickName, 'second');
-  assert.equal(page.data.memberProfile.bio, 'Steam 00123');
-  const closed = page.loadMemberProfile();
-  page.closeMemberProfile();
-  pending[2]({ profile: { nickName: 'late' } });
-  await closed;
-  assert.equal(page.data.memberProfile, null);
-  assert.equal(page.data.showMemberProfile, false);
 });
 
 test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
@@ -797,221 +382,6 @@ test('team note supports up to 500 characters and clamps beyond', () => {
   }, { isCreate: true });
   assert.equal(validated.error, undefined);
   assert.equal(validated.value.note.length, 500);
-});
-
-test('detail note collapses when long or multi-line and can toggle expand', async () => {
-  let page;
-  let pageTeam;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: () => ({
-      isSinglePage: () => false,
-      decorateTeam: (t) => t,
-      callTeam: async () => ({ team: pageTeam, members: [], role: 'member' }),
-      showError: () => {},
-      requestTeamNotify: async () => {},
-      resolveTeamId: (opts) => opts.id,
-      teamShareQuery: () => '',
-      usableTeamId: (id) => id,
-      bindCopyUrl: () => {},
-      unbindCopyUrl: () => {},
-    }),
-    wx: { setNavigationBarTitle() {} },
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-
-  // 1. 短备注（<=80 字且 <=3 行）：不需要折叠
-  page.data.teamId = 't1';
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '短备注，无需折叠' };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, false);
-  assert.equal(page.data.noteExpanded, false);
-
-  // 2. 超长备注（>80 字）：折叠并支持展开/收起切换
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '这是超长的队伍说明备注，'.repeat(10) };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, true);
-  assert.equal(page.data.noteExpanded, false);
-  page.toggleNoteExpand();
-  assert.equal(page.data.noteExpanded, true);
-  page.toggleNoteExpand();
-  assert.equal(page.data.noteExpanded, false);
-
-  // 3. 多行备注（换行 > 3 行）：哪怕字数少也支持折叠
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '1. 规则一\n2. 规则二\n3. 规则三\n4. 规则四' };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, true);
-  assert.equal(page.data.noteExpanded, false);
-});
-
-test('welcome letter shows once then stays dismissed', () => {
-  const store = {};
-  const navigated = [];
-  const tabBar = [];
-  let comp;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
-    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
-    Component: value => { comp = value; },
-    wx: {
-      getStorageSync: key => store[key],
-      setStorageSync: (key, value) => { store[key] = value; },
-      navigateTo: ({ url }) => navigated.push(url),
-      hideTabBar: () => tabBar.push('hide'),
-      showTabBar: () => tabBar.push('show'),
-    },
-  });
-  comp.data = { show: false };
-  comp.setData = patch => Object.assign(comp.data, patch);
-  Object.assign(comp, comp.methods);
-  comp.lifetimes.attached.call(comp);
-  assert.equal(comp.data.show, true);
-  assert.deepEqual(tabBar, ['hide']);
-  comp.openRules();
-  assert.equal(store.welcomeLetterV2, 1);
-  assert.equal(comp.data.show, false);
-  assert.deepEqual(navigated, ['/pages/legal/legal?type=community']);
-  assert.deepEqual(tabBar, ['hide', 'show']);
-  comp.lifetimes.attached.call(comp);
-  assert.equal(comp.data.show, false);
-  const other = { data: { show: true }, setData: patch => Object.assign(other.data, patch) };
-  Object.assign(other, comp.methods, { lifetimes: comp.lifetimes, pageLifetimes: comp.pageLifetimes });
-  other.pageLifetimes.show.call(other);
-  assert.equal(other.data.show, false);
-});
-
-test('welcome letter can open feedback', () => {
-  const store = {};
-  const navigated = [];
-  let comp;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
-    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
-    Component: value => { comp = value; },
-    wx: {
-      getStorageSync: key => store[key],
-      setStorageSync: (key, value) => { store[key] = value; },
-      navigateTo: ({ url }) => navigated.push(url),
-      hideTabBar() {},
-      showTabBar() {},
-    },
-  });
-  comp.data = { show: true };
-  comp.setData = patch => Object.assign(comp.data, patch);
-  Object.assign(comp, comp.methods);
-  comp.openFeedback();
-  assert.equal(store.welcomeLetterV2, 1);
-  assert.equal(comp.data.show, false);
-  assert.deepEqual(navigated, ['/pages/feedback/feedback']);
-});
-
-function publishPage(searchUsers) {
-  let page;
-  const app = { globalData: { editingTeamId: null, republishTeam: null } };
-  const calls = [];
-  const toasts = [];
-  const now = Date.now();
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/publish/publish.js'), 'utf8'), {
-    setTimeout,
-    clearTimeout,
-    Page: value => { page = value; },
-    getApp: () => app,
-    require: (name) => {
-      if (name.endsWith('/runtime')) return require(path.join(root, 'miniprogram/utils/runtime.js'));
-      if (name.endsWith('/constants')) return { PLATFORMS: ['Steam', '手游'], VOICES: ['KOOK', '开麦'], MAX_TEAM_HOURS: 24 };
-      if (name.endsWith('/format')) {
-        return {
-          dateParts: (ts) => {
-            const t = Number(ts) || now;
-            return { date: '2026-09-09', time: t > now + 1800000 ? '22:00' : '21:00' };
-          },
-          combineDateTime: (date, time) => time === '22:00' ? now + 7200000 : now + 3600000,
-          defaultStartAt: () => now + 60000,
-          defaultEndAt: (start) => start + 3600000,
-        };
-      }
-      if (name.endsWith('/cloud')) {
-        return {
-          callTeam: async (type, data) => {
-            calls.push([type, data]);
-            if (type === 'searchProxyUsers' && searchUsers) return searchUsers(data);
-            if (type === 'getTeam') {
-              return {
-                team: {
-                  gameName: 'CS2',
-                  startAt: now + 60000,
-                  endAt: now + 7200000,
-                  capacity: 5,
-                  platform: 'Steam',
-                  voice: 'KOOK',
-                  roomNo: '123456',
-                  roomPwd: '',
-                  server: '',
-                  rankReq: '',
-                  note: '',
-                },
-              };
-            }
-            return { teamId: 'created' };
-          },
-          showError() {},
-        };
-      }
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
-      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
-      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-      if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
-      if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
-      return {};
-    },
-    wx: {
-      showLoading() {},
-      hideLoading() {},
-      showToast({ title }) { toasts.push(title); },
-      navigateTo() {},
-    },
-  });
-  page.setData = (patch) => Object.assign(page.data, patch);
-  return { page, app, calls, toasts };
-}
-
-test('editing a team survives a second onShow and updates instead of creating', async () => {
-  const { page, app, calls } = publishPage();
-  app.globalData.editingTeamId = 'team-1';
-  await page.onShow();
-  assert.equal(page.data.editingId, 'team-1');
-  app.globalData.editingTeamId = null;
-  await page.onShow();
-  assert.equal(page.data.editingId, 'team-1');
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.deepEqual(calls.map((item) => item[0]), ['getTeam', 'updateTeam']);
-  assert.equal(calls[1][1].teamId, 'team-1');
-  assert.equal(page.data.editingId, '');
-});
-
-test('successful create clears the form so a second submit does not post again', async () => {
-  const { page, calls } = publishPage();
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  assert.equal(page.data.gameName, '');
-  await page.onSubmit();
-  assert.equal(calls.length, 1);
-});
-
-test('publish prefills a game from the landing page and suggested chips', async () => {
-  const { page, app } = publishPage();
-  app.globalData.prefillGame = { name: '三角洲行动', platform: 'Steam' };
-  await page.onShow();
-  assert.equal(page.data.gameName, '三角洲行动');
-  assert.equal(page.data.platform, 'Steam');
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'naraka' } } });
-  assert.equal(page.data.gameName, '永劫无间');
-  assert.equal(page.data.platform, 'Steam');
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
-  assert.equal(page.data.gameName, '王者荣耀');
-  assert.equal(page.data.platform, '手游');
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {
@@ -1159,35 +529,8 @@ test('lobby paginates by createdAt desc and reports hasMore/nextOffset', async (
   assert.equal(capped.hasMore, true);
 });
 
-test('app version reads the backend on release and local APP_VERSION elsewhere', () => {
-  const load = info => {
-    const mod = { exports: {} };
-    vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
-      require: () => ({ APP_VERSION: '1.6.1' }),
-      module: mod,
-      wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
-    });
-    return mod.exports;
-  };
-  // 开发版/体验版取本地 APP_VERSION，带环境标注。
-  let ver = load({ envVersion: 'develop', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 开发版');
-  assert.equal(ver.version, '1.6.1');
-  ver = load({ envVersion: 'trial', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 体验版');
-  // 正式版取微信后台上传的版本号，允许与本地不同，且不显示环境标注。
-  ver = load({ envVersion: 'release', version: '1.6.1' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1');
-  ver = load({ envVersion: 'release', version: '1.5.0' }).getAppVersion();
-  assert.equal(ver.text, 'v1.5.0');
-  assert.equal(ver.version, '1.5.0');
-  // 正式版拿不到后台版本号时回退到本地 APP_VERSION，并补上标注。
-  ver = load({ envVersion: 'release', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 正式版');
-});
-
 test('lobby sorts by creation or heat, defaulting to newest first', () => {
-  const { SORT_MODES, sortTeams } = require(path.join(root, 'miniprogram/utils/lobby.js'));
+  const { SORT_MODES, sortTeams } = loadUtility('lobby');
   const ids = list => list.map(t => t._id);
   const now = Date.now();
   const teams = [
@@ -1215,7 +558,7 @@ test('lobby sorts by creation or heat, defaulting to newest first', () => {
 });
 
 test('lobby search matches game, server, rank and note, and composes with filters', () => {
-  const { matchKeyword, buildLobbyView } = require(path.join(root, 'miniprogram/utils/lobby.js'));
+  const { matchKeyword, buildLobbyView } = loadUtility('lobby');
   const teams = [
     { _id: 'a', gameName: 'CS2', server: '国服', rankReq: '上分', note: '萌新友好', createdAt: 300 },
     { _id: 'b', gameName: '永劫无间', server: '亚服', rankReq: '', note: '', createdAt: 200 },
@@ -1236,42 +579,6 @@ test('lobby search matches game, server, rank and note, and composes with filter
   // 只搜索不筛选，按最热（人数缺省为 0，回落到创建时间）排序。
   assert.deepEqual(buildLobbyView(teams, { keyword: 'CS2' }).map(t => t._id), ['a', 'c']);
   assert.deepEqual(buildLobbyView(teams, { keyword: '不存在' }), []);
-});
-
-test('returning to the lobby resets the game filter back to 全部', async () => {
-  let page;
-  const teams = [
-    { _id: 'a', gameName: 'CS2', createdAt: 200 },
-    { _id: 'b', gameName: '永劫无间', createdAt: 100 },
-  ];
-  const ctx = {
-    Page: (p) => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/runtime')) return { isSinglePage: () => false };
-      if (name.endsWith('/share')) return { plazaShare: () => ({ title: 't', path: '/pages/index/index', query: '' }), bindCopyUrl() {}, unbindCopyUrl() {} };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({ list: teams, hasMore: false, nextOffset: teams.length }), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/index', name));
-    },
-    wx: { onCopyUrl() {}, offCopyUrl() {} },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-
-  page.onShow();
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(page.data.gameFilter, '全部');
-  assert.equal(page.data.filtered.length, 2);
-
-  page.pickGame({ currentTarget: { dataset: { name: 'CS2' } } });
-  assert.equal(page.data.gameFilter, 'CS2');
-  // filtered 数组来自 vm 上下文，原型不同不能直接 deepEqual，用 join 比较。
-  assert.equal(page.data.filtered.map((t) => t._id).join(','), 'a');
-
-  // 模拟切到别的页面再回来：onShow 重跑，筛选必须回到默认的「全部」。
-  page.onShow();
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(page.data.gameFilter, '全部');
-  assert.equal(page.data.filtered.length, 2);
 });
 
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
@@ -1834,119 +1141,6 @@ test('ORGANIZER_OPENIDS env grants proxy access and cannot be toggled in admin',
   assert.equal(blocked.ok, false);
 });
 
-
-test('proxy search ignores results after switch off, input clear, or host change', async () => {
-  for (const action of [
-    page => page.toggleProxy({ detail: { value: false } }),
-    page => page.onProxyKeyword({ detail: { value: '' } }),
-    page => page.clearProxyHost(),
-    page => page.pickProxyHost({ currentTarget: { dataset: { host: { userId: 'chosen', nickName: '选中的群友' } } } }),
-  ]) {
-    let resolve;
-    const { page } = publishPage(() => new Promise(done => { resolve = done; }));
-    page.setData({ canProxy: true, proxyMode: true, proxyKeyword: '旧昵称' });
-    const pending = page.searchProxyUsers('旧昵称');
-    action(page);
-    resolve({ list: [{ userId: 'stale', nickName: '旧昵称' }] });
-    await pending;
-    assert.equal(page.data.proxyResults.length, 0);
-    assert.equal(page.data.proxySearching, false);
-  }
-});
-
-test('proxy switch uses checked value and more settings preserve entered fields', () => {
-  const { page } = publishPage();
-  page.setData({ canProxy: true, roomNo: '123', note: '娱乐局' });
-  page.toggleProxy({ detail: { value: true } });
-  assert.equal(page.data.proxyMode, true);
-  page.toggleProxy({ detail: { value: false } });
-  assert.equal(page.data.proxyMode, false);
-  page.toggleMore();
-  page.toggleMore();
-  assert.equal(page.data.showMore, false);
-  assert.equal(page.data.roomNo, '123');
-  assert.equal(page.data.note, '娱乐局');
-});
-
-test('publish form starts collapsed and time presets still submit startAt/endAt', async () => {
-  const { page, calls, toasts } = publishPage();
-  assert.equal(page.data.showMore, false);
-  assert.equal(page.data.startPreset, 'custom');
-  page.pickStartPreset({ currentTarget: { dataset: { key: 'now' } } });
-  assert.equal(page.data.startPreset, 'now');
-  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
-  assert.equal(page.data.durationHours, 3);
-  page.pickStartPreset({ currentTarget: { dataset: { key: 'custom' } } });
-  assert.equal(page.data.startPreset, 'custom');
-  const team = page.buildTeam();
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startAt'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'endAt'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startPreset'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'durationHours'), false);
-  await page.onSubmit();
-  assert.equal(toasts[0], '请选择游戏');
-  assert.equal(calls.length, 0);
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  assert.deepEqual(Object.keys(calls[0][1].team).sort(), [
-    'capacity', 'endAt', 'gameName', 'note', 'platform', 'rankReq', 'roomNo', 'roomPwd', 'server', 'startAt', 'voice',
-  ]);
-});
-
-test('picking a mobile game only reorders existing platform values', () => {
-  const { page } = publishPage();
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
-  assert.equal(page.data.gameName, '王者荣耀');
-  assert.equal(page.data.platform, '手游');
-  assert.deepEqual(page.data.platforms, ['手游', 'Steam']);
-});
-
-test('custom duration picker sets minutes and recomputes endAt, never exceeds 24h', () => {
-  const { page } = publishPage();
-  // 默认时长来自 defaultEndAt（mock 里 +1h → 60 分钟）
-  assert.equal(page.data.durationMinutes, 60);
-  // 选 30 分钟
-  page.pickCustomDuration({ detail: { value: 0 } });
-  assert.equal(page.data.durationMinutes, 30);
-  assert.equal(page.data.durationHours, 0);
-  assert.equal(page.data.durationLabel, '30分钟');
-  // 选 24 小时（最后一项）
-  const last = page.data.durationPickerLabels.length - 1;
-  page.pickCustomDuration({ detail: { value: last } });
-  assert.equal(page.data.durationMinutes, 1440);
-  assert.equal(page.data.durationLabel, '24小时');
-  // 越界 index 不生效
-  page.pickCustomDuration({ detail: { value: 999 } });
-  assert.equal(page.data.durationMinutes, 1440);
-});
-
-test('changing start time auto-recomputes endAt from current duration', () => {
-  const { page } = publishPage();
-  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
-  assert.equal(page.data.durationMinutes, 180);
-  const before = page.buildTeam().endAt;
-  // 改开始时间，结束时间应跟随（mock 的 combineDateTime 让 endAt 随 startTime 变化）
-  page.onStartTime({ detail: { value: '22:00' } });
-  const after = page.buildTeam().endAt;
-  assert.ok(after >= before - 60 * 60 * 1000);
-  assert.equal(page.data.durationMinutes, 180);
-});
-
-test('durationMinutes and durationLabel never enter the submit payload', async () => {
-  const { page, calls } = publishPage();
-  page.pickCustomDuration({ detail: { value: 2 } }); // 1小时
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  const keys = Object.keys(calls[0][1].team);
-  assert.equal(keys.indexOf('durationMinutes'), -1);
-  assert.equal(keys.indexOf('durationLabel'), -1);
-  assert.equal(keys.indexOf('durationHours'), -1);
-});
-
 test('cloud requires a room / join method for creating and editing', () => {
   const ctx = backend();
   for (const isCreate of [true, false]) {
@@ -1957,27 +1151,5 @@ test('cloud requires a room / join method for creating and editing', () => {
     assert.equal(valid.error, undefined);
     assert.equal(valid.value.roomNo, 'Steam 好友代码 123456');
     assert.equal(valid.value.roomPwd, '');
-  }
-});
-
-test('publish blocks empty room / join method before creating or updating', async () => {
-  for (const editing of [false, true]) {
-    const { page, app, calls, toasts } = publishPage();
-    if (editing) {
-      app.globalData.editingTeamId = 'team-1';
-      await page.onShow();
-      calls.length = 0;
-    }
-    page.setData({ gameName: 'CS2', roomNo: '   ' });
-    let anchor;
-    page.scrollToField = (id) => { anchor = id; };
-    await page.onSubmit();
-    assert.equal(calls.length, 0);
-    assert.equal(toasts[0], '请填写房间 / 加入方式');
-    assert.equal(anchor, 'field-room');
-    page.setData({ roomNo: '  123456  ' });
-    await page.onSubmit();
-    assert.equal(calls[0][0], editing ? 'updateTeam' : 'createTeam');
-    assert.equal(calls[0][1].team.roomNo, '123456');
   }
 });

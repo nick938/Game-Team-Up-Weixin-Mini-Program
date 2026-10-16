@@ -1,177 +1,193 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onShow, onHide, onUnload, onPullDownRefresh, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+import type { Team, User, PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
+import { platform as hostPlatform } from "../../platform/host";
 import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
 import { isSinglePage } from "../../utils/runtime";
 import { decorateTeam } from "../../utils/format";
 import { callTeam, showError } from "../../utils/cloud";
 import { getAppVersion } from "../../utils/version";
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from "../../utils/share";
 import { teamDetailPath } from "../../utils/team-entry";
-
-function splitTeams(list) {
-  const ongoing = [];
-  const past = [];
-  (list || []).forEach((t) => {
-    if (t.ongoing) ongoing.push(t);
-    else past.push(t);
-  });
-  return { ongoing, past };
+function splitTeams(list: Team[]) {
+    const ongoing: Team[] = [];
+    const past: Team[] = [];
+    (list || []).forEach((t) => {
+        if (t.ongoing)
+            ongoing.push(t);
+        else
+            past.push(t);
+    });
+    return { ongoing, past };
 }
-
 // 资料卡副标题：优先展示签名，没填时给引导文案。
-function profileHint(user) {
-  const bio = ((user && user.bio) || "").trim();
-  return bio || "写个签名，把 Steam 好友码放进去，队友加你好友";
+function getProfileHint(user: User | undefined) {
+    const bio = ((user && user.bio) || "").trim();
+    return bio || "写个签名，把 Steam 好友码放进去，队友加你好友";
 }
-
-export default {
- data() { return { singlePage: false, ...{
-    user: {},
-    teamTab: "hosted",
-    phase: "Ongoing",
-    visibleTeams: [],
-    hostedOngoing: [],
-    hostedPast: [],
-    joinedOngoing: [],
-    joinedPast: [],
-    showProfile: false,
-    profileHint: "",
-    versionText: "",
-    isAdmin: false,
-    isOrganizer: false,
-    hostedCount: 0,
-    joinedCount: 0,
-  } }; },
-onShow() {
-    const singlePage = isSinglePage();
-    this.setData({ singlePage });
-    if (singlePage) return;
-    bindCopyUrl(platform, () => plazaShare());
-    this.setData({ versionText: getAppVersion().text });
-    this.load();
-  },
-onHide() {
-    unbindCopyUrl(platform);
-  },
-onUnload() {
-    unbindCopyUrl(platform);
-  },
-onPullDownRefresh() {
-    return this.load().finally(() => platform.stopPullDownRefresh());
-  },
-onShareAppMessage() {
-    return shareToFriend(plazaShare());
-  },
-onShareTimeline() {
-    return shareToTimeline(plazaShare());
-  },
-methods: { eventWithDataset, setData: updateState,
-async load() {
-    if (isSinglePage()) return;
+const state = reactive({ pendingAction: "", singlePage: false, ...{
+        user: {} as User,
+        teamTab: "hosted",
+        phase: "Ongoing",
+        visibleTeams: [] as Team[],
+        hostedOngoing: [] as Team[],
+        hostedPast: [] as Team[],
+        joinedOngoing: [] as Team[],
+        joinedPast: [] as Team[],
+        showProfile: false,
+        profileHint: "",
+        versionText: "",
+        isAdmin: false,
+        isOrganizer: false,
+        hostedCount: 0,
+        joinedCount: 0,
+    } });
+const { singlePage, user, teamTab, phase, visibleTeams, hostedOngoing, hostedPast, joinedOngoing, joinedPast, showProfile, profileHint, versionText, isAdmin, isOrganizer, hostedCount, joinedCount } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+async function load() {
+    if (isSinglePage())
+        return;
     try {
-      const [profile, teams] = await Promise.all([
-        callTeam("getProfile"),
-        callTeam("myTeams"),
-      ]);
-      const app = getApplication();
-      if (profile.user) {
-        app.globalData.user = profile.user;
-      }
-      app.globalData.isAdmin = !!profile.isAdmin;
-      app.globalData.isOrganizer = !!profile.isOrganizer;
-      const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
-      const joined = splitTeams((teams.joined || []).map(decorateTeam));
-      this.setData({
-        user: profile.user || {},
-        profileHint: profileHint(profile.user),
-        isAdmin: !!profile.isAdmin,
-        isOrganizer: !!profile.isOrganizer,
-        hostedOngoing: hosted.ongoing,
-        hostedPast: hosted.past,
-        joinedOngoing: joined.ongoing,
-        joinedPast: joined.past,
-        hostedCount: hosted.ongoing.length + hosted.past.length,
-        joinedCount: joined.ongoing.length + joined.past.length,
-      });
-      this.updateVisibleTeams();
-    } catch (e) {
-      showError(e);
+        const [profile, teams] = await Promise.all([
+            callTeam("getProfile"),
+            callTeam("myTeams"),
+        ]);
+        const app = getApplication();
+        if (profile.user) {
+            app.globalData.user = profile.user;
+        }
+        app.globalData.isAdmin = !!profile.isAdmin;
+        app.globalData.isOrganizer = !!profile.isOrganizer;
+        const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
+        const joined = splitTeams((teams.joined || []).map(decorateTeam));
+        patchState({
+            user: profile.user || {},
+            profileHint: getProfileHint(profile.user),
+            isAdmin: !!profile.isAdmin,
+            isOrganizer: !!profile.isOrganizer,
+            hostedOngoing: hosted.ongoing,
+            hostedPast: hosted.past,
+            joinedOngoing: joined.ongoing,
+            joinedPast: joined.past,
+            hostedCount: hosted.ongoing.length + hosted.past.length,
+            joinedCount: joined.ongoing.length + joined.past.length,
+        });
+        updateVisibleTeams();
     }
-  },
-updateVisibleTeams() {
-    this.setData({ visibleTeams: this[this.teamTab + this.phase] || [] });
-  },
-pickTeamTab(e) {
-    this.setData({ teamTab: e.currentTarget.dataset.tab });
-    this.updateVisibleTeams();
-  },
-pickPhase(e) {
-    this.setData({ phase: e.currentTarget.dataset.phase });
-    this.updateVisibleTeams();
-  },
-goPlaza() { platform.switchTab({ url: "/pages/index/index" }); },
-editProfile() {
-    this.setData({ showProfile: true });
-  },
-onProfileClose() { this.setData({ showProfile: false, pendingAction: "" }); },
-onProfileDone(e) {
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        showError(e);
+    }
+}
+function updateVisibleTeams() {
+    patchState({ visibleTeams: state.teamTab === "hosted"
+        ? (state.phase === "Past" ? state.hostedPast : state.hostedOngoing)
+        : (state.phase === "Past" ? state.joinedPast : state.joinedOngoing) });
+}
+function pickTeamTab(e: PageEvent) {
+    patchState({ teamTab: e.currentTarget.dataset.tab });
+    updateVisibleTeams();
+}
+function pickPhase(e: PageEvent) {
+    patchState({ phase: e.currentTarget.dataset.phase });
+    updateVisibleTeams();
+}
+function goPlaza() {
+    hostPlatform.switchTab({ url: "/pages/index/index" });
+}
+function editProfile() {
+    patchState({ showProfile: true });
+}
+function onProfileClose() {
+    patchState({ showProfile: false, pendingAction: "" });
+}
+function onProfileDone(e: Pick<PageEvent, 'detail'>) {
     const user = (e && e.detail && e.detail.user) || {};
     if (user.nickName) {
-      this.setData({ showProfile: false, user });
-    } else {
-      this.setData({ showProfile: false });
+        patchState({ showProfile: false, user });
     }
-    this.load();
-  },
-onOpen(e) {
+    else {
+        patchState({ showProfile: false });
+    }
+    load();
+}
+function onOpen(e: Pick<PageEvent, 'detail'>) {
     const id = e.detail && e.detail.id;
     const url = teamDetailPath(id, { gameName: e.detail && e.detail.gameName });
-    if (!url) return;
-    platform.navigateTo({ url });
-  },
-openLegal(e) {
+    if (!url)
+        return;
+    hostPlatform.navigateTo({ url });
+}
+function openLegal(e: PageEvent) {
     const type = e.currentTarget.dataset.type;
-    platform.navigateTo({
-      url: `/pages/legal/legal?type=${type}`,
+    hostPlatform.navigateTo({
+        url: `/pages/legal/legal?type=${type}`,
     });
-  },
-openFeedback() {
-    platform.navigateTo({ url: "/pages/feedback/feedback" });
-  },
-openAuthor() {
-    platform.showModal({
-      title: "联系作者",
-      content: "作者微信号：Louisville_k",
-      confirmText: "复制微信号",
-      success: (res) => {
-        if (!res.confirm) return;
-        platform.setClipboardData({
-          data: "Louisville_k",
-          fail: () => platform.showToast({ title: "复制失败，请重试", icon: "none" }),
-        });
-      },
+}
+function openFeedback() {
+    hostPlatform.navigateTo({ url: "/pages/feedback/feedback" });
+}
+function openAuthor() {
+    hostPlatform.showModal({
+        title: "联系作者",
+        content: "作者微信号：Louisville_k",
+        confirmText: "复制微信号",
+        success: (res) => {
+            if (!res.confirm)
+                return;
+            hostPlatform.setClipboardData({
+                data: "Louisville_k",
+                fail: () => hostPlatform.showToast({ title: "复制失败，请重试", icon: "none" }),
+            });
+        },
     });
-  },
-openBug() {
+}
+function openBug() {
     const app = getApplication();
     const errorMsg = encodeURIComponent((app.globalData && app.globalData.lastError) || "");
-    platform.navigateTo({ url: `/pages/bug/bug?page=我的&errorMsg=${errorMsg}` });
-  },
-openAdmin() {
-    platform.navigateTo({ url: "/pages/admin/admin" });
-  },
-openPublish() {
-    platform.switchTab({ url: "/pages/publish/publish" });
-  } }
-};
+    hostPlatform.navigateTo({ url: `/pages/bug/bug?page=我的&errorMsg=${errorMsg}` });
+}
+function openAdmin() {
+    hostPlatform.navigateTo({ url: "/pages/admin/admin" });
+}
+function openPublish() {
+    hostPlatform.switchTab({ url: "/pages/publish/publish" });
+}
+onShow(() => {
+    const singlePage = isSinglePage();
+    patchState({ singlePage });
+    if (singlePage)
+        return;
+    bindCopyUrl(hostPlatform, () => plazaShare());
+    patchState({ versionText: getAppVersion().text });
+    load();
+});
+onHide(() => {
+    unbindCopyUrl(hostPlatform);
+});
+onUnload(() => {
+    unbindCopyUrl(hostPlatform);
+});
+onPullDownRefresh(() => {
+    return load().finally(() => hostPlatform.stopPullDownRefresh());
+});
+onShareAppMessage(() => {
+    return shareToFriend(plazaShare());
+});
+onShareTimeline(() => {
+    return shareToTimeline(plazaShare());
+});
 </script>
 <template>
 <timeline-preview v-if="singlePage" />
 <template v-else>
 <view class="page">
-  <view class="me card" @tap="editProfile(eventWithDataset($event, {}))">
+  <view class="me card" @tap="editProfile()">
     <view class="avatar-wrap">
       <image class="avatar" :src="user.avatarUrl || (user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : '/static/images/avatar.png')" mode="aspectFill" />
       <view class="avatar-edit">✎</view>
@@ -196,16 +212,16 @@ openPublish() {
     </view>
   </view>
   <template v-for="(item, index) in visibleTeams" :key="item._id"><team-card :team="item" :team-id="item.id || item._id" :mark="teamTab === 'hosted' ? '车头' : '队员'" @open="onOpen({ detail: $event })" /></template>
-  <view v-if="!visibleTeams.length" class="empty"><image class="empty-art" src="/static/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" /><view>{{phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'}}</view><view class="empty-sub">{{phase === 'Past' ? '结束的组队会留在这里' : '发起一局，或去大厅找队友'}}</view><button v-if="phase === 'Ongoing'" class="btn-ghost" @tap="goPlaza(eventWithDataset($event, {}))">去大厅看看</button></view>
+  <view v-if="!visibleTeams.length" class="empty"><image class="empty-art" src="/static/images/brand/empty-v1.jpg" mode="aspectFit" lazy-load aria-hidden="true" /><view>{{phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'}}</view><view class="empty-sub">{{phase === 'Past' ? '结束的组队会留在这里' : '发起一局，或去大厅找队友'}}</view><button v-if="phase === 'Ongoing'" class="btn-ghost" @tap="goPlaza()">去大厅看看</button></view>
   <view class="footer">
-    <button v-if="isOrganizer && !isAdmin" class="footer-action" @tap="openPublish(eventWithDataset($event, {}))">帮群友发车</button>
-    <button v-if="isAdmin" class="footer-action" @tap="openAdmin(eventWithDataset($event, {}))">管理端</button>
+    <button v-if="isOrganizer && !isAdmin" class="footer-action" @tap="openPublish()">帮群友发车</button>
+    <button v-if="isAdmin" class="footer-action" @tap="openAdmin()">管理端</button>
     <view class="footer-links">
-      <text class="footer-link" @tap="openAuthor(eventWithDataset($event, {}))">联系作者</text>
+      <text class="footer-link" @tap="openAuthor()">联系作者</text>
       <text class="footer-dot">·</text>
-      <text class="footer-link" @tap="openFeedback(eventWithDataset($event, {}))">意见反馈</text>
+      <text class="footer-link" @tap="openFeedback()">意见反馈</text>
       <text class="footer-dot">·</text>
-      <text class="footer-link" @tap="openBug(eventWithDataset($event, {}))">报个错</text>
+      <text class="footer-link" @tap="openBug()">报个错</text>
     </view>
     <view class="legal">
       <text data-type="agreement" @tap="openLegal(eventWithDataset($event, {'type': 'agreement'}))">用户协议</text>
@@ -217,7 +233,7 @@ openPublish() {
     <view class="version">{{versionText}}</view>
   </view>
 
-  <profile-gate :show="showProfile" @done="onProfileDone({ detail: $event })" @close="onProfileClose({ detail: $event })" />
+  <profile-gate :show="showProfile" @done="onProfileDone({ detail: $event })" @close="onProfileClose()" />
   <welcome-letter />
 </view>
 

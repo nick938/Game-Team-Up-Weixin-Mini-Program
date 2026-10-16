@@ -1,66 +1,73 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import type { PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
+import { platform as hostPlatform } from "../../platform/host";
+
 import { REPORT_REASONS } from "../../utils/constants";
 import { getAppVersion } from "../../utils/version";
 import { callTeam, showError } from "../../utils/cloud";
-
-export default {
- data() { return { singlePage: false, ...{
-    reasons: REPORT_REASONS,
-    reason: "",
-    content: "",
-    teamId: "",
-    targetName: "",
-    submitting: false,
-  } }; },
-onLoad(options) {
-    const targetName = options.name ? decodeURIComponent(options.name) : "";
-    this.setData({
-      teamId: options.teamId || "",
-      targetName,
-    });
-    platform.setNavigationBarTitle({ title: targetName ? `举报：${targetName}` : "举报" });
-  },
-methods: { eventWithDataset, setData: updateState,
-pickReason(e) {
-    this.setData({ reason: e.currentTarget.dataset.name });
-  },
-onContent(e) {
-    this.setData({ content: e.detail.value });
-  },
-async onSubmit() {
-    if (this.submitting) return;
-    if (!this.reason) {
-      platform.showToast({ title: "请选择举报理由", icon: "none" });
-      return;
+const state = reactive({  singlePage: false, ...{
+        reasons: REPORT_REASONS,
+        reason: "",
+        content: "",
+        teamId: "",
+        targetName: "",
+        submitting: false,
+    } });
+const { singlePage, reasons, reason, content, teamId, targetName, submitting } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+function pickReason(e: PageEvent) {
+    patchState({ reason: e.currentTarget.dataset.name });
+}
+function onContent(e: PageEvent) {
+    patchState({ content: e.detail.value });
+}
+async function onSubmit() {
+    if (state.submitting)
+        return;
+    if (!state.reason) {
+        hostPlatform.showToast({ title: "请选择举报理由", icon: "none" });
+        return;
     }
-    if (!this.teamId) {
-      platform.showToast({ title: "举报对象已失效", icon: "none" });
-      return;
+    if (!state.teamId) {
+        hostPlatform.showToast({ title: "举报对象已失效", icon: "none" });
+        return;
     }
-    this.setData({ submitting: true });
+    patchState({ submitting: true });
     try {
-      const ver = getAppVersion();
-      await callTeam("submitReport", {
-        targetType: "team",
-        targetId: this.teamId,
-        reason: this.reason,
-        content: (this.content || "").trim(),
-        version: ver.version,
-        envVersion: ver.envLabel,
-      });
-      platform.showToast({ title: "已收到举报", icon: "success" });
-      setTimeout(() => platform.navigateBack(), 700);
-    } catch (e) {
-      showError(e);
-    } finally {
-      this.setData({ submitting: false });
+        const ver = getAppVersion();
+        await callTeam("submitReport", {
+            targetType: "team",
+            targetId: state.teamId,
+            reason: state.reason,
+            content: (state.content || "").trim(),
+            version: ver.version,
+            envVersion: ver.envLabel,
+        });
+        hostPlatform.showToast({ title: "已收到举报", icon: "success" });
+        setTimeout(() => hostPlatform.navigateBack(), 700);
     }
-  } }
-};
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        showError(e);
+    }
+    finally {
+        patchState({ submitting: false });
+    }
+}
+onLoad((options = {}) => {
+    const targetName = options.name ? decodeURIComponent(options.name) : "";
+    patchState({
+        teamId: options.teamId || "",
+        targetName,
+    });
+    hostPlatform.setNavigationBarTitle({ title: targetName ? `举报：${targetName}` : "举报" });
+});
 </script>
 <template>
 <view class="page">
@@ -82,7 +89,7 @@ async onSubmit() {
     <textarea class="area" maxlength="500" :value="content" @input="onContent(eventWithDataset($event, {}))" placeholder="方便的话，说说具体是什么情况" />
     <view class="hint">举报会记录你的账号，恶意举报可能影响使用。</view>
 
-    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit(eventWithDataset($event, {}))">提交举报</button>
+    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit()">提交举报</button>
   </view>
 </view>
 

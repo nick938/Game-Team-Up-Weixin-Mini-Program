@@ -1,80 +1,83 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import type { PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
-import {
-  FEEDBACK_KINDS,
-  FEEDBACK_PAGES,
-  FEEDBACK_TEMPLATE,
-} from "../../utils/constants";
+import { platform as hostPlatform } from "../../platform/host";
+
+import { FEEDBACK_KINDS, FEEDBACK_PAGES, FEEDBACK_TEMPLATE } from "../../utils/constants";
 import { getAppVersion } from "../../utils/version";
 import { callTeam, showError } from "../../utils/cloud";
-
-export default {
- data() { return { singlePage: false, ...{
-    kinds: FEEDBACK_KINDS,
-    pages: FEEDBACK_PAGES,
-    kind: "遇到问题",
-    pageName: "大厅",
-    content: FEEDBACK_TEMPLATE,
-    submitting: false,
-    versionText: "",
-  } }; },
-onLoad() {
-    const ver = getAppVersion();
-    this.version = ver;
-    this.setData({ versionText: ver.text });
-  },
-methods: { eventWithDataset, setData: updateState,
-pickKind(e) {
-    this.setData({ kind: e.currentTarget.dataset.name });
-  },
-pickPage(e) {
-    this.setData({ pageName: e.currentTarget.dataset.name });
-  },
-onContent(e) {
-    this.setData({ content: e.detail.value });
-  },
-async onSubmit() {
-    if (this.submitting) return;
-    const content = (this.content || "").trim();
-    const filled = content
-      .replace(/【我遇到的情况】/g, "")
-      .replace(/【我希望怎样】/g, "")
-      .replace(/\s/g, "");
-    if (filled.length < 4) {
-      platform.showToast({ title: "请把情况写具体一点", icon: "none" });
-      return;
-    }
-    this.setData({ submitting: true });
-    try {
-      const ver = this.version || getAppVersion();
-      const res = await callTeam("submitFeedback", {
-        kind: this.kind,
-        page: this.pageName,
-        content,
-        version: ver.version,
-        envVersion: ver.envLabel,
-      });
-      if (res.mailed) {
-        platform.showToast({ title: "已发到邮箱", icon: "success" });
-        this.setData({ content: FEEDBACK_TEMPLATE });
-        setTimeout(() => platform.navigateBack(), 600);
+const state = reactive({ version: null as ReturnType<typeof getAppVersion> | null, singlePage: false, ...{
+        kinds: FEEDBACK_KINDS,
+        pages: FEEDBACK_PAGES,
+        kind: "遇到问题",
+        pageName: "大厅",
+        content: FEEDBACK_TEMPLATE,
+        submitting: false,
+        versionText: "",
+    } });
+const { singlePage, kinds, pages, kind, pageName, content, submitting, versionText } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+function pickKind(e: PageEvent) {
+    patchState({ kind: e.currentTarget.dataset.name });
+}
+function pickPage(e: PageEvent) {
+    patchState({ pageName: e.currentTarget.dataset.name });
+}
+function onContent(e: PageEvent) {
+    patchState({ content: e.detail.value });
+}
+async function onSubmit() {
+    if (state.submitting)
         return;
-      }
-      platform.showModal({
-        title: "反馈已记下，邮件没发出去",
-        content: res.mailError || "请重新上传云函数 team，并勾选云端安装依赖。也可在云开发控制台查看 feedback 集合。",
-        showCancel: false,
-      });
-    } catch (e) {
-      showError(e);
-    } finally {
-      this.setData({ submitting: false });
+    const content = (state.content || "").trim();
+    const filled = content
+        .replace(/【我遇到的情况】/g, "")
+        .replace(/【我希望怎样】/g, "")
+        .replace(/\s/g, "");
+    if (filled.length < 4) {
+        hostPlatform.showToast({ title: "请把情况写具体一点", icon: "none" });
+        return;
     }
-  } }
-};
+    patchState({ submitting: true });
+    try {
+        const ver = state.version || getAppVersion();
+        const res = await callTeam("submitFeedback", {
+            kind: state.kind,
+            page: state.pageName,
+            content,
+            version: ver.version,
+            envVersion: ver.envLabel,
+        });
+        if (res.mailed) {
+            hostPlatform.showToast({ title: "已发到邮箱", icon: "success" });
+            patchState({ content: FEEDBACK_TEMPLATE });
+            setTimeout(() => hostPlatform.navigateBack(), 600);
+            return;
+        }
+        hostPlatform.showModal({
+            title: "反馈已记下，邮件没发出去",
+            content: res.mailError || "请重新上传云函数 team，并勾选云端安装依赖。也可在云开发控制台查看 feedback 集合。",
+            showCancel: false,
+        });
+    }
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        showError(e);
+    }
+    finally {
+        patchState({ submitting: false });
+    }
+}
+onLoad(() => {
+    const ver = getAppVersion();
+    state.version = ver;
+    patchState({ versionText: ver.text });
+});
 </script>
 <template>
 <view class="page">
@@ -96,7 +99,7 @@ async onSubmit() {
     <textarea class="area" maxlength="800" :value="content" @input="onContent(eventWithDataset($event, {}))" placeholder="按模板填写" />
     <view class="hint">已经填好模板，直接在空行里写就行。</view>
 
-    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit(eventWithDataset($event, {}))">发送到邮箱</button>
+    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit()">发送到邮箱</button>
   </view>
 
   <view class="version">当前版本 {{versionText}}</view>

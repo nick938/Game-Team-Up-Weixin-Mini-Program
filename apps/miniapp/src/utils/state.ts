@@ -1,11 +1,10 @@
-import { nextTick } from 'vue';
+import type { PageEvent } from '../types/domain';
 
-// First migration keeps the existing event handlers; updates go through Vue's reactive data.
-export function updateState(this: { $data: Record<string, unknown> }, values: Record<string, unknown>, done?: () => void) {
-  Object.assign(this.$data, values);
-  if (done) void nextTick(done);
-}
-
-export function eventWithDataset(event: { detail?: unknown; currentTarget?: { dataset?: Record<string, unknown> }; target?: unknown }, dataset: Record<string, unknown> = {}) {
-  return { detail: event.detail || {}, currentTarget: { dataset: { ...event.currentTarget?.dataset, ...dataset } }, target: event.target };
+/** Preserve typed objects passed by the template; native datasets may stringify them. */
+export function eventWithDataset(event: unknown, dataset: Record<string, unknown> = {}): PageEvent {
+  const source = event as { detail?: object; currentTarget?: { dataset?: object } };
+  return {
+    detail: source.detail || {},
+    currentTarget: { dataset: { ...source.currentTarget?.dataset, ...dataset } },
+  } as PageEvent;
 }

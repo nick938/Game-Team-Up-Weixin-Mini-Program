@@ -1,79 +1,78 @@
-<script>
-import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { updateState } from "../../utils/state";
+<script setup lang="ts">
+import { reactive, toRefs, nextTick, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+
+
+import { platform as hostPlatform } from "../../platform/host";
 import { isSinglePage } from "../../utils/runtime";
 const STORAGE_KEY = "welcomeLetterV2";
-
 function hasReadLetter() {
-  try {
-    return !!platform.getStorageSync(STORAGE_KEY);
-  } catch (e) {
-    return false;
-  }
+    try {
+        return !!hostPlatform.getStorageSync(STORAGE_KEY);
+    }
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        return false;
+    }
 }
-
 function markLetterRead() {
-  try {
-    platform.setStorageSync(STORAGE_KEY, 1);
-  } catch (e) {
-    // 写不进去也先收起，避免挡住这次使用
-  }
+    try {
+        hostPlatform.setStorageSync(STORAGE_KEY, 1);
+    }
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        // 写不进去也先收起，避免挡住这次使用
+    }
 }
-
-function setTabBarHidden(hidden) {
-  if (hidden) {
-    platform.hideTabBar({ animation: false, fail() {} });
-  } else {
-    platform.showTabBar({ animation: false, fail() {} });
-  }
+function setTabBarHidden(hidden: boolean) {
+    if (hidden) {
+        hostPlatform.hideTabBar({ animation: false, fail() { } });
+    }
+    else {
+        hostPlatform.showTabBar({ animation: false, fail() { } });
+    }
 }
-
-export default {
-props:{},
-data(){return {
+const state = reactive({
     show: false,
-  }},
-mounted() {
-      this.syncVisibility();
-    },
-onShow() {
-      this.syncVisibility();
-    },
-methods:{eventWithDataset, setData: updateState, ...{
-    noop() {},
-
-    syncVisibility() {
-      if (isSinglePage()) {
-        this.setData({ show: false });
+});
+const { show } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+function noop() { }
+function syncVisibility() {
+    if (isSinglePage()) {
+        patchState({ show: false });
         return;
-      }
-      const show = !hasReadLetter();
-      this.setData({ show });
-      setTabBarHidden(show);
-    },
-
-    dismiss() {
-      markLetterRead();
-      this.setData({ show: false });
-      setTabBarHidden(false);
-    },
-
-    openRules() {
-      this.dismiss();
-      platform.navigateTo({ url: "/pages/legal/legal?type=community" });
-    },
-
-    openFeedback() {
-      this.dismiss();
-      platform.navigateTo({ url: "/pages/feedback/feedback" });
-    },
-  }}
-};
+    }
+    const show = !hasReadLetter();
+    patchState({ show });
+    setTabBarHidden(show);
+}
+function dismiss() {
+    markLetterRead();
+    patchState({ show: false });
+    setTabBarHidden(false);
+}
+function openRules() {
+    dismiss();
+    hostPlatform.navigateTo({ url: "/pages/legal/legal?type=community" });
+}
+function openFeedback() {
+    dismiss();
+    hostPlatform.navigateTo({ url: "/pages/feedback/feedback" });
+}
+onMounted(() => {
+    syncVisibility();
+});
+onShow(() => {
+    syncVisibility();
+});
 </script>
 <template>
-<view v-if="show" class="mask" @touchmove.stop.prevent="noop(eventWithDataset($event, {}))">
-  <view class="letter" @tap.stop.prevent="noop(eventWithDataset($event, {}))">
+<view v-if="show" class="mask" @touchmove.stop.prevent="noop()">
+  <view class="letter" @tap.stop.prevent="noop()">
     <image class="stamp" src="/static/images/brand/avatar-v1.jpg" mode="aspectFill" aria-hidden="true" />
     <view class="kicker">开黑星球｜游戏搭子</view>
     <view class="title">一起玩，好好玩</view>
@@ -85,11 +84,11 @@ methods:{eventWithDataset, setData: updateState, ...{
       <view>房间号和密码只给这局里的人用。</view>
     </view>
     <view class="sign">点下面，即表示你愿意遵守社区公约。玩得开心。</view>
-    <button class="agree" @tap="dismiss(eventWithDataset($event, {}))">好的，开黑去</button>
+    <button class="agree" @tap="dismiss()">好的，开黑去</button>
     <view class="links">
-      <button class="rules-link" @tap="openRules(eventWithDataset($event, {}))">社区公约</button>
+      <button class="rules-link" @tap="openRules()">社区公约</button>
       <view class="links-dot">·</view>
-      <button class="rules-link" @tap="openFeedback(eventWithDataset($event, {}))">意见反馈</button>
+      <button class="rules-link" @tap="openFeedback()">意见反馈</button>
     </view>
   </view>
 </view>

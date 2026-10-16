@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { Session } from '../api/client';
-export interface User { nickName?: string; avatarUrl?: string; avatarFileID?: string; avatarBase64?: string; bio?: string }
+import type { User, TeamDraft, Game } from '../types/domain';
+export type { User } from '../types/domain';
 export const useAppStore = defineStore('application', {
   state: () => ({
     env: 'cloud1-d9gniyjzh4e2ffb1c',
@@ -8,8 +9,8 @@ export const useAppStore = defineStore('application', {
     session: null as Session | null,
     isAdmin: false, isOrganizer: false,
     editingTeamId: null as string | null,
-    republishTeam: null as Record<string, unknown> | null,
-    prefillGame: null as Record<string, unknown> | string | null,
+    republishTeam: null as TeamDraft | null,
+    prefillGame: null as Pick<Game, 'name' | 'platform'> | null,
     lastError: '',
   }),
 });

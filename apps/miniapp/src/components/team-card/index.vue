@@ -1,41 +1,25 @@
-<script>
-import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { updateState } from "../../utils/state";
-import { usableTeamId } from "../../utils/team-entry";
+<script setup lang="ts">
 
-export default {
-props:{
-    team: {
-      type: Object,
-      default: () => ({}),
-    },
-    teamId: {
-      type: String,
-      default: "",
-    },
-    mark: {
-      type: String,
-      default: "",
-    },
-  },
-data(){return {}},
-methods:{eventWithDataset, setData: updateState, ...{
-    onTap() {
-      const team = this.team || {};
-      const id = usableTeamId(this.teamId || team.id || team._id);
-      if (!id) return;
-      this.$emit("open", { id, gameName: team.gameName || "" });
-    },
-  }}
-};
+import type { Team } from '../../types/domain';
+
+
+import { usableTeamId } from "../../utils/team-entry";
+const props = withDefaults(defineProps<{ team?: Partial<Team>; teamId?: string; mark?: string }>(), { team: () => ({}), teamId: '', mark: '' });
+const emit = defineEmits<{ open: [detail: { id: string; gameName: string }] }>();
+function onTap() {
+    const team = props.team || {};
+    const id = usableTeamId(props.teamId || team.id || team._id);
+    if (!id)
+        return;
+    emit("open", { id, gameName: team.gameName || "" });
+}
 </script>
 <template>
-<view class="card" hover-class="card-pressed" @tap.stop.prevent="onTap(eventWithDataset($event, {}))">
+<view class="card" hover-class="card-pressed" @tap.stop.prevent="onTap()">
   <view class="top">
     <view class="game">{{team.gameName}}<text v-if="team.rankReq" class="game-extra"> · {{team.rankReq}}</text></view>
     <view :class="'status status-' + (team.displayStatus)">
-      <template v-if="team.displayStatus === 'recruiting' && team.needCount > 0">缺{{team.needCount}}人</template>
+      <template v-if="team.displayStatus === 'recruiting' && (team.needCount || 0) > 0">缺{{team.needCount}}人</template>
       <template v-else>{{team.statusText}}</template>
     </view>
   </view>

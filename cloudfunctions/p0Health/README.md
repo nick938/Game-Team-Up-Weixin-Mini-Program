@@ -16,7 +16,7 @@
 
 探测地址：`https://cloud1-d9gniyjzh4e2ffb1c-1312971366.ap-shanghai.app.tcloudbase.com/p0/health`。这只是测试用传输探测，不是业务 API；默认域名只适合开发测试。
 
-验证：在 experiments/p0-uniapp 执行 `npm run check:http -- https://测试域名/p0/health`。检查 GET、HEAD、POST 拒绝、允许来源 CORS、OPTIONS 和未知子路径，报告保存在 dist/p0/http-results.json。
+验证：在 apps/miniapp 执行 `npm run check:http -- https://测试域名/p0/health`。检查 GET、HEAD、POST 拒绝、允许来源 CORS、OPTIONS 和未知子路径，报告保存在 dist/p0/http-results.json。
 
 控制台限频选项标注标准版/企业版，当前个人版未启用自定义网关限频，未升级套餐。公开探测仍消耗环境额度；验证不用时可单独关闭此路由。
 

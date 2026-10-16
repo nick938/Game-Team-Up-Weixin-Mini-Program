@@ -1,201 +1,202 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onLoad, onShow, onHide, onUnload, onPullDownRefresh, onReachBottom, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+import type { Team, Game, SharePayload, PageQuery, PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
+import { platform as hostPlatform } from "../../platform/host";
 import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
 import { isSinglePage } from "../../utils/runtime";
 import { decorateTeam } from "../../utils/format";
 import { callTeam, showError } from "../../utils/cloud";
 import { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from "../../utils/share";
 import { teamDetailPath } from "../../utils/team-entry";
 import { SORT_MODES, DEFAULT_SORT, sortTeams } from "../../utils/lobby";
-import {
-  FEATURED_GAMES,
-  resolveGameQuery,
-  filterTeamsByGame,
-  gameShare,
-  pageSeo,
-} from "../../utils/games";
-
+import { FEATURED_GAMES, resolveGameQuery, filterTeamsByGame, gameShare, pageSeo } from "../../utils/games";
 const PAGE_SIZE = 20;
 // 游戏页只展示匹配到的车；大厅按时间分页，这里最多再往后扫几页，避免空页。
 const SCAN_PAGES = 5;
-
-function mergeTeams(current, incoming) {
-  const seen = {};
-  const out = [];
-  (current || []).concat(incoming || []).forEach((t) => {
-    const id = t.id || t._id;
-    if (!id || seen[id]) return;
-    seen[id] = true;
-    out.push(t);
-  });
-  return out;
-}
-
-function othersOf(game) {
-  if (!game) return FEATURED_GAMES;
-  return FEATURED_GAMES.filter((item) => item.slug !== game.slug);
-}
-
-export default {
- data() { return { singlePage: false, ...{
-    featured: FEATURED_GAMES,
-    others: FEATURED_GAMES,
-    game: null,
-    gameKey: "",
-    seoTitle: pageSeo(null).title,
-    seoHeading: pageSeo(null).heading,
-    seoDescription: pageSeo(null).description,
-    tags: [],
-    filtered: [],
-    sorts: SORT_MODES,
-    sortMode: DEFAULT_SORT,
-    hasMore: false,
-    loading: false,
-    loadingMore: false,
-    listError: false,
-  } }; },
-onLoad(options) {
-    this.applyGame(options);
-  },
-onShow() {
-    const singlePage = isSinglePage();
-    this.setData({ singlePage });
-    if (singlePage) return;
-    bindCopyUrl(platform, () => this.sharePayload || gameShare(this.game));
-    this.loadList();
-  },
-onHide() {
-    unbindCopyUrl(platform);
-  },
-onUnload() {
-    unbindCopyUrl(platform);
-  },
-onPullDownRefresh() {
-    this.loadList().finally(() => platform.stopPullDownRefresh());
-  },
-onReachBottom() {
-    if (isSinglePage()) return;
-    this.loadMore();
-  },
-onShareAppMessage() {
-    const share = this.sharePayload || gameShare(this.game);
-    return shareToFriend({
-      title: this.seoTitle || share.title,
-      path: share.path,
+function mergeTeams(current: Team[], incoming: Team[]) {
+    const seen: Record<string, boolean> = {};
+    const out: Team[] = [];
+    (current || []).concat(incoming || []).forEach((t) => {
+        const id = t.id || t._id;
+        if (!id || seen[id])
+            return;
+        seen[id] = true;
+        out.push(t);
     });
-  },
-onShareTimeline() {
-    const share = this.sharePayload || gameShare(this.game);
-    return shareToTimeline({
-      title: this.seoTitle || share.title,
-      query: share.query,
-    });
-  },
-methods: { eventWithDataset, setData: updateState,
-applyGame(options) {
+    return out;
+}
+function othersOf(game: Game | null) {
+    if (!game)
+        return FEATURED_GAMES;
+    return FEATURED_GAMES.filter((item) => item.slug !== game.slug);
+}
+const state = reactive({ teams: [] as Team[], nextOffset: 0, sharePayload: null as SharePayload | null, singlePage: false, ...{
+        featured: FEATURED_GAMES,
+        others: FEATURED_GAMES,
+        game: null as Game | null,
+        gameKey: "",
+        seoTitle: pageSeo(null).title,
+        seoHeading: pageSeo(null).heading,
+        seoDescription: pageSeo(null).description,
+        tags: [] as string[],
+        filtered: [] as Team[],
+        sorts: SORT_MODES,
+        sortMode: DEFAULT_SORT,
+        hasMore: false,
+        loading: false,
+        loadingMore: false,
+        listError: false,
+    } });
+const { singlePage, featured, others, game, gameKey, seoTitle, seoHeading, seoDescription, tags, filtered, sorts, sortMode, hasMore, loading, loadingMore, listError } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+function applyGame(options: PageQuery = {}) {
     const game = resolveGameQuery(options);
     const seo = pageSeo(game);
     const share = gameShare(game);
-    this.game = game;
-    this.teams = [];
-    this.nextOffset = 0;
-    platform.setNavigationBarTitle({ title: seo.title });
-    this.setData({
-      game,
-      gameKey: seo.gameKey,
-      seoTitle: seo.title,
-      seoHeading: seo.heading,
-      seoDescription: seo.description,
-      tags: (game && game.tags) || [],
-      others: othersOf(game),
-      filtered: [],
-      sortMode: DEFAULT_SORT,
-      hasMore: false,
-      listError: false,
+    state.game = game;
+    state.teams = [];
+    state.nextOffset = 0;
+    hostPlatform.setNavigationBarTitle({ title: seo.title });
+    patchState({
+        game,
+        gameKey: seo.gameKey,
+        seoTitle: seo.title,
+        seoHeading: seo.heading,
+        seoDescription: seo.description,
+        tags: (game && game.tags) || [],
+        others: othersOf(game),
+        filtered: [],
+        sortMode: DEFAULT_SORT,
+        hasMore: false,
+        listError: false,
     });
-    this.sharePayload = share;
-  },
-loadMore() {
-    if (!this.hasMore || this.loading || this.loadingMore) return;
-    this.loadList(false);
-  },
-async loadList(reset = true) {
-    if (isSinglePage() || !this.game) return;
-    if (this.loading || this.loadingMore) return;
-    this.setData(
-      reset
+    state.sharePayload = share;
+}
+function loadMore() {
+    if (!state.hasMore || state.loading || state.loadingMore)
+        return;
+    loadList(false);
+}
+async function loadList(reset = true) {
+    if (isSinglePage() || !state.game)
+        return;
+    if (state.loading || state.loadingMore)
+        return;
+    patchState(reset
         ? { loading: true, listError: false }
-        : { loadingMore: true, listError: false }
-    );
+        : { loadingMore: true, listError: false });
     try {
-      let hasMore = this.hasMore;
-      let rounds = 0;
-      const maxRounds = reset ? SCAN_PAGES : 1;
-      do {
-        const offset = reset && rounds === 0 ? 0 : this.nextOffset || 0;
-        const res = await callTeam("listTeams", { offset, limit: PAGE_SIZE });
-        const page = (res.list || []).map(decorateTeam);
-        const teams =
-          reset && rounds === 0
-            ? mergeTeams([], page)
-            : mergeTeams(this.teams, page);
-        this.teams = teams;
-        this.nextOffset =
-          typeof res.nextOffset === "number" ? res.nextOffset : offset + page.length;
-        hasMore = !!res.hasMore;
-        rounds += 1;
-        this.setData({
-          hasMore,
-          listError: false,
-          filtered: this.buildView(teams, this.sortMode),
-        });
-      } while (
-        reset &&
-        this.filtered.length < 8 &&
-        hasMore &&
-        rounds < maxRounds
-      );
-    } catch (e) {
-      this.setData({ listError: true });
-      showError(e);
-    } finally {
-      this.setData({ loading: false, loadingMore: false });
+        let hasMore = state.hasMore;
+        let rounds = 0;
+        const maxRounds = reset ? SCAN_PAGES : 1;
+        do {
+            const offset = reset && rounds === 0 ? 0 : state.nextOffset || 0;
+            const res = await callTeam("listTeams", { offset, limit: PAGE_SIZE });
+            const page = (res.list || []).map(decorateTeam);
+            const teams = reset && rounds === 0
+                ? mergeTeams([], page)
+                : mergeTeams(state.teams, page);
+            state.teams = teams;
+            state.nextOffset =
+                typeof res.nextOffset === "number" ? res.nextOffset : offset + page.length;
+            hasMore = !!res.hasMore;
+            rounds += 1;
+            patchState({
+                hasMore,
+                listError: false,
+                filtered: buildView(teams, state.sortMode),
+            });
+        } while (reset &&
+            state.filtered.length < 8 &&
+            hasMore &&
+            rounds < maxRounds);
     }
-  },
-buildView(teams, sortMode) {
-    return sortTeams(filterTeamsByGame(teams, this.game), sortMode);
-  },
-pickSort(e) {
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        patchState({ listError: true });
+        showError(e);
+    }
+    finally {
+        patchState({ loading: false, loadingMore: false });
+    }
+}
+function buildView(teams: Team[], sortMode: string) {
+    return sortTeams(filterTeamsByGame(teams, state.game), sortMode);
+}
+function pickSort(e: PageEvent) {
     const sortMode = e.currentTarget.dataset.key;
-    if (!SORT_MODES.some((m) => m.key === sortMode)) return;
-    this.setData({
-      sortMode,
-      filtered: this.buildView(this.teams, sortMode),
+    if (!SORT_MODES.some((m) => m.key === sortMode))
+        return;
+    patchState({
+        sortMode,
+        filtered: buildView(state.teams, sortMode),
     });
-  },
-onOpen(e) {
+}
+function onOpen(e: Pick<PageEvent, 'detail'>) {
     const id = e.detail && e.detail.id;
     const url = teamDetailPath(id, { gameName: e.detail && e.detail.gameName });
-    if (!url) return;
-    platform.navigateTo({ url });
-  },
-goPublish() {
+    if (!url)
+        return;
+    hostPlatform.navigateTo({ url });
+}
+function goPublish() {
     const app = getApplication();
-    const game = this.game || this.game;
+    const game = state.game || state.game;
     if (game) {
-      app.globalData.prefillGame = {
-        name: game.name,
-        platform: game.platform,
-      };
+        app.globalData.prefillGame = {
+            name: game.name,
+            platform: game.platform,
+        };
     }
-    platform.switchTab({ url: "/pages/publish/publish" });
-  },
-goPlaza() {
-    platform.switchTab({ url: "/pages/index/index" });
-  } }
-};
+    hostPlatform.switchTab({ url: "/pages/publish/publish" });
+}
+function goPlaza() {
+    hostPlatform.switchTab({ url: "/pages/index/index" });
+}
+onLoad((options = {}) => {
+    applyGame(options);
+});
+onShow(() => {
+    const singlePage = isSinglePage();
+    patchState({ singlePage });
+    if (singlePage)
+        return;
+    bindCopyUrl(hostPlatform, () => state.sharePayload || gameShare(state.game));
+    loadList();
+});
+onHide(() => {
+    unbindCopyUrl(hostPlatform);
+});
+onUnload(() => {
+    unbindCopyUrl(hostPlatform);
+});
+onPullDownRefresh(() => {
+    loadList().finally(() => hostPlatform.stopPullDownRefresh());
+});
+onReachBottom(() => {
+    if (isSinglePage())
+        return;
+    loadMore();
+});
+onShareAppMessage(() => {
+    const share = state.sharePayload || gameShare(state.game);
+    return shareToFriend({
+        title: state.seoTitle || share.title,
+        path: share.path,
+    });
+});
+onShareTimeline(() => {
+    const share = state.sharePayload || gameShare(state.game);
+    return shareToTimeline({
+        title: state.seoTitle || share.title,
+        query: share.query,
+    });
+});
 </script>
 <template>
 <timeline-preview v-if="singlePage" />
@@ -204,8 +205,8 @@ goPlaza() {
   <view class="seo-header">
     <view class="seo-title">{{seoHeading}}</view>
     <view class="seo-desc">{{seoDescription}}</view>
-    <button v-if="game" size="mini" class="hero-create" @tap="goPublish(eventWithDataset($event, {}))">发起{{game.entryLabel}} ＋</button>
-    <button v-else size="mini" class="hero-create" @tap="goPlaza(eventWithDataset($event, {}))">回大厅看看</button>
+    <button v-if="game" size="mini" class="hero-create" @tap="goPublish()">发起{{game.entryLabel}} ＋</button>
+    <button v-else size="mini" class="hero-create" @tap="goPlaza()">回大厅看看</button>
   </view>
 
   <template v-if="game">
@@ -219,11 +220,11 @@ goPlaza() {
     <view v-if="loading && !filtered.length" class="empty">正在找队伍…</view>
     <view v-else-if="listError && !filtered.length" class="empty">
       <view>队伍列表暂时加载失败，过一会再试。</view>
-      <button class="btn-ghost empty-btn" @tap="loadList(eventWithDataset($event, {}))">再试一次</button>
+      <button class="btn-ghost empty-btn" @tap="loadList()">再试一次</button>
     </view>
     <view v-else-if="!filtered.length" class="empty">
       <view>暂时还没有队伍，发布一个组队邀请吧。</view>
-      <button class="btn-primary empty-btn" @tap="goPublish(eventWithDataset($event, {}))">去发{{game.entryLabel}}</button>
+      <button class="btn-primary empty-btn" @tap="goPublish()">去发{{game.entryLabel}}</button>
     </view>
 
     <template v-for="(item, index) in filtered" :key="item._id"><team-card :team="item" :team-id="item.id || item._id" :mark="item.mark" @open="onOpen({ detail: $event })" /></template>

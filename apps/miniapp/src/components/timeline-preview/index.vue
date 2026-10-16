@@ -1,12 +1,4 @@
-<script>
-import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { updateState } from "../../utils/state";
-export default {
-props:{},
-data(){return {}},
-methods:{eventWithDataset, setData: updateState, ...{}}
-};
+<script setup lang="ts">
 </script>
 <template>
 <view class="preview">

@@ -1,3 +1,4 @@
+import type { TeamResults } from '../types/domain';
 import { ApiError, checked, createTeamClient, type Request, type Result } from './client';
 import { buildTarget, loginCode } from '../platform/host';
 import { wechatCloud } from '../platform/wechat';
@@ -30,7 +31,9 @@ export function teamClient() {
   });
   return client;
 }
-export const callTeam = (action: string, data: Record<string, unknown> = {}) => teamClient().call(action, data);
+export function callTeam<K extends string>(action: K, data: Record<string, unknown> = {}): Promise<Result & (K extends keyof TeamResults ? TeamResults[K] : Record<string, unknown>)> {
+  return teamClient().call(action, data) as Promise<Result & (K extends keyof TeamResults ? TeamResults[K] : Record<string, unknown>)>;
+}
 export function showError(error: unknown) { uni.showToast({ title: error instanceof Error ? error.message : '出错了', icon: 'none' }); }
 export async function uploadAvatar(filePath: string): Promise<string> {
   if (buildTarget === 'mp-weixin') {

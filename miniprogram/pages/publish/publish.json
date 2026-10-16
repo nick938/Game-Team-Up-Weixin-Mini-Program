@@ -1,6 +1,0 @@
-{
-  "navigationBarTitleText": "发起组队开黑",
-  "usingComponents": {
-    "profile-gate": "/components/profile-gate/index"
-  }
-}

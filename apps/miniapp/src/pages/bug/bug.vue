@@ -1,86 +1,94 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
+import type { PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
-import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
+import { platform as hostPlatform } from "../../platform/host";
+
 import { FEEDBACK_PAGES, BUG_TEMPLATE } from "../../utils/constants";
 import { getAppVersion } from "../../utils/version";
 import { callTeam, showError } from "../../utils/cloud";
-
 function systemSummary() {
-  try {
-    const info = platform.getSystemInfoSync() || {};
-    return [
-      info.platform,
-      info.model,
-      info.system,
-      info.SDKVersion ? `SDK ${info.SDKVersion}` : "",
-    ]
-      .filter(Boolean)
-      .join(" · ")
-      .slice(0, 200);
-  } catch (e) {
-    return "";
-  }
-}
-
-export default {
- data() { return { singlePage: false, ...{
-    pages: FEEDBACK_PAGES,
-    pageName: "大厅",
-    content: BUG_TEMPLATE,
-    errorMsg: "",
-    submitting: false,
-  } }; },
-onLoad(options) {
-    const pageName = options.page && FEEDBACK_PAGES.includes(options.page)
-      ? options.page
-      : "大厅";
-    const errorMsg = options.errorMsg ? decodeURIComponent(options.errorMsg) : "";
-    this.setData({ pageName, errorMsg: errorMsg.slice(0, 500) });
-  },
-methods: { eventWithDataset, setData: updateState,
-pickPage(e) {
-    this.setData({ pageName: e.currentTarget.dataset.name });
-  },
-onContent(e) {
-    this.setData({ content: e.detail.value });
-  },
-onErrorMsg(e) {
-    this.setData({ errorMsg: e.detail.value });
-  },
-async onSubmit() {
-    if (this.submitting) return;
-    const content = (this.content || "").trim();
-    const filled = content
-      .replace(/【我做了什么】/g, "")
-      .replace(/【出现了什么】/g, "")
-      .replace(/\s/g, "");
-    if (filled.length < 4) {
-      platform.showToast({ title: "请简单说说发生了什么", icon: "none" });
-      return;
-    }
-    this.setData({ submitting: true });
     try {
-      const ver = getAppVersion();
-      await callTeam("submitBug", {
-        page: this.pageName,
-        content,
-        errorMsg: (this.errorMsg || "").trim(),
-        systemInfo: systemSummary(),
-        version: ver.version,
-        envVersion: ver.envLabel,
-      });
-      platform.showToast({ title: "已收到，谢谢你", icon: "success" });
-      this.setData({ content: BUG_TEMPLATE, errorMsg: "" });
-      setTimeout(() => platform.navigateBack(), 700);
-    } catch (e) {
-      showError(e);
-    } finally {
-      this.setData({ submitting: false });
+        const info = hostPlatform.getSystemInfoSync() || {};
+        return [
+            info.platform,
+            info.model,
+            info.system,
+            info.SDKVersion ? `SDK ${info.SDKVersion}` : "",
+        ]
+            .filter(Boolean)
+            .join(" · ")
+            .slice(0, 200);
     }
-  } }
-};
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        return "";
+    }
+}
+const state = reactive({  singlePage: false, ...{
+        pages: FEEDBACK_PAGES,
+        pageName: "大厅",
+        content: BUG_TEMPLATE,
+        errorMsg: "",
+        submitting: false,
+    } });
+const { singlePage, pages, pageName, content, errorMsg, submitting } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+function pickPage(e: PageEvent) {
+    patchState({ pageName: e.currentTarget.dataset.name });
+}
+function onContent(e: PageEvent) {
+    patchState({ content: e.detail.value });
+}
+function onErrorMsg(e: PageEvent) {
+    patchState({ errorMsg: e.detail.value });
+}
+async function onSubmit() {
+    if (state.submitting)
+        return;
+    const content = (state.content || "").trim();
+    const filled = content
+        .replace(/【我做了什么】/g, "")
+        .replace(/【出现了什么】/g, "")
+        .replace(/\s/g, "");
+    if (filled.length < 4) {
+        hostPlatform.showToast({ title: "请简单说说发生了什么", icon: "none" });
+        return;
+    }
+    patchState({ submitting: true });
+    try {
+        const ver = getAppVersion();
+        await callTeam("submitBug", {
+            page: state.pageName,
+            content,
+            errorMsg: (state.errorMsg || "").trim(),
+            systemInfo: systemSummary(),
+            version: ver.version,
+            envVersion: ver.envLabel,
+        });
+        hostPlatform.showToast({ title: "已收到，谢谢你", icon: "success" });
+        patchState({ content: BUG_TEMPLATE, errorMsg: "" });
+        setTimeout(() => hostPlatform.navigateBack(), 700);
+    }
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        showError(e);
+    }
+    finally {
+        patchState({ submitting: false });
+    }
+}
+onLoad((options = {}) => {
+    const pageName = options.page && FEEDBACK_PAGES.includes(options.page)
+        ? options.page
+        : "大厅";
+    const errorMsg = options.errorMsg ? decodeURIComponent(options.errorMsg) : "";
+    patchState({ pageName, errorMsg: errorMsg.slice(0, 500) });
+});
 </script>
 <template>
 <view class="page">
@@ -100,7 +108,7 @@ async onSubmit() {
     <view class="label">报错信息（选填）</view>
     <textarea class="area area-sm" maxlength="500" :value="errorMsg" @input="onErrorMsg(eventWithDataset($event, {}))" placeholder="如果看到一串错误提示，可以贴在这里" />
 
-    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit(eventWithDataset($event, {}))">提交报错</button>
+    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit()">提交报错</button>
   </view>
 </view>
 

@@ -16,6 +16,7 @@ export default defineManifestConfig({
     }
   },
   "mp-weixin": {
+    "sitemapLocation": "static/sitemap.json",
     "appid": "wxa1af4fb6a4c66334",
     "setting": {
       "urlCheck": true

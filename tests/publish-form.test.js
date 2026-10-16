@@ -19,7 +19,7 @@ const {
   buildDurationPicker,
   buildTimeSummary,
   validatePublishTeam,
-} = require("../miniprogram/utils/publish-form.js");
+} = require('./support/miniapp.cjs').harness().load('utils/publish-form');
 
 const ALL = ["Steam", "手游", "端游", "主机"];
 

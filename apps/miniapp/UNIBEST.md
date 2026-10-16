@@ -4,7 +4,7 @@
 核对提交：`dc3af8ddb99b78fa806078c80434b664a4b1ce93`，模板版本 4.4.1。
 MIT 许可保留于 `LICENSE.unibest`。
 
-本工程从已有官方 uni-app P0 原型迁移业务，再按该版本 unibest 基础模板合入和裁剪工程配置，没有直接覆盖原微信工程。
+本工程从已有官方 uni-app P0 原型迁移业务，再按该版本 unibest 基础模板合入和裁剪工程配置，该迁移工程现已成为唯一前端，原生微信目录与早期实验工程已清理。
 
 保留：Vue 3、TypeScript、Vite 5、UniPages/UniManifest、UnoCSS presetUni 与旧颜色兼容、Pinia、统一请求层。Wot UI 用于资料保存与诊断组件，原业务布局样式优先保留。
 
@@ -14,6 +14,6 @@ MIT 许可保留于 `LICENSE.unibest`。
 
 `pages.config.ts`、`manifest.config.ts` 是配置源。`src/pages.json`、`src/manifest.json` 和生成的页面类型不手动修改、不提交；每次 uni 构建自动生成。
 
-旧页面行为逻辑暂时保留 JavaScript（ES modules + Vue Options API）；平台适配、API、Pinia、资料组件使用 TypeScript。尚未把全部旧页面重写为 `<script setup lang="ts">`，类型检查也不等于旧 JS 业务实现全部获得静态类型覆盖。
+所有 Vue 页面及组件现已采用 `<script setup lang="ts">`，使用 Vue 响应式状态与 uni-app 生命周期，移除了旧页面的 `this/setData` 适配。平台适配、API、Pinia 和业务类型使用 TypeScript。共享工具仍保留部分 JavaScript，`checkJs` 未开启，不能宣称全部工具逻辑已获得严格类型覆盖。
 
 未引入 layouts 的原因：当前页面无需独立布局包装，0.1.11 经 c12/giget 引入 tar 6.2.1 的严重安全告警，删除该未使用依赖。manifest 插件也仍经 c12/giget 依赖 tar 6.2.1，故严重告警并未全部消除；其余编译链依赖也有安全告警，尚未作为生产发布候选完成升级审计。

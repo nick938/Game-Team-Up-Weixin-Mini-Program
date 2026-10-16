@@ -1,186 +1,48 @@
-<script>
+<script setup lang="ts">
+import { reactive, toRefs, nextTick } from 'vue';
+import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+import type { TeamDraft, User, PageEvent } from '../../types/domain';
 import { eventWithDataset } from "../../utils/state";
-import { platform } from "../../platform/host";
+import { platform as hostPlatform } from "../../platform/host";
 import { getApplication } from "../../stores/app";
-import { updateState } from "../../utils/state";
 import { isSinglePage } from "../../utils/runtime";
 import { PLATFORMS, VOICES, MAX_TEAM_HOURS } from "../../utils/constants";
 const MAX_TEAM_MS = MAX_TEAM_HOURS * 60 * 60 * 1000;
-import {
-  dateParts,
-  combineDateTime,
-  defaultStartAt,
-  defaultEndAt,
-} from "../../utils/format";
+import { dateParts, combineDateTime, defaultStartAt, defaultEndAt } from "../../utils/format";
 import { callTeam, showError } from "../../utils/cloud";
 import { requestTeamNotify } from "../../utils/subscribe";
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from "../../utils/share";
 import { teamDetailPath } from "../../utils/team-entry";
 import { GAME_CATALOG, findGame } from "../../utils/games";
-import {
-  START_PRESETS,
-  DURATION_PRESETS,
-  sortPlatforms,
-  hasExtraSettings,
-  moreSettingsHint,
-  nearbyStartAt,
-  tonightStartAt,
-  resolveStartAt,
-  resolveEndAtMinutes,
-  detectDurationMinutes,
-  durationPresetHoursFromMinutes,
-  formatDurationLabel,
-  buildDurationPicker,
-  buildTimeSummary,
-  validatePublishTeam,
-} from "../../utils/publish-form";
-
+import { START_PRESETS, DURATION_PRESETS, sortPlatforms, hasExtraSettings, moreSettingsHint, tonightStartAt, resolveStartAt, resolveEndAtMinutes, detectDurationMinutes, durationPresetHoursFromMinutes, formatDurationLabel, buildDurationPicker, buildTimeSummary, validatePublishTeam } from "../../utils/publish-form";
 const DURATION_PICKER = buildDurationPicker();
 const DURATION_PICKER_LABELS = DURATION_PICKER.map((item) => item.label);
-function durationPickerIndexFor(minutes) {
-  const idx = DURATION_PICKER.findIndex((item) => item.minutes === minutes);
-  return idx >= 0 ? idx : 0;
+function durationPickerIndexFor(minutes: number) {
+    const idx = DURATION_PICKER.findIndex((item) => item.minutes === minutes);
+    return idx >= 0 ? idx : 0;
 }
-
 function emptyForm() {
-  const startAt = defaultStartAt();
-  const endAt = defaultEndAt(startAt);
-  const start = dateParts(startAt);
-  const end = dateParts(endAt);
-  const today = dateParts(Date.now());
-  const durationMinutes = detectDurationMinutes(startAt, endAt) || 120;
-  const summary = buildTimeSummary({
-    startDate: start.date, startTime: start.time,
-    endDate: end.date, endTime: end.time,
-    todayDate: today.date, startAt, endAt,
-  });
-  return {
-    editingId: "",
-    platforms: sortPlatforms("Steam", PLATFORMS),
-    voices: VOICES,
-    gameName: "",
-    startDate: start.date,
-    startTime: start.time,
-    endDate: end.date,
-    endTime: end.time,
-    minDate: today.date,
-    startPreset: "custom",
-    durationHours: durationPresetHoursFromMinutes(durationMinutes),
-    durationMinutes,
-    durationLabel: formatDurationLabel(durationMinutes),
-    durationPickerIndex: durationPickerIndexFor(durationMinutes),
-    timeSummaryLine1: summary.line1,
-    timeSummaryLine2: summary.line2,
-    capacity: 5,
-    roomNo: "",
-    roomPwd: "",
-    platform: "Steam",
-    server: "",
-    voice: "KOOK",
-    rankReq: "",
-    note: "",
-    moreHint: moreSettingsHint({}),
-    submitting: false,
-    showProfile: false,
-    pendingAction: "",
-    fromLast: false,
-    showMore: false,
-    proxyMode: false,
-    proxyKeyword: "",
-    proxySearching: false,
-    proxyResults: [],
-    proxyHost: null,
-  };
-}
-
-export default {
- data() { return { singlePage: false, ...Object.assign(emptyForm(), {
-    canProxy: false,
-    suggestedGames: GAME_CATALOG,
-    startPresets: START_PRESETS,
-    durationPresets: DURATION_PRESETS,
-    durationPickerLabels: DURATION_PICKER_LABELS,
-  }) }; },
-async onShow() {
-    const singlePage = isSinglePage();
-    this.setData({ singlePage });
-    if (singlePage) return;
-    bindCopyUrl(platform, () => plazaShare("开黑星球｜发起组队开黑"));
-    const app = getApplication();
-    const editingId = app.globalData.editingTeamId;
-    const draft = app.globalData.republishTeam;
-    const prefill = app.globalData.prefillGame;
-    if (editingId) {
-      app.globalData.editingTeamId = null;
-      app.globalData.republishTeam = null;
-      app.globalData.prefillGame = null;
-      if (this.editingId === editingId) return;
-      await this.loadEdit(editingId);
-      return;
-    }
-    if (draft) {
-      app.globalData.republishTeam = null;
-      app.globalData.prefillGame = null;
-      this.applyDraft(draft);
-    } else if (prefill) {
-      app.globalData.prefillGame = null;
-      const patch = { gameName: prefill.name || "" };
-      if (prefill.platform && PLATFORMS.indexOf(prefill.platform) >= 0) {
-        patch.platform = prefill.platform;
-        patch.platforms = sortPlatforms(prefill.platform, PLATFORMS);
-      }
-      this.setData(patch);
-    }
-    await this.loadProxyAccess();
-  },
-onHide() {
-    unbindCopyUrl(platform);
-  },
-onUnload() {
-    this.cancelProxySearch();
-    unbindCopyUrl(platform);
-  },
-onShareAppMessage() {
-    return shareToFriend(plazaShare("开黑星球｜发起组队开黑"));
-  },
-onShareTimeline() {
-    return shareToTimeline(plazaShare("开黑星球｜发起组队开黑"));
-  },
-methods: { eventWithDataset, setData: updateState,
-async loadEdit(id) {
-    platform.showLoading({ title: "加载中" });
-    try {
-      const res = await callTeam("getTeam", { teamId: id });
-      const team = res.team;
-      const startAt = team.startAt;
-      const endAt = team.endAt || team.expireAt || team.startAt;
-      const start = dateParts(startAt);
-      const end = dateParts(endAt);
-      const voice = team.voice === "Discord" ? "KOOK" : team.voice;
-      const platform = PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : "Steam";
-      const extras = {
-        roomNo: team.roomNo || "",
-        roomPwd: team.roomPwd || "",
-        server: team.server || "",
-        voice: VOICES.indexOf(voice) >= 0 ? voice : "KOOK",
-        rankReq: team.rankReq || "",
-        note: team.note || "",
-      };
-      const summary = buildTimeSummary({
+    const startAt = defaultStartAt();
+    const endAt = defaultEndAt(startAt);
+    const start = dateParts(startAt);
+    const end = dateParts(endAt);
+    const today = dateParts(Date.now());
+    const durationMinutes = detectDurationMinutes(startAt, endAt) || 120;
+    const summary = buildTimeSummary({
         startDate: start.date, startTime: start.time,
         endDate: end.date, endTime: end.time,
-        todayDate: dateParts(Date.now()).date, startAt, endAt,
-      });
-      const durationMinutes = detectDurationMinutes(startAt, endAt) || 120;
-      this.setData({
-        ...emptyForm(),
-        editingId: id,
-        showMore: hasExtraSettings(extras),
-        gameName: team.gameName || "",
+        todayDate: today.date, startAt, endAt,
+    });
+    return {
+        editingId: "",
+        platforms: sortPlatforms("Steam", PLATFORMS),
+        voices: VOICES,
+        gameName: "",
         startDate: start.date,
         startTime: start.time,
         endDate: end.date,
         endTime: end.time,
+        minDate: today.date,
         startPreset: "custom",
         durationHours: durationPresetHoursFromMinutes(durationMinutes),
         durationMinutes,
@@ -188,21 +50,98 @@ async loadEdit(id) {
         durationPickerIndex: durationPickerIndexFor(durationMinutes),
         timeSummaryLine1: summary.line1,
         timeSummaryLine2: summary.line2,
-        capacity: team.capacity,
-        platform,
-        platforms: sortPlatforms(platform, PLATFORMS),
-        ...extras,
-        moreHint: moreSettingsHint(extras),
-        canProxy: false,
+        capacity: 5,
+        roomNo: "",
+        roomPwd: "",
+        platform: "Steam",
+        server: "",
+        voice: "KOOK",
+        rankReq: "",
+        note: "",
+        moreHint: moreSettingsHint({}),
+        submitting: false,
+        showProfile: false,
+        pendingAction: "",
+        fromLast: false,
+        showMore: false,
         proxyMode: false,
-      });
-    } catch (e) {
-      showError(e);
-    } finally {
-      platform.hideLoading();
+        proxyKeyword: "",
+        proxySearching: false,
+        proxyResults: [] as User[],
+        proxyHost: null as User | null,
+    };
+}
+const state = reactive({ proxyTimer: null as ReturnType<typeof setTimeout> | null, proxySearchToken: 0, singlePage: false, ...Object.assign(emptyForm(), {
+        canProxy: false,
+        suggestedGames: GAME_CATALOG,
+        startPresets: START_PRESETS,
+        durationPresets: DURATION_PRESETS,
+        durationPickerLabels: DURATION_PICKER_LABELS,
+    }) });
+const { singlePage, editingId, platforms, voices, gameName, startDate, startTime, endDate, endTime, minDate, startPreset, durationHours, durationLabel, durationPickerIndex, timeSummaryLine1, timeSummaryLine2, capacity, roomNo, roomPwd, platform: selectedPlatform, server, voice, rankReq, note, moreHint, submitting, showProfile, pendingAction, fromLast, showMore, proxyMode, proxyKeyword, proxySearching, proxyResults, proxyHost, canProxy, suggestedGames, startPresets, durationPresets, durationPickerLabels } = toRefs(state);
+function patchState(patch: Partial<typeof state>, done?: () => void) {
+  Object.assign(state, patch);
+  if (done) void nextTick(done);
+}
+async function loadEdit(id: string) {
+    hostPlatform.showLoading({ title: "加载中" });
+    try {
+        const res = await callTeam("getTeam", { teamId: id });
+        const team = res.team;
+        const startAt = team.startAt;
+        const endAt = team.endAt || team.expireAt || team.startAt;
+        const start = dateParts(startAt);
+        const end = dateParts(endAt);
+        const voice = team.voice === "Discord" ? "KOOK" : team.voice;
+        const platform = PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : "Steam";
+        const extras = {
+            roomNo: team.roomNo || "",
+            roomPwd: team.roomPwd || "",
+            server: team.server || "",
+            voice: VOICES.indexOf(voice || "") >= 0 ? voice : "KOOK",
+            rankReq: team.rankReq || "",
+            note: team.note || "",
+        };
+        const summary = buildTimeSummary({
+            startDate: start.date, startTime: start.time,
+            endDate: end.date, endTime: end.time,
+            todayDate: dateParts(Date.now()).date, startAt, endAt,
+        });
+        const durationMinutes = detectDurationMinutes(startAt, endAt) || 120;
+        patchState({
+            ...emptyForm(),
+            editingId: id,
+            showMore: hasExtraSettings(extras),
+            gameName: team.gameName || "",
+            startDate: start.date,
+            startTime: start.time,
+            endDate: end.date,
+            endTime: end.time,
+            startPreset: "custom",
+            durationHours: durationPresetHoursFromMinutes(durationMinutes),
+            durationMinutes,
+            durationLabel: formatDurationLabel(durationMinutes),
+            durationPickerIndex: durationPickerIndexFor(durationMinutes),
+            timeSummaryLine1: summary.line1,
+            timeSummaryLine2: summary.line2,
+            capacity: team.capacity,
+            platform,
+            platforms: sortPlatforms(platform, PLATFORMS),
+            ...extras,
+            moreHint: moreSettingsHint(extras),
+            canProxy: false,
+            proxyMode: false,
+        });
     }
-  },
-applyDraft(draft) {
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        showError(e);
+    }
+    finally {
+        hostPlatform.hideLoading();
+    }
+}
+function applyDraft(draft: TeamDraft) {
     const startAt = defaultStartAt();
     const endAt = defaultEndAt(startAt);
     const start = dateParts(startAt);
@@ -211,359 +150,436 @@ applyDraft(draft) {
     const voice = draft.voice === "Discord" ? "KOOK" : draft.voice;
     const platform = PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : "Steam";
     const extras = {
-      roomNo: draft.roomNo || "",
-      roomPwd: draft.roomPwd || "",
-      server: draft.server || "",
-      voice: VOICES.indexOf(voice) >= 0 ? voice : "KOOK",
-      rankReq: draft.rankReq || "",
-      note: draft.note || "",
+        roomNo: draft.roomNo || "",
+        roomPwd: draft.roomPwd || "",
+        server: draft.server || "",
+        voice: VOICES.indexOf(voice || "") >= 0 ? voice : "KOOK",
+        rankReq: draft.rankReq || "",
+        note: draft.note || "",
     };
     const summary = buildTimeSummary({
-      startDate: start.date, startTime: start.time,
-      endDate: end.date, endTime: end.time,
-      todayDate: today.date, startAt, endAt,
+        startDate: start.date, startTime: start.time,
+        endDate: end.date, endTime: end.time,
+        todayDate: today.date, startAt, endAt,
     });
     const durationMinutes = detectDurationMinutes(startAt, endAt) || 120;
-    this.setData({
-      ...emptyForm(),
-      fromLast: true,
-      showMore: hasExtraSettings(extras),
-      gameName: draft.gameName || "",
-      startDate: start.date,
-      startTime: start.time,
-      endDate: end.date,
-      endTime: end.time,
-      minDate: today.date,
-      startPreset: "custom",
-      durationHours: durationPresetHoursFromMinutes(durationMinutes),
-      durationMinutes,
-      durationLabel: formatDurationLabel(durationMinutes),
-      durationPickerIndex: durationPickerIndexFor(durationMinutes),
-      timeSummaryLine1: summary.line1,
-      timeSummaryLine2: summary.line2,
-      capacity: draft.capacity || 5,
-      platform,
-      platforms: sortPlatforms(platform, PLATFORMS),
-      ...extras,
-      moreHint: moreSettingsHint(extras),
+    patchState({
+        ...emptyForm(),
+        fromLast: true,
+        showMore: hasExtraSettings(extras),
+        gameName: draft.gameName || "",
+        startDate: start.date,
+        startTime: start.time,
+        endDate: end.date,
+        endTime: end.time,
+        minDate: today.date,
+        startPreset: "custom",
+        durationHours: durationPresetHoursFromMinutes(durationMinutes),
+        durationMinutes,
+        durationLabel: formatDurationLabel(durationMinutes),
+        durationPickerIndex: durationPickerIndexFor(durationMinutes),
+        timeSummaryLine1: summary.line1,
+        timeSummaryLine2: summary.line2,
+        capacity: draft.capacity || 5,
+        platform,
+        platforms: sortPlatforms(platform, PLATFORMS),
+        ...extras,
+        moreHint: moreSettingsHint(extras),
     });
-  },
-toggleMore() {
-    this.setData({ showMore: !this.showMore });
-  },
-applyDurationTo(patch) {
-    const minutes = patch.durationMinutes != null ? patch.durationMinutes : this.durationMinutes;
-    const startDate = patch.startDate || this.startDate;
-    const startTime = patch.startTime || this.startTime;
+}
+function toggleMore() {
+    patchState({ showMore: !state.showMore });
+}
+function applyDurationTo(patch: Partial<typeof state>) {
+    const minutes = patch.durationMinutes != null ? patch.durationMinutes : state.durationMinutes;
+    const startDate = patch.startDate || state.startDate;
+    const startTime = patch.startTime || state.startTime;
     const endAt = resolveEndAtMinutes(combineDateTime(startDate, startTime), minutes);
-    if (!endAt) return patch;
+    if (!endAt)
+        return patch;
     const end = dateParts(endAt);
     patch.endDate = end.date;
     patch.endTime = end.time;
     return patch;
-  },
-withTimeSummary(patch) {
-    const startDate = patch.startDate || this.startDate;
-    const startTime = patch.startTime || this.startTime;
-    const endDate = patch.endDate || this.endDate;
-    const endTime = patch.endTime || this.endTime;
+}
+function withTimeSummary(patch: Partial<typeof state>) {
+    const startDate = patch.startDate || state.startDate;
+    const startTime = patch.startTime || state.startTime;
+    const endDate = patch.endDate || state.endDate;
+    const endTime = patch.endTime || state.endTime;
     const startAt = combineDateTime(startDate, startTime);
     const endAt = combineDateTime(endDate, endTime);
     const summary = buildTimeSummary({
-      startDate, startTime, endDate, endTime,
-      todayDate: this.minDate, startAt, endAt,
+        startDate, startTime, endDate, endTime,
+        todayDate: state.minDate, startAt, endAt,
     });
     patch.timeSummaryLine1 = summary.line1;
     patch.timeSummaryLine2 = summary.line2;
     return patch;
-  },
-pickStartPreset(e) {
+}
+function pickStartPreset(e: PageEvent) {
     const startPreset = e.currentTarget.dataset.key;
-    if (!START_PRESETS.some((item) => item.key === startPreset)) return;
-    const patch = { startPreset };
+    if (!START_PRESETS.some((item) => item.key === startPreset))
+        return;
+    const patch: Partial<typeof state> = { startPreset };
     const startAt = resolveStartAt(startPreset, Date.now(), tonightStartAt(Date.now()));
     if (startAt) {
-      const start = dateParts(startAt);
-      patch.startDate = start.date;
-      patch.startTime = start.time;
-      this.applyDurationTo(patch);
+        const start = dateParts(startAt);
+        patch.startDate = start.date;
+        patch.startTime = start.time;
+        applyDurationTo(patch);
     }
-    this.setData(this.withTimeSummary(patch));
-  },
-pickDuration(e) {
+    patchState(withTimeSummary(patch));
+}
+function pickDuration(e: PageEvent) {
     const durationHours = Number(e.currentTarget.dataset.hours);
-    if (![1, 2, 3].includes(durationHours)) return;
+    if (![1, 2, 3].includes(durationHours))
+        return;
     const durationMinutes = durationHours * 60;
-    const patch = {
-      durationHours,
-      durationMinutes,
-      durationLabel: formatDurationLabel(durationMinutes),
-      durationPickerIndex: durationPickerIndexFor(durationMinutes),
+    const patch: Partial<typeof state> = {
+        durationHours,
+        durationMinutes,
+        durationLabel: formatDurationLabel(durationMinutes),
+        durationPickerIndex: durationPickerIndexFor(durationMinutes),
     };
-    this.applyDurationTo(patch);
-    this.setData(this.withTimeSummary(patch));
-  },
-pickCustomDuration(e) {
+    applyDurationTo(patch);
+    patchState(withTimeSummary(patch));
+}
+function pickCustomDuration(e: PageEvent) {
     const index = Number(e.detail.value);
-    if (!Number.isFinite(index) || index < 0 || index >= DURATION_PICKER.length) return;
+    if (!Number.isFinite(index) || index < 0 || index >= DURATION_PICKER.length)
+        return;
     const minutes = DURATION_PICKER[index].minutes;
-    const patch = {
-      durationHours: 0,
-      durationMinutes: minutes,
-      durationLabel: formatDurationLabel(minutes),
-      durationPickerIndex: index,
+    const patch: Partial<typeof state> = {
+        durationHours: 0,
+        durationMinutes: minutes,
+        durationLabel: formatDurationLabel(minutes),
+        durationPickerIndex: index,
     };
-    this.applyDurationTo(patch);
-    this.setData(this.withTimeSummary(patch));
-  },
-onGameName(e) {
+    applyDurationTo(patch);
+    patchState(withTimeSummary(patch));
+}
+function onGameName(e: PageEvent) {
     const gameName = e.detail.value;
-    const patch = { gameName };
+    const patch: Partial<typeof state> = { gameName };
     const game = findGame(gameName);
-    if (game && game.platform) patch.platforms = sortPlatforms(game.platform, PLATFORMS);
-    this.setData(patch);
-  },
-pickSuggestedGame(e) {
+    if (game && game.platform)
+        patch.platforms = sortPlatforms(game.platform, PLATFORMS);
+    patchState(patch);
+}
+function pickSuggestedGame(e: PageEvent) {
     const game = findGame(e.currentTarget.dataset.slug);
-    if (!game) return;
-    const patch = { gameName: game.name };
+    if (!game)
+        return;
+    const patch: Partial<typeof state> = { gameName: game.name };
     if (PLATFORMS.indexOf(game.platform) >= 0) {
-      patch.platform = game.platform;
-      patch.platforms = sortPlatforms(game.platform, PLATFORMS);
+        patch.platform = game.platform;
+        patch.platforms = sortPlatforms(game.platform, PLATFORMS);
     }
-    this.setData(patch);
-  },
-onStartDate(e) {
-    const patch = { startDate: e.detail.value, startPreset: "custom" };
-    this.applyDurationTo(patch);
-    this.setData(this.withTimeSummary(patch));
-  },
-onStartTime(e) {
-    const patch = { startTime: e.detail.value, startPreset: "custom" };
-    this.applyDurationTo(patch);
-    this.setData(this.withTimeSummary(patch));
-  },
-decCap() {
-    if (this.capacity <= 2) return;
-    this.setData({ capacity: this.capacity - 1 });
-  },
-incCap() {
-    if (this.capacity >= 20) return;
-    this.setData({ capacity: this.capacity + 1 });
-  },
-patchExtras(partial) {
+    patchState(patch);
+}
+function onStartDate(e: PageEvent) {
+    const patch: Partial<typeof state> = { startDate: e.detail.value, startPreset: "custom" };
+    applyDurationTo(patch);
+    patchState(withTimeSummary(patch));
+}
+function onStartTime(e: PageEvent) {
+    const patch: Partial<typeof state> = { startTime: e.detail.value, startPreset: "custom" };
+    applyDurationTo(patch);
+    patchState(withTimeSummary(patch));
+}
+function decCap() {
+    if (state.capacity <= 2)
+        return;
+    patchState({ capacity: state.capacity - 1 });
+}
+function incCap() {
+    if (state.capacity >= 20)
+        return;
+    patchState({ capacity: state.capacity + 1 });
+}
+function patchExtras(partial: Partial<typeof state>) {
     const extras = {
-      roomNo: this.roomNo,
-      roomPwd: this.roomPwd,
-      server: this.server,
-      voice: this.voice,
-      rankReq: this.rankReq,
-      note: this.note,
-      ...partial,
+        roomNo: state.roomNo,
+        roomPwd: state.roomPwd,
+        server: state.server,
+        voice: state.voice,
+        rankReq: state.rankReq,
+        note: state.note,
+        ...partial,
     };
-    extras.moreHint = moreSettingsHint(extras);
-    this.setData(extras);
-  },
-onRoomNo(e) {
-    this.patchExtras({ roomNo: e.detail.value });
-  },
-onRoomPwd(e) {
-    this.patchExtras({ roomPwd: e.detail.value });
-  },
-pickPlatform(e) {
-    this.setData({ platform: e.currentTarget.dataset.name });
-  },
-onServer(e) {
-    this.patchExtras({ server: e.detail.value });
-  },
-pickVoice(e) {
-    this.patchExtras({ voice: e.currentTarget.dataset.name });
-  },
-onRank(e) {
-    this.patchExtras({ rankReq: e.detail.value });
-  },
-onNote(e) {
-    this.patchExtras({ note: e.detail.value });
-  },
-async loadProxyAccess() {
-    if (this.editingId) {
-      this.setData({ canProxy: false, proxyMode: false });
-      return;
+    patchState({ ...extras, moreHint: moreSettingsHint(extras) });
+}
+function onRoomNo(e: PageEvent) {
+    patchExtras({ roomNo: e.detail.value });
+}
+function onRoomPwd(e: PageEvent) {
+    patchExtras({ roomPwd: e.detail.value });
+}
+function pickPlatform(e: PageEvent) {
+    patchState({ platform: e.currentTarget.dataset.name });
+}
+function onServer(e: PageEvent) {
+    patchExtras({ server: e.detail.value });
+}
+function pickVoice(e: PageEvent) {
+    patchExtras({ voice: e.currentTarget.dataset.name });
+}
+function onRank(e: PageEvent) {
+    patchExtras({ rankReq: e.detail.value });
+}
+function onNote(e: PageEvent) {
+    patchExtras({ note: e.detail.value });
+}
+async function loadProxyAccess() {
+    if (state.editingId) {
+        patchState({ canProxy: false, proxyMode: false });
+        return;
     }
     const app = getApplication();
     const cached = !!(app.globalData.isAdmin || app.globalData.isOrganizer);
-    if (cached) this.setData({ canProxy: true });
+    if (cached)
+        patchState({ canProxy: true });
     try {
-      const profile = await callTeam("getProfile");
-      const canProxy = !!(profile.isAdmin || profile.isOrganizer);
-      app.globalData.isAdmin = !!profile.isAdmin;
-      app.globalData.isOrganizer = !!profile.isOrganizer;
-      this.setData({ canProxy });
-    } catch (e) {
-      if (!cached) this.setData({ canProxy: false });
+        const profile = await callTeam("getProfile");
+        const canProxy = !!(profile.isAdmin || profile.isOrganizer);
+        app.globalData.isAdmin = !!profile.isAdmin;
+        app.globalData.isOrganizer = !!profile.isOrganizer;
+        patchState({ canProxy });
     }
-  },
-cancelProxySearch() {
-    if (this.proxyTimer) clearTimeout(this.proxyTimer);
-    this.proxyTimer = null;
-    this.proxySearchToken = (this.proxySearchToken || 0) + 1;
-  },
-toggleProxy(e) {
-    if (this.editingId || !this.canProxy) return;
-    this.cancelProxySearch();
-    const proxyMode = e.detail.value;
-    this.setData({
-      proxyMode,
-      proxyKeyword: "",
-      proxySearching: false,
-      proxyResults: [],
-      proxyHost: null,
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        if (!cached)
+            patchState({ canProxy: false });
+    }
+}
+function cancelProxySearch() {
+    if (state.proxyTimer)
+        clearTimeout(state.proxyTimer);
+    state.proxyTimer = null;
+    state.proxySearchToken = (state.proxySearchToken || 0) + 1;
+}
+function toggleProxy(e: PageEvent) {
+    if (state.editingId || !state.canProxy)
+        return;
+    cancelProxySearch();
+    const proxyMode = Boolean(e.detail.value);
+    patchState({
+        proxyMode,
+        proxyKeyword: "",
+        proxySearching: false,
+        proxyResults: [],
+        proxyHost: null,
     });
-  },
-onProxyKeyword(e) {
+}
+function onProxyKeyword(e: PageEvent) {
     const proxyKeyword = e.detail.value;
-    this.setData({ proxyKeyword });
-    this.cancelProxySearch();
+    patchState({ proxyKeyword });
+    cancelProxySearch();
     const keyword = String(proxyKeyword || "").trim();
     if (!keyword) {
-      this.setData({ proxyResults: [], proxySearching: false });
-      return;
+        patchState({ proxyResults: [], proxySearching: false });
+        return;
     }
-    this.setData({ proxySearching: true, proxyResults: [] });
-    this.proxyTimer = setTimeout(() => this.searchProxyUsers(keyword), 280);
-  },
-async searchProxyUsers(keyword) {
-    const token = (this.proxySearchToken = (this.proxySearchToken || 0) + 1);
+    patchState({ proxySearching: true, proxyResults: [] });
+    state.proxyTimer = setTimeout(() => searchProxyUsers(keyword), 280);
+}
+async function searchProxyUsers(keyword: string) {
+    const token = (state.proxySearchToken = (state.proxySearchToken || 0) + 1);
     try {
-      const res = await callTeam("searchProxyUsers", { keyword });
-      if (token !== this.proxySearchToken) return;
-      this.setData({ proxyResults: res.list || [], proxySearching: false });
-    } catch (e) {
-      if (token !== this.proxySearchToken) return;
-      this.setData({ proxySearching: false, proxyResults: [] });
-      showError(e);
+        const res = await callTeam("searchProxyUsers", { keyword });
+        if (token !== state.proxySearchToken)
+            return;
+        patchState({ proxyResults: res.list || [], proxySearching: false });
     }
-  },
-pickProxyHost(e) {
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        if (token !== state.proxySearchToken)
+            return;
+        patchState({ proxySearching: false, proxyResults: [] });
+        showError(e);
+    }
+}
+function pickProxyHost(e: PageEvent) {
     const host = e.currentTarget.dataset.host;
-    if (!host || !host.userId) return;
-    this.cancelProxySearch();
-    this.setData({
-      proxyHost: host,
-      proxyKeyword: host.nickName || "",
-      proxyResults: [],
-      proxySearching: false,
+    if (!host || !host.userId)
+        return;
+    cancelProxySearch();
+    patchState({
+        proxyHost: host,
+        proxyKeyword: host.nickName || "",
+        proxyResults: [],
+        proxySearching: false,
     });
-  },
-clearProxyHost() {
-    this.cancelProxySearch();
-    this.setData({
-      proxyHost: null,
-      proxyKeyword: "",
-      proxyResults: [],
-      proxySearching: false,
+}
+function clearProxyHost() {
+    cancelProxySearch();
+    patchState({
+        proxyHost: null,
+        proxyKeyword: "",
+        proxyResults: [],
+        proxySearching: false,
     });
-  },
-buildTeam() {
+}
+function buildTeam() {
     return {
-      gameName: (this.gameName || "").trim(),
-      startAt: combineDateTime(this.startDate, this.startTime),
-      endAt: combineDateTime(this.endDate, this.endTime),
-      capacity: this.capacity,
-      roomNo: (this.roomNo || "").trim(),
-      roomPwd: (this.roomPwd || "").trim(),
-      platform: this.platform,
-      server: (this.server || "").trim(),
-      voice: this.voice,
-      rankReq: (this.rankReq || "").trim(),
-      note: (this.note || "").trim(),
+        gameName: (state.gameName || "").trim(),
+        startAt: combineDateTime(state.startDate, state.startTime),
+        endAt: combineDateTime(state.endDate, state.endTime),
+        capacity: state.capacity,
+        roomNo: (state.roomNo || "").trim(),
+        roomPwd: (state.roomPwd || "").trim(),
+        platform: state.platform,
+        server: (state.server || "").trim(),
+        voice: state.voice,
+        rankReq: (state.rankReq || "").trim(),
+        note: (state.note || "").trim(),
     };
-  },
-scrollToField(id) {
-    if (!id || !platform.createSelectorQuery || !platform.pageScrollTo) return;
-    platform.createSelectorQuery()
-      .select(`#${id}`)
-      .boundingClientRect()
-      .selectViewport()
-      .scrollOffset()
-      .exec((res) => {
+}
+function scrollToField(id?: string) {
+    if (!id || !hostPlatform.createSelectorQuery || !hostPlatform.pageScrollTo)
+        return;
+    hostPlatform.createSelectorQuery()
+        .select(`#${id}`)
+        .boundingClientRect()
+        .selectViewport()
+        .scrollOffset(() => {})
+        .exec((res) => {
         const rect = res && res[0];
         const viewport = res && res[1];
-        if (!rect || !viewport) return;
-        platform.pageScrollTo({
-          scrollTop: Math.max(0, viewport.scrollTop + rect.top - 80),
-          duration: 240,
+        if (!rect || !viewport)
+            return;
+        hostPlatform.pageScrollTo({
+            scrollTop: Math.max(0, viewport.scrollTop + rect.top - 80),
+            duration: 240,
         });
-      });
-  },
-async onSubmit() {
-    if (this.submitting || this.submitting) return;
-    const team = this.buildTeam();
+    });
+}
+async function onSubmit() {
+    if (state.submitting)
+        return;
+    const team = buildTeam();
     const error = validatePublishTeam(team, {
-      maxMs: MAX_TEAM_MS,
-      maxHours: MAX_TEAM_HOURS,
-      now: Date.now(),
-      needProxyHost: !this.editingId && this.proxyMode && !(this.proxyHost && this.proxyHost.userId),
+        maxMs: MAX_TEAM_MS,
+        maxHours: MAX_TEAM_HOURS,
+        now: Date.now(),
+        needProxyHost: !state.editingId && state.proxyMode && !(state.proxyHost && state.proxyHost.userId),
     });
     if (error) {
-      platform.showToast({ title: error.message, icon: "none" });
-      this.scrollToField(error.anchor);
-      return;
+        hostPlatform.showToast({ title: error.message, icon: "none" });
+        scrollToField(error.anchor);
+        return;
     }
-    const editingId = this.editingId;
-    this.submitting = true;
-    this.setData({ submitting: true });
+    const editingId = state.editingId;
+    state.submitting = true;
+    patchState({ submitting: true });
     try {
-      if (!editingId) {
-        await requestTeamNotify();
-      }
-      if (editingId) {
-        await callTeam("updateTeam", { teamId: editingId, team });
-        this.setData(emptyForm());
-        platform.showToast({ title: "已保存", icon: "success" });
-        setTimeout(() => {
-          const url = teamDetailPath(editingId, { gameName: team.gameName });
-          if (url) platform.navigateTo({ url });
-        }, 400);
-      } else {
-        const payload = { team };
-        if (this.proxyMode && this.proxyHost && this.proxyHost.userId) {
-          payload.hostOpenid = this.proxyHost.userId;
+        if (!editingId) {
+            await requestTeamNotify();
         }
-        const res = await callTeam("createTeam", payload);
-        const helped = !!(payload.hostOpenid);
-        this.setData(emptyForm());
-        platform.showToast({ title: helped ? "已帮 TA 发车" : "已发车", icon: "success" });
-        setTimeout(() => {
-          const url = teamDetailPath(res.teamId, { gameName: team.gameName });
-          if (url) platform.navigateTo({ url });
-        }, 400);
-      }
-    } catch (e) {
-      if (e.code === "NEED_PROFILE") {
-        this.setData({ showProfile: true, pendingAction: "submit" });
-      } else {
-        showError(e);
-      }
-    } finally {
-      this.submitting = false;
-      this.setData({ submitting: false });
+        if (editingId) {
+            await callTeam("updateTeam", { teamId: editingId, team });
+            patchState(emptyForm());
+            hostPlatform.showToast({ title: "已保存", icon: "success" });
+            setTimeout(() => {
+                const url = teamDetailPath(editingId, { gameName: team.gameName });
+                if (url)
+                    hostPlatform.navigateTo({ url });
+            }, 400);
+        }
+        else {
+            const payload: { team: ReturnType<typeof buildTeam>; hostOpenid?: string } = { team };
+            if (state.proxyMode && state.proxyHost && state.proxyHost.userId) {
+                payload.hostOpenid = state.proxyHost.userId;
+            }
+            const res = await callTeam("createTeam", payload);
+            const helped = !!(payload.hostOpenid);
+            patchState(emptyForm());
+            hostPlatform.showToast({ title: helped ? "已帮 TA 发车" : "已发车", icon: "success" });
+            setTimeout(() => {
+                const url = teamDetailPath(res.teamId, { gameName: team.gameName });
+                if (url)
+                    hostPlatform.navigateTo({ url });
+            }, 400);
+        }
     }
-  },
-onProfileClose() { this.setData({ showProfile: false, pendingAction: "" }); },
-onProfileDone(e) {
+    catch (error) {
+        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+        if (e.code === "NEED_PROFILE") {
+            patchState({ showProfile: true, pendingAction: "submit" });
+        }
+        else {
+            showError(e);
+        }
+    }
+    finally {
+        state.submitting = false;
+        patchState({ submitting: false });
+    }
+}
+function onProfileClose() {
+    patchState({ showProfile: false, pendingAction: "" });
+}
+function onProfileDone(e: Pick<PageEvent, 'detail'>) {
     const user = (e && e.detail && e.detail.user) || {};
     if (user.nickName) {
-      const app = getApplication();
-      app.globalData.user = user;
+        const app = getApplication();
+        app.globalData.user = user;
     }
-    this.setData({ showProfile: false });
-    if (this.pendingAction === "submit") {
-      this.setData({ pendingAction: "" });
-      this.onSubmit();
+    patchState({ showProfile: false });
+    if (state.pendingAction === "submit") {
+        patchState({ pendingAction: "" });
+        onSubmit();
     }
-  } }
-};
+}
+onShow(async () => {
+    const singlePage = isSinglePage();
+    patchState({ singlePage });
+    if (singlePage)
+        return;
+    bindCopyUrl(hostPlatform, () => plazaShare("开黑星球｜发起组队开黑"));
+    const app = getApplication();
+    const editingId = app.globalData.editingTeamId;
+    const draft = app.globalData.republishTeam;
+    const prefill = app.globalData.prefillGame;
+    if (editingId) {
+        app.globalData.editingTeamId = null;
+        app.globalData.republishTeam = null;
+        app.globalData.prefillGame = null;
+        if (state.editingId === editingId)
+            return;
+        await loadEdit(editingId);
+        return;
+    }
+    if (draft) {
+        app.globalData.republishTeam = null;
+        app.globalData.prefillGame = null;
+        applyDraft(draft);
+    }
+    else if (prefill) {
+        app.globalData.prefillGame = null;
+        const patch: Partial<typeof state> = { gameName: prefill.name || "" };
+        if (prefill.platform && PLATFORMS.indexOf(prefill.platform) >= 0) {
+            patch.platform = prefill.platform;
+            patch.platforms = sortPlatforms(prefill.platform, PLATFORMS);
+        }
+        patchState(patch);
+    }
+    await loadProxyAccess();
+});
+onHide(() => {
+    unbindCopyUrl(hostPlatform);
+});
+onUnload(() => {
+    cancelProxySearch();
+    unbindCopyUrl(hostPlatform);
+});
+onShareAppMessage(() => {
+    return shareToFriend(plazaShare("开黑星球｜发起组队开黑"));
+});
+onShareTimeline(() => {
+    return shareToTimeline(plazaShare("开黑星球｜发起组队开黑"));
+});
 </script>
 <template>
 <timeline-preview v-if="singlePage" />
@@ -590,7 +606,7 @@ onProfileDone(e) {
       <view v-if="proxyHost" class="proxy-picked">
         <image class="proxy-avatar" :src="proxyHost.avatarUrl || (proxyHost.avatarBase64 ? 'data:image/jpeg;base64,' + proxyHost.avatarBase64 : '/static/images/avatar.png')" mode="aspectFill" />
         <view class="proxy-picked-name">{{proxyHost.nickName}}</view>
-        <view class="proxy-picked-clear" @tap.stop.prevent="clearProxyHost(eventWithDataset($event, {}))">换一个</view>
+        <view class="proxy-picked-clear" @tap.stop.prevent="clearProxyHost()">换一个</view>
       </view>
       <template v-else>
         <input class="field" placeholder="搜对方在小程序里的昵称" maxlength="32" :value="proxyKeyword" @input="onProxyKeyword(eventWithDataset($event, {}))" />
@@ -613,7 +629,7 @@ onProfileDone(e) {
 
     <view id="field-platform" class="label">平台</view>
     <view class="games">
-      <template v-for="(item, index) in platforms" :key="item"><view :class="'game ' + (platform === item ? 'game-on' : '')" :data-name="item" @tap="pickPlatform(eventWithDataset($event, {'name': item}))">{{item}}</view></template>
+      <template v-for="(item, index) in platforms" :key="item"><view :class="'game ' + (selectedPlatform === item ? 'game-on' : '')" :data-name="item" @tap="pickPlatform(eventWithDataset($event, {'name': item}))">{{item}}</view></template>
     </view>
 
     <view id="field-start" class="label">什么时候开始</view>
@@ -643,9 +659,9 @@ onProfileDone(e) {
 
     <view class="label">队伍人数</view>
     <view class="stepper">
-      <view class="step-btn" @tap="decCap(eventWithDataset($event, {}))">−</view>
+      <view class="step-btn" @tap="decCap()">−</view>
       <view class="step-num">{{capacity}}</view>
-      <view class="step-btn" @tap="incCap(eventWithDataset($event, {}))">+</view>
+      <view class="step-btn" @tap="incCap()">+</view>
     </view>
     <view class="step-hint">包含{{proxyMode && proxyHost ? '车头' : '你自己'}}</view>
 
@@ -656,7 +672,7 @@ onProfileDone(e) {
     <input class="field" placeholder="没有就空着" maxlength="32" :value="roomPwd" @input="onRoomPwd(eventWithDataset($event, {}))" />
     <view class="step-hint">房间密码仅车头和已上车成员可见</view>
 
-    <button class="more-toggle" @tap="toggleMore(eventWithDataset($event, {}))" hover-class="more-toggle-hover" :aria-label="'更多设置，' + (showMore ? '点击收起' : '点击展开')">
+    <button class="more-toggle" @tap="toggleMore()" hover-class="more-toggle-hover" :aria-label="'更多设置，' + (showMore ? '点击收起' : '点击展开')">
       <view class="more-copy">
         <view class="more-title">更多设置</view>
         <view class="more-hint">{{moreHint}}</view>
@@ -685,12 +701,12 @@ onProfileDone(e) {
   <view class="submit-spacer"></view>
 
   <view class="submit-bar">
-    <button class="btn-primary" :loading="submitting" :disabled="submitting" @tap="onSubmit(eventWithDataset($event, {}))">
+    <button class="btn-primary" :loading="submitting" :disabled="submitting" @tap="onSubmit()">
       {{editingId ? '保存修改' : (proxyMode && proxyHost ? '帮 TA 发车 · ' + capacity + '人' : '发车 · ' + capacity + '人')}}
     </button>
   </view>
 
-  <profile-gate :show="showProfile" @done="onProfileDone({ detail: $event })" @close="onProfileClose({ detail: $event })" />
+  <profile-gate :show="showProfile" @done="onProfileDone({ detail: $event })" @close="onProfileClose()" />
   <welcome-letter />
 </view>
 
