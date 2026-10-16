@@ -10,7 +10,7 @@ MIT 许可保留于 `LICENSE.unibest`。
 
 裁剪：未使用的 layouts 插件、演示页、App 原生资源处理、未用图标集合、alova 请求层、z-paging、调试器自动注入、自动打开开发工具、自动初始化 Git 和模板上传脚本。采用既有 `uni.request` 传输层，不并行引入第二套请求库，不把敏感会话持久化到本地。
 
-编译链沿用 P0 已验证的 DCloud `3.0.0-5020420260813003` 与 Vue 3.4.21；Pinia 固定为兼容的 2.1.7。UnoCSS 66.0.0 / unocss-applet 0.11.0 来自官方模板锁定组合。所有依赖使用本工程 package-lock.json 固定。
+编译链沿用 P0 已验证的 DCloud `3.0.0-5020420260813003` 与 Vue 3.4.21；Pinia 固定为兼容的 2.1.7。UnoCSS 66.0.0 / unocss-applet 0.11.0 来自官方模板锁定组合。前端和上传工具的依赖统一由仓库根目录 pnpm-lock.yaml 固定；pnpm workspace 是本项目的仓库组织方式，不是直接照搬 unibest 官方仓库。
 
 `pages.config.ts`、`manifest.config.ts` 是配置源。`src/pages.json`、`src/manifest.json` 和生成的页面类型不手动修改、不提交；每次 uni 构建自动生成。
 
@@ -18,6 +18,6 @@ MIT 许可保留于 `LICENSE.unibest`。
 
 未引入 layouts 的原因：当前页面无需独立布局包装，0.1.11 经 c12/giget 引入 tar 6.2.1 的严重安全告警，删除该未使用依赖。manifest 插件也仍经 c12/giget 依赖 tar 6.2.1，故严重告警并未全部消除；其余编译链依赖也有安全告警，尚未作为生产发布候选完成升级审计。
 
-工程检查使用 ESLint、Prettier、Husky 与 lint-staged；未引入 Stylelint（自有样式没有独立 CSS/SCSS 文件）与 commitlint（当前没有强制提交信息规范需求）。安装依赖后运行 `npm run hooks:install` 启用本地提交前检查，CI 同样运行 lint 与格式检查。
+工程检查使用 ESLint、Prettier、Husky 与 lint-staged；未引入 Stylelint（自有样式没有独立 CSS/SCSS 文件）与 commitlint（当前没有强制提交信息规范需求）。安装依赖后运行 根目录 `pnpm hooks:install` 启用本地提交前检查，CI 同样运行 lint 与格式检查。
 
 CI 上传现由仓库 `scripts/miniapp` 和 `.github/workflows` 独立维护，先支持微信与 QQ；没有恢复模板内的上传脚本。配置见 [自动上传说明](../../docs/微信QQ自动上传.md)。

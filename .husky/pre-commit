@@ -1,2 +1,2 @@
 cd "$(git rev-parse --show-toplevel)"
-node apps/miniapp/node_modules/lint-staged/bin/lint-staged.js --config lint-staged.config.mjs
+pnpm exec lint-staged --config lint-staged.config.mjs

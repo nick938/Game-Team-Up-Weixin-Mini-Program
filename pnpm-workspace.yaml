@@ -1,0 +1,18 @@
+packages:
+  - apps/miniapp
+  - tools/miniapp-release
+
+# Cloud functions remain independent deployment packages.
+onlyBuiltDependencies:
+  - "@parcel/watcher"
+  - "@swc/core"
+  - "@uni-helper/unocss-preset-uni"
+  - esbuild
+  - vue-demi
+
+# These install hooks only provide optional notices or unrelated development setup.
+ignoredBuiltDependencies:
+  - core-js
+  - core-js-pure
+  - less
+  - protobufjs

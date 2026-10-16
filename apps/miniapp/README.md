@@ -4,15 +4,16 @@
 
 ## 开发和检查
 
+本目录是根 pnpm workspace 的前端包；依赖与锁文件由仓库根目录统一管理，Node.js 24 / pnpm 10.34.5。日常命令在根目录执行，单独运行前端脚本使用 `pnpm --filter game-team-miniapp <命令>`。
+
 ```sh
-cd apps/miniapp
-npm ci --ignore-scripts
-npm run hooks:install
-npm run dev:h5 -- --port 5196
-npm run check:matrix
+# 在仓库根目录执行
+pnpm install --frozen-lockfile
+pnpm dev
+pnpm check:matrix
 ```
 
-`check:matrix` 顺序执行 ESLint、Prettier 格式检查、本地行为测试、严格类型检查和 H5/微信/QQ/支付宝/抖音编译，输出 `dist/p0/build-results.json`。在受限文件监听环境中可加 `CHOKIDAR_USEPOLLING=1` 运行命令。本仓库根目录的服务端、共享规则及 Vue 组件回归为 `node --test tests/*.test.js`。
+`check:matrix` 顺序执行 ESLint、Prettier 格式检查、本地行为测试、严格类型检查和 H5/微信/QQ/支付宝/抖音编译，输出 `dist/p0/build-results.json`。在受限文件监听环境中可加 `CHOKIDAR_USEPOLLING=1` 运行命令。本仓库根目录的服务端、共享规则及 Vue 组件回归为 `pnpm run test:server`。
 
 - 微信产物：`dist/build/mp-weixin/`，导入微信开发者工具；使用现有微信 AppID 与云函数环境。
 - QQ 产物：`dist/build/mp-qq/`，后续导入 QQ 开发工具；需要独立 QQ AppID、服务端配置及合法域名。

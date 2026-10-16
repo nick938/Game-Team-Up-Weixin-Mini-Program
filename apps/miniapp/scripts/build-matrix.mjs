@@ -22,7 +22,7 @@ const results = [];
 // 顺序运行避免多个 uni 编译进程共享临时文件；某端失败仍继续收集其他端结果。
 for (const job of jobs) {
   const start = Date.now();
-  const run = spawnSync('npm', ['run', job], { cwd: root, encoding: 'utf8' });
+  const run = spawnSync('pnpm', ['run', job], { cwd: root, encoding: 'utf8' });
   const logName = `${job.replaceAll(':', '-')}.log`;
   writeFileSync(path.join(output, logName), `${run.stdout || ''}\n${run.stderr || ''}\n${run.error || ''}`);
   const result = {

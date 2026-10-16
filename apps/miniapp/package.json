@@ -20,7 +20,7 @@
     "lint:fix": "eslint src *.config.ts --fix",
     "format": "prettier --write src *.config.ts *.mjs *.json README.md UNIBEST.md",
     "format:check": "prettier --check src *.config.ts *.mjs *.json README.md UNIBEST.md",
-    "hooks:install": "cd ../.. && node apps/miniapp/node_modules/husky/bin.js .husky"
+    "hooks:install": "pnpm -w run hooks:install"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5020420260813003",
@@ -51,8 +51,6 @@
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.11.1",
-    "husky": "9.1.7",
-    "lint-staged": "16.4.0",
     "prettier": "3.9.10",
     "sass": "1.98.0",
     "typescript": "5.6.3",

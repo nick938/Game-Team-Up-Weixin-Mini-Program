@@ -5,26 +5,29 @@ on:
   workflow_dispatch:
     inputs:
       targets:
-        description: 'all / weixin / qq / 应用 ID，支持逗号分隔'
+        description: "all / weixin / qq / 应用 ID，支持逗号分隔"
         required: true
         default: weixin
         type: string
       version:
-        description: '上传版本 x.y.z；留空使用 apps/miniapp/package.json'
+        description: "上传版本 x.y.z；留空使用 apps/miniapp/package.json"
         required: false
         type: string
       description:
-        description: '本次更新说明'
+        description: "本次更新说明"
         required: true
-        default: '开黑星球版本更新'
+        default: "开黑星球版本更新"
         type: string
       qq_experience:
-        description: 'QQ 上传成功后设置为体验版'
+        description: "QQ 上传成功后设置为体验版"
         default: false
         type: boolean
 
 permissions:
   contents: read
+
+env:
+  HUSKY: "0"
 
 jobs:
   prepare:
@@ -37,26 +40,23 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
-          package-manager-cache: false
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - id: plan
         run: node scripts/miniapp/release.mjs plan
         env:
           MINIAPP_TARGETS: ${{ inputs.targets }}
           MINIAPP_VERSION: ${{ inputs.version }}
-      - run: npm ci --ignore-scripts
-        working-directory: apps/miniapp
-      - run: node --test tests/*.test.js
-      - run: npm test
-        working-directory: apps/miniapp
-      - run: npm run lint
-        working-directory: apps/miniapp
-      - run: npm run format:check
-        working-directory: apps/miniapp
-      - run: npm run typecheck
-        working-directory: apps/miniapp
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:server
+      - run: pnpm --filter game-team-miniapp test
+      - run: pnpm --filter game-team-miniapp lint
+      - run: pnpm --filter game-team-miniapp format:check
+      - run: pnpm --filter game-team-miniapp typecheck
 
   upload:
     needs: prepare
@@ -80,18 +80,19 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
-          package-manager-cache: false
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Check application configuration and credentials
         run: node scripts/miniapp/release.mjs preflight
         env:
           WEIXIN_UPLOAD_PRIVATE_KEY: ${{ secrets.WEIXIN_UPLOAD_PRIVATE_KEY }}
           QQ_APP_TOKEN: ${{ secrets.QQ_APP_TOKEN }}
           QQ_EXPERIENCE: ${{ inputs.qq_experience }}
-      - run: npm ci --ignore-scripts
-        working-directory: apps/miniapp
+      - run: pnpm install --frozen-lockfile
       - name: Build selected application
         run: node scripts/miniapp/release.mjs build
       - name: Store the exact upload package
@@ -101,10 +102,6 @@ jobs:
           path: apps/miniapp/dist/build/mp-${{ matrix.platform }}/
           if-no-files-found: error
           retention-days: 14
-      - name: Install WeChat upload SDK
-        if: matrix.platform == 'weixin'
-        run: npm ci --ignore-scripts --no-audit --no-fund
-        working-directory: tools/miniapp-release
       - name: Upload developer version
         run: node scripts/miniapp/release.mjs upload
         env:

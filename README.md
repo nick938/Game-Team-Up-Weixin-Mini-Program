@@ -1,10 +1,14 @@
 # 开黑星球｜游戏搭子
 
-基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码，微信原生工程与早期 P0 实验工程已移除。
+使用 pnpm workspace 管理前端和上传工具。前端基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码，微信原生工程与早期 P0 实验工程已移除。
 
 ## 项目结构
 
 ```text
+package.json         根目录开发、检查和发布命令
+pnpm-workspace.yaml  工作区范围及依赖构建许可
+pnpm-lock.yaml       前端和上传工具统一锁文件
+tools/miniapp-release/ 微信上传 SDK
 apps/miniapp/         唯一前端，页面与组件全部采用 <script setup lang="ts">
 cloudfunctions/team/ 现有微信业务后端：组队、资料、角色、审核和提醒
 cloudfunctions/p0Health/ 独立 HTTP 接入诊断，供前端诊断页使用
@@ -15,20 +19,21 @@ project.config.json  微信开发者工具入口，指向新前端的微信构�
 
 ## 本地开发
 
+使用 Node.js 24 和 pnpm 10.34.5（根 `packageManager` 固定版本）。以下命令均在仓库根目录执行；启用 Corepack 后可由它选择固定版本的 pnpm。首次从旧工程切换时先移除旧的 `apps/miniapp/node_modules` 和 `tools/miniapp-release/node_modules`，再安装。安装会启用 Husky 提交检查；`--ignore-scripts` 安装后需额外执行 `pnpm hooks:install`。
+
 ```sh
-cd apps/miniapp
-npm ci --ignore-scripts
-npm run hooks:install
-npm run dev:h5 -- --port 5196
+pnpm install --frozen-lockfile
+pnpm dev
 ```
+
+若当前系统文件监听报 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 pnpm dev` 启用轮询。
 
 H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；QQ 等平台的 HTTPS 登录、业务和头像接口需要独立后端实现，当前不具备真实跨端业务闭环。配置方式见 [前端说明](apps/miniapp/README.md)。
 
 ## 微信开发与发布
 
 ```sh
-cd apps/miniapp
-npm run build:weixin
+pnpm build:weixin
 ```
 
 构建完成后，用微信开发者工具打开仓库根目录；`project.config.json` 的 `miniprogramRoot` 已指向 `apps/miniapp/dist/build/mp-weixin/`，云函数根目录仍为 `cloudfunctions/`。修改前端后重新构建；不要直接修改构建产物。
@@ -39,11 +44,11 @@ npm run build:weixin
 
 ## 验证
 
-安装前端依赖后，在仓库根目录执行：
+在仓库根目录安装依赖后执行：
 
 ```sh
-node --test tests/*.test.js
-npm --prefix apps/miniapp run check:matrix
+pnpm check
+pnpm check:matrix
 ```
 
 根目录测试包含服务端身份、组队规则、提醒、权限、头像和朋友圈单页行为；前端测试覆盖会话、Vue 页面交互和组件事件。前端测试工具通过 Vue SFC 编译器执行实际 setup 与响应式状态，替换宿主 API 和网络请求。
@@ -53,6 +58,10 @@ npm --prefix apps/miniapp run check:matrix
 本次前端统一迁移与浏览器检查见 [Wot UI / UnoCSS 迁移验收](docs/Wot-UI与UnoCSS统一迁移验收.md)。
 
 ## 开发约定
+
+- workspace 只包含 `apps/miniapp` 和 `tools/miniapp-release`，统一由根 `pnpm-lock.yaml` 锁定；不在子目录生成 npm 或 pnpm 锁文件。
+- 云函数不加入 workspace，保留独立 `package.json`，继续通过微信开发者工具在云端安装依赖和部署。
+- `pnpm dev` 开发 H5；`pnpm check` 执行规范、格式、类型与前后端测试；`pnpm check:matrix` 执行服务端测试与完整五端检查。单独操作前端可使用 `pnpm --filter game-team-miniapp <命令>`。
 
 - 所有页面交互控件采用 Wot UI；自有样式采用 UnoCSS，颜色与公共布局统一维护在 `uno.config.ts`。
 - 页面和组件使用 `<script setup lang="ts">`，应用状态由 Pinia 管理，页面状态使用 Vue 响应式 API。

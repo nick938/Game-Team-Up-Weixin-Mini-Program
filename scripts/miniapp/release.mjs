@@ -76,7 +76,7 @@ function run(command, args, options = {}) {
 }
 
 export function build(config, execute = run) {
-  execute('npm', ['run', `build:${config.platform}`], {
+  execute('pnpm', ['run', `build:${config.platform}`], {
     cwd: appRoot,
     env: {
       ...process.env, CHOKIDAR_USEPOLLING: '1', MINIAPP_VERSION: config.version,

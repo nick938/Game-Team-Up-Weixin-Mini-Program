@@ -1,7 +1,8 @@
 export default {
-  'apps/miniapp/**/*.{ts,vue,mjs}': [
-    'node apps/miniapp/node_modules/eslint/bin/eslint.js --config apps/miniapp/eslint.config.mjs --fix',
-    'node apps/miniapp/node_modules/prettier/bin/prettier.cjs --write',
+  "apps/miniapp/**/*.{ts,vue,mjs}": [
+    "pnpm --filter game-team-miniapp exec eslint --config eslint.config.mjs --fix",
+    "pnpm --filter game-team-miniapp exec prettier --write",
   ],
-  'apps/miniapp/**/*.{json,md}': 'node apps/miniapp/node_modules/prettier/bin/prettier.cjs --write',
+  "apps/miniapp/**/*.{json,md}":
+    "pnpm --filter game-team-miniapp exec prettier --write",
 };

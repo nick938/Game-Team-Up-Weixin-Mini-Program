@@ -6,7 +6,7 @@
 
 ### 1. 将工作流放到 GitHub 默认分支
 
-提交并推送 `.github/workflows/miniapp-ci.yml` 和 `miniapp-upload.yml`。手动运行入口需要上传工作流先存在于默认分支；之后可以在 Run workflow 的分支选择器选择待上传分支。
+提交并推送根 `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml` 以及 `.github/workflows/miniapp-ci.yml` 和 `miniapp-upload.yml`。手动运行入口需要上传工作流先存在于默认分支；之后可以在 Run workflow 的分支选择器选择待上传分支。
 
 `Miniapp CI` 在相关代码 push / PR 时执行：服务端与页面测试、类型检查，以及独立工作区内的微信 / QQ 编译。此流程不使用上传凭据，QQ 未注册 AppID 也可进行编译检查。
 
@@ -35,7 +35,7 @@ QQ 的业务 API 仍需实现并部署 `/v1/auth/qq`、`/v1/rpc` 和 `/v1/media/
 MINIAPP_UPLOAD_RUNNER=["self-hosted","linux","x64","miniapp-upload"]
 ```
 
-该值是 JSON，不能直接填一串未加引号的标签。上传 runner 需要支持当前 Actions 的 Node 24 运行时，能访问 GitHub/npm/对应平台；QQ 还需要已启动的 Docker，容器以 Linux amd64 运行。CI 测试始终使用 GitHub 托管 runner。未配置该变量时，上传默认运行在 `ubuntu-latest`，微信是否可上传取决于其实际出口和后台 IP 配置。
+该值是 JSON，不能直接填一串未加引号的标签。上传 runner 需要支持当前 Actions 的 Node 24 运行时，能访问 GitHub/npm registry/对应平台；QQ 还需要已启动的 Docker，容器以 Linux amd64 运行。CI 测试始终使用 GitHub 托管 runner。未配置该变量时，上传默认运行在 `ubuntu-latest`，微信是否可上传取决于其实际出口和后台 IP 配置。
 
 ## 日常使用
 
@@ -72,21 +72,23 @@ QQ 官方容器正常输出可能包含体验版入口；当前脚本不转发�
 
 ## 版本与本地验证
 
+本地与 CI 使用根 `packageManager` 固定的 pnpm 10.34.5、Node.js 24 和根 `pnpm-lock.yaml`。所有命令在仓库根目录执行。CI 使用 `pnpm install --frozen-lockfile`，不在各子目录分别安装。云函数仍独立部署，不纳入工作区。
+
 `apps/miniapp/package.json` 是默认版本来源；`MINIAPP_VERSION` 仅对本次构建覆盖。Vite 注入 `__APP_VERSION__`，同时写入 manifest 和上传元数据，上传使用同一版本。无需再修改 `src/utils/constants.js`。
 
 无密钥查看发布计划：
 
 ```sh
-MINIAPP_TARGETS=all npm --prefix apps/miniapp run release:plan
+MINIAPP_TARGETS=all pnpm release:plan
 ```
 
 只构建微信上传包（不上传）：
 
 ```sh
-MINIAPP_TARGETS=weixin MINIAPP_VERSION=1.8.5 npm --prefix apps/miniapp run release:build
+MINIAPP_TARGETS=weixin MINIAPP_VERSION=1.8.5 pnpm release:build
 ```
 
-本地实际上传需配置环境变量：微信为 `WEIXIN_UPLOAD_PRIVATE_KEY`；QQ 为 `MINIAPP_APP_ID`、`MINIAPP_API_BASE_URL`、`QQ_APP_TOKEN`，并启动 Docker。微信还需执行 `npm ci --prefix tools/miniapp-release --ignore-scripts` 安装锁定的 SDK。不要把密钥直接写入命令历史。随后运行 `MINIAPP_TARGETS=weixin npm --prefix apps/miniapp run release:upload`。
+本地实际上传需配置环境变量：微信为 `WEIXIN_UPLOAD_PRIVATE_KEY`；QQ 为 `MINIAPP_APP_ID`、`MINIAPP_API_BASE_URL`、`QQ_APP_TOKEN`，并启动 Docker。在仓库根目录执行 `pnpm install --frozen-lockfile` 会同时安装锁定的微信上传 SDK，无需单独安装。不要把密钥直接写入命令历史。随后运行 `MINIAPP_TARGETS=weixin pnpm release:upload`。
 
 ## 官方依据
 
