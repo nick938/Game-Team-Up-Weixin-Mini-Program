@@ -31,6 +31,8 @@
     <button wx:if="{{isOrganizer && !isAdmin}}" class="footer-action" bindtap="openPublish">帮群友发车</button>
     <button wx:if="{{isAdmin}}" class="footer-action" bindtap="openAdmin">管理端</button>
     <view class="footer-links">
+      <text class="footer-link" bindtap="openAuthor">联系作者</text>
+      <text class="footer-dot">·</text>
       <text class="footer-link" bindtap="openFeedback">意见反馈</text>
       <text class="footer-dot">·</text>
       <text class="footer-link" bindtap="openBug">报个错</text>

@@ -141,6 +141,21 @@ Page({
     wx.navigateTo({ url: "/pages/feedback/feedback" });
   },
 
+  openAuthor() {
+    wx.showModal({
+      title: "联系作者",
+      content: "作者微信号：Louisville_k",
+      confirmText: "复制微信号",
+      success: (res) => {
+        if (!res.confirm) return;
+        wx.setClipboardData({
+          data: "Louisville_k",
+          fail: () => wx.showToast({ title: "复制失败，请重试", icon: "none" }),
+        });
+      },
+    });
+  },
+
   openBug() {
     const app = getApp();
     const errorMsg = encodeURIComponent((app.globalData && app.globalData.lastError) || "");
