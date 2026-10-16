@@ -15,7 +15,7 @@ apps/miniapp/         唯一前端，页面与组件全部采用 <script setup l
 cloudfunctions/team/ 现有微信业务后端：组队、资料、角色、审核和提醒
 cloudfunctions/p0Health/ 独立 HTTP 接入诊断，供前端诊断页使用
 tests/               服务端、共享业务规则与 Vue 组件回归测试
-docs/                产品资料、跨端接口契约、品牌资源及历史验证记录
+docs/                产品资料、跨端接口契约、发布说明、品牌资源及接入证据
 project.config.json  微信开发者工具入口，指向新前端的微信构建产物
 ```
 
@@ -30,7 +30,7 @@ pnpm dev
 
 若当前系统文件监听报 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 pnpm dev` 启用轮询。
 
-H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；QQ 的 HTTPS 登录、业务和头像接口需要独立后端实现，当前不具备真实跨端业务闭环。配置方式见 [前端说明](apps/miniapp/README.md)。
+H5 用于开发和界面检查。微信业务仍调用 `team` 云函数；后续确定在腾讯云 CloudBase 控制台创建新环境并绑定 QQ 账号，在新环境实现共享 HTTPS 登录、业务和头像接口，再迁移微信接入与数据。当前尚未创建该目标环境或完成跨端业务闭环，详见 [迁移计划](docs/微信QQ迁移与发布计划.md)；前端配置见 [前端说明](apps/miniapp/README.md)。
 
 ## 微信开发与发布
 
@@ -57,8 +57,6 @@ pnpm check:matrix
 
 `check:matrix` 执行 ESLint、Prettier、前端测试、严格类型检查以及 微信、QQ 构建和 H5 开发检查，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
 
-本次前端统一迁移与浏览器检查见 [Wot UI / UnoCSS 迁移验收](docs/Wot-UI与UnoCSS统一迁移验收.md)。
-
 ## 开发约定
 
 - workspace 只包含 `apps/miniapp` 和 `tools/miniapp-release`，统一由根 `pnpm-lock.yaml` 锁定；不在子目录生成 npm 或 pnpm 锁文件。
@@ -72,7 +70,15 @@ pnpm check:matrix
 - 业务类型集中在 `src/types/domain.ts`。共享业务工具全部使用 TypeScript，开启 `strict` 并禁用 `allowJs`。
 - 默认版本号维护在 `apps/miniapp/package.json`；正式版显示宿主提供的发布版本号。
 - 品牌运行资源位于 `apps/miniapp/src/static/images/`；宣传素材源文件与生成脚本位于 `docs/`。
-- `docs` 中旧验证记录保留为历史证据，其中旧目录和旧测试数量不代表当前工程状态。
+
+## 文档导航
+
+- 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)。
+- 开发与模板：[前端说明](apps/miniapp/README.md)、[unibest 来源与裁剪](apps/miniapp/UNIBEST.md)。
+- QQ 后续接入：[迁移与发布计划](docs/微信QQ迁移与发布计划.md)、[统一身份接口契约](docs/统一身份接口契约.md)。
+- 部署与维护：[自动上传](docs/微信QQ自动上传.md)、[头像存储与权限兼容](docs/头像存储与权限兼容.md)。
+- HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)、[P0 接入记录](docs/P0接入验证记录.md)。P0 文档保留已执行的云端操作和探测证据，旧路径、命令与测试数量不代表当前工程状态。
+- 素材维护：[品牌设计说明](docs/brand/设计说明.md)、[推广配图说明](docs/promo/设计说明.md)。
 
 ## 微信与 QQ CI 上传
 
