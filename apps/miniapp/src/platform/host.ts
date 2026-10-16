@@ -9,7 +9,6 @@ export const platform = {
   getStorageSync: uni.getStorageSync,
   getSystemInfoSync: uni.getSystemInfoSync,
   getWindowInfo: uni.getWindowInfo,
-  hideLoading: uni.hideLoading,
   hideTabBar: uni.hideTabBar,
   navigateBack: uni.navigateBack,
   navigateTo: uni.navigateTo,
@@ -17,17 +16,17 @@ export const platform = {
   setClipboardData: uni.setClipboardData,
   setNavigationBarTitle: uni.setNavigationBarTitle,
   setStorageSync: uni.setStorageSync,
-  showLoading: uni.showLoading,
-  showModal: uni.showModal,
   showTabBar: uni.showTabBar,
-  showToast: uni.showToast,
   stopPullDownRefresh: uni.stopPullDownRefresh,
   switchTab: uni.switchTab,
   onCopyUrl: undefined as ((callback: () => { query: string; title: string }) => void) | undefined,
   offCopyUrl: undefined as (() => void) | undefined,
 };
 // #ifdef MP-WEIXIN
-interface CopyURLApi { onCopyUrl?: typeof platform.onCopyUrl; offCopyUrl?: typeof platform.offCopyUrl }
+interface CopyURLApi {
+  onCopyUrl?: typeof platform.onCopyUrl;
+  offCopyUrl?: typeof platform.offCopyUrl;
+}
 declare const wx: CopyURLApi;
 platform.onCopyUrl = wx.onCopyUrl?.bind(wx);
 platform.offCopyUrl = wx.offCopyUrl?.bind(wx);
@@ -42,19 +41,32 @@ export const capabilities = Object.freeze({
 
 export function loginCode(): Promise<string> {
   if (!capabilities.nativeLogin) return Promise.reject(new Error('请在小程序中登录'));
-  return new Promise((resolve, reject) => uni.login({
-    success(result) { result.code ? resolve(result.code) : reject(new Error('登录未成功，请重试')); },
-    fail() { reject(new Error('登录失败，请稍后重试')); },
-  }));
+  return new Promise((resolve, reject) =>
+    uni.login({
+      success(result) {
+        if (result.code) resolve(result.code);
+        else reject(new Error('登录未成功，请重试'));
+      },
+      fail() {
+        reject(new Error('登录失败，请稍后重试'));
+      },
+    }),
+  );
 }
 
 export function chooseAvatar(): Promise<string> {
-  return new Promise((resolve, reject) => uni.chooseImage({
-    count: 1, sizeType: ['compressed'],
-    success(result) {
-      const file = result.tempFilePaths[0];
-      file ? resolve(file) : reject(new Error('未选择图片'));
-    },
-    fail() { reject(new Error('未选择图片')); },
-  }));
+  return new Promise((resolve, reject) =>
+    uni.chooseImage({
+      count: 1,
+      sizeType: ['compressed'],
+      success(result) {
+        const file = result.tempFilePaths[0];
+        if (file) resolve(file);
+        else reject(new Error('未选择图片'));
+      },
+      fail() {
+        reject(new Error('未选择图片'));
+      },
+    }),
+  );
 }

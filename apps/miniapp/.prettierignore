@@ -1,0 +1,6 @@
+node_modules/
+dist/
+src/pages.json
+src/manifest.json
+src/types/uni-pages.d.ts
+package-lock.json

@@ -6,7 +6,7 @@ interface CloudApi {
 }
 declare const wx: { cloud: CloudApi };
 export function wechatCloud(): CloudApi {
-  let cloud: CloudApi | undefined;
+  let cloud: CloudApi | undefined = undefined;
   // #ifdef MP-WEIXIN
   cloud = (wx as unknown as { cloud: CloudApi }).cloud;
   // #endif

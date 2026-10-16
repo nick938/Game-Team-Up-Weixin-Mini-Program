@@ -7,22 +7,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "lib": [
-      "ES2020",
-      "DOM"
-    ],
-    "types": [
-      "@dcloudio/types",
-      "vite/client",
-      "node"
-    ],
-    "allowJs": true,
-    "checkJs": false
+    "lib": ["ES2020", "DOM"],
+    "types": ["@dcloudio/types", "vite/client", "node"],
+    "allowJs": false
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.vue",
-    "src/**/*.d.ts",
-    "*.config.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts", "*.config.ts", "tests/types/**/*.ts"]
 }

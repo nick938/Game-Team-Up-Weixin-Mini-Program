@@ -1,180 +1,28 @@
 <script setup lang="ts">
-import { reactive, toRefs, nextTick } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
-import type { PageEvent, LegalSection } from '../../types/domain';
-import { eventWithDataset } from "../../utils/state";
-import { platform as hostPlatform } from "../../platform/host";
-
-const DOCS = {
-    agreement: {
-        title: "用户协议",
-        updated: "2026年9月4日",
-        sections: [
-            {
-                heading: "1. 服务说明",
-                body: "「开黑星球｜游戏搭子」是一款微信小程序，用于发布、分享和加入游戏组队信息。我们不提供游戏本身、语音房、公会或匹配算法，也不对第三方游戏、KOOK 等语音工具的可用性负责。",
-            },
-            {
-                heading: "2. 使用规则",
-                body: "你应当使用真实、友善的昵称和组队信息。禁止发布违法违规内容，包括但不限于色情、赌博、外挂、代练、买卖账号、诱导添加微信。我们可能删除违规组队或限制相关功能。",
-            },
-            {
-                heading: "3. 组队关系",
-                body: "上车即表示你同意该局的时间、人数和进房方式。车头可以编辑未结束的组队，或散了这趟。到结束时间后组队自动结束，不能再加入。",
-            },
-            {
-                heading: "4. 免责声明",
-                body: "组队信息由用户自行填写。房间号、好友代码、密码的真实性与安全性由车头负责。因游戏内纠纷、爽约、言语冲突等产生的问题，由相关用户自行解决。「开黑星球｜游戏搭子」不对组队结果做担保。",
-            },
-            {
-                heading: "5. 协议变更",
-                body: "我们可能更新本协议。继续使用即视为接受更新后的协议。如有疑问，请通过小程序「我的」页反馈或停止使用。",
-            },
-        ],
-    },
-    privacy: {
-        title: "隐私政策",
-        updated: "2026年9月4日",
-        sections: [
-            {
-                heading: "1. 我们收集什么",
-                body: "为识别你的身份并展示给同局玩家，我们收集：微信 OpenID、你选择的昵称和头像、你自愿填写的签名（如 Steam 好友码、常玩时间等）、你发布或加入的组队信息（游戏名、时间、人数、进房方式、备注等）、你主动提交的意见反馈。我们不收集手机号、微信号、电子邮箱或通讯录，也不调用 getUserInfo 读取微信资料。",
-            },
-            {
-                heading: "2. 我们如何使用",
-                body: "上述信息仅用于：登录识别、组队展示、防超员、向你发送你授权的订阅消息（开打前提醒、散局通知）、处理你提交的意见反馈。不会用于广告画像，也不会出售给第三方。",
-            },
-            {
-                heading: "3. 存储与共享",
-                body: "数据存储在微信云开发（腾讯云）环境中。你填写的签名可由队伍页面的访客点击成员头像查看；清空签名并保存后不再展示。你提交的意见反馈会保存到云数据库，并发送到开发者邮箱，仅用于改进产品。除实现组队功能所必需、以及法律法规要求外，我们不会向其他第三方提供你的个人信息。分享卡片只会带上队伍 ID，不会带上你的 OpenID。",
-            },
-            {
-                heading: "4. 你的权利",
-                body: "你可以在「我的」随时修改头像、昵称和签名。你可以下车或散了自己发起的组队。如需删除账号相关数据，请通过微信小程序投诉或联系开发者处理。",
-            },
-            {
-                heading: "5. 未成年人",
-                body: "本服务面向具备完全民事行为能力的用户。如果你是未成年人，请在监护人指导下使用，并遵守游戏与微信平台的相关规定。",
-            },
-        ],
-    },
-    community: {
-        title: "社区公约",
-        updated: "2026年9月8日",
-        sections: [
-            {
-                heading: "1. 我们希望怎样开黑",
-                body: "开黑星球是给游戏好友发车组队用的。车上都是真人。请准时、友善、把对面当朋友。玩得开心，也让别人玩得开心。",
-            },
-            {
-                heading: "2. 请这样做",
-                body: "约定好时间就尽量到点上线。来不了、迟到或要提前走，请先在局里说明并下车，方便别人补人。说话直接、礼貌。房间号、好友代码和密码只给这局里的人用，散了就不要再外传。",
-            },
-            {
-                heading: "3. 请不要这样做",
-                body: "禁止阴阳怪气、辱骂、骚扰、人身攻击。禁止发布外挂、脚本、代练、买卖账号、色情、赌博等内容。禁止用组队信息诱导添加微信、拉群或导流到无关平台。禁止恶意放鸽子捣乱。",
-            },
-            {
-                heading: "4. 出了问题怎么办",
-                body: "游戏内纠纷、爽约、言语冲突由相关用户自行处理。你可以下车，车头可以编辑或散了这趟。我们可能删除违规组队、限制相关功能。继续使用即表示你愿意遵守本公约和用户协议。",
-            },
-        ],
-    },
-};
-// 三个文档在同一页切换，避免从「我的」进来看不到另外两份。
-const DOC_ORDER = [
-    { key: "agreement", label: "用户协议" },
-    { key: "privacy", label: "隐私政策" },
-    { key: "community", label: "社区公约" },
-];
-const state = reactive({  singlePage: false, ...{
-        title: "",
-        updated: "",
-        sections: [] as LegalSection[],
-        docs: DOC_ORDER,
-        activeType: "",
-    } });
-const { singlePage, title, updated, sections, docs, activeType } = toRefs(state);
-function patchState(patch: Partial<typeof state>, done?: () => void) {
-  Object.assign(state, patch);
-  if (done) void nextTick(done);
-}
-function showDoc(type?: string) {
-    const key = type && Object.prototype.hasOwnProperty.call(DOCS, type) ? type as keyof typeof DOCS : "privacy";
-    const doc = DOCS[key];
-    patchState({
-        title: doc.title,
-        updated: doc.updated,
-        sections: doc.sections,
-        activeType: key,
-    });
-    hostPlatform.setNavigationBarTitle({ title: doc.title });
-}
-function pickDoc(e: PageEvent) {
-    showDoc(e.currentTarget.dataset.type);
-}
-onLoad((options = {}) => {
-    showDoc(options && options.type);
-});
+defineOptions({ name: 'LegalLegalPage' });
+import { reactive } from 'vue';
+import { useLegal } from '../../composables/useLegal';
+const page = reactive(useLegal());
 </script>
 <template>
-<view class="page">
-  <view class="doc-tabs">
-    <template v-for="(item, index) in docs" :key="item.key"><view :class="'doc-tab ' + (activeType === item.key ? 'doc-tab-on' : '')" :data-type="item.key" @tap="pickDoc(eventWithDataset($event, {'type': item.key}))">{{item.label}}</view></template>
-  </view>
-  <view class="updated">更新日期：{{updated}}</view>
-  <template v-for="(item, index) in sections" :key="item.heading"><view class="block">
-    <view class="heading">{{item.heading}}</view>
-    <view class="body">{{item.body}}</view>
-  </view></template>
-</view>
-
+  <app-shell :title="page.title" subtitle="开黑星球｜游戏搭子">
+    <view class="flex flex-wrap gap-2 mb-5"
+      ><wd-button
+        v-for="doc in page.docs"
+        :key="doc.key"
+        size="small"
+        :variant="page.activeType === doc.key ? 'base' : 'soft'"
+        @click="page.pickDoc(doc.key)"
+        >{{ doc.label }}</wd-button
+      ></view
+    >
+    <view class="hint mb-4">更新日期：{{ page.updated }}</view
+    ><wd-card
+      v-for="section in page.sections"
+      :key="section.heading"
+      :title="section.heading"
+      custom-class="!mx-0 !mb-4"
+      ><view class="text-sm leading-7 whitespace-pre-wrap break-words">{{ section.body }}</view></wd-card
+    >
+  </app-shell>
 </template>
-<style scoped>
-.doc-tabs {
-  display: flex;
-  gap: 8rpx;
-  margin-bottom: 28rpx;
-  padding: 6rpx;
-  background: #eceef6;
-  border-radius: 24rpx;
-}
-
-.doc-tab {
-  flex: 1;
-  padding: 14rpx 0;
-  text-align: center;
-  font-size: 25rpx;
-  color: #737a90;
-  border-radius: 18rpx;
-}
-
-.doc-tab-on {
-  background: #fff;
-  color: #6255e7;
-  font-weight: 600;
-}
-
-.updated {
-  margin-bottom: 28rpx;
-  font-size: 24rpx;
-  color: #777e92;
-}
-
-.block {
-  margin-bottom: 36rpx;
-}
-
-.heading {
-  font-size: 32rpx;
-  font-weight: 700;
-  margin-bottom: 12rpx;
-}
-
-.body {
-  font-size: 28rpx;
-  line-height: 1.7;
-  color: #535b72;
-}
-
-</style>

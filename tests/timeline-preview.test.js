@@ -11,7 +11,7 @@ test('single-page detection supports old timeline scenes while explicit normal m
 for (const launch of [{ mode: 'singlePage', scene: 1154 }, { scene: 1154 }]) {
   test(`timeline startup avoids business requests and welcome storage: ${JSON.stringify(launch)}`, async () => {
     const h = harness({ launch });
-    const app = h.page('App'); app.hooks.onLaunch(launch); await h.application.profileReady;
+    const app = h.page('App'); app.hooks.onLaunch(launch); await Promise.resolve();
     for (const name of ['index/index', 'team/detail', 'mine/mine', 'publish/publish', 'game/game']) {
       const page = h.page('pages/' + name);
       page.hooks.onLoad?.(name === 'game/game' ? { game: 'cs2' } : { id: 'team-123' });
@@ -23,7 +23,7 @@ for (const launch of [{ mode: 'singlePage', scene: 1154 }, { scene: 1154 }]) {
   });
 }
 test('normal startup initializes the cloud and loads the profile and lobby', async () => {
-  const h = harness(), app = h.page('App'); app.hooks.onLaunch({}); await h.application.profileReady;
+  const h = harness(), app = h.page('App'); app.hooks.onLaunch({}); await Promise.resolve();
   const page = h.page('pages/index/index'); await page.loadList();
   const welcome = h.page('components/welcome-letter/index'); welcome.hooks.mounted();
   assert.equal(welcome.state.show, true);

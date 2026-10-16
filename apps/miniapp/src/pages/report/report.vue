@@ -1,112 +1,35 @@
 <script setup lang="ts">
-import { reactive, toRefs, nextTick } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
-import type { PageEvent } from '../../types/domain';
-import { eventWithDataset } from "../../utils/state";
-import { platform as hostPlatform } from "../../platform/host";
-
-import { REPORT_REASONS } from "../../utils/constants";
-import { getAppVersion } from "../../utils/version";
-import { callTeam, showError } from "../../utils/cloud";
-const state = reactive({  singlePage: false, ...{
-        reasons: REPORT_REASONS,
-        reason: "",
-        content: "",
-        teamId: "",
-        targetName: "",
-        submitting: false,
-    } });
-const { singlePage, reasons, reason, content, teamId, targetName, submitting } = toRefs(state);
-function patchState(patch: Partial<typeof state>, done?: () => void) {
-  Object.assign(state, patch);
-  if (done) void nextTick(done);
-}
-function pickReason(e: PageEvent) {
-    patchState({ reason: e.currentTarget.dataset.name });
-}
-function onContent(e: PageEvent) {
-    patchState({ content: e.detail.value });
-}
-async function onSubmit() {
-    if (state.submitting)
-        return;
-    if (!state.reason) {
-        hostPlatform.showToast({ title: "请选择举报理由", icon: "none" });
-        return;
-    }
-    if (!state.teamId) {
-        hostPlatform.showToast({ title: "举报对象已失效", icon: "none" });
-        return;
-    }
-    patchState({ submitting: true });
-    try {
-        const ver = getAppVersion();
-        await callTeam("submitReport", {
-            targetType: "team",
-            targetId: state.teamId,
-            reason: state.reason,
-            content: (state.content || "").trim(),
-            version: ver.version,
-            envVersion: ver.envLabel,
-        });
-        hostPlatform.showToast({ title: "已收到举报", icon: "success" });
-        setTimeout(() => hostPlatform.navigateBack(), 700);
-    }
-    catch (error) {
-        const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
-        showError(e);
-    }
-    finally {
-        patchState({ submitting: false });
-    }
-}
-onLoad((options = {}) => {
-    const targetName = options.name ? decodeURIComponent(options.name) : "";
-    patchState({
-        teamId: options.teamId || "",
-        targetName,
-    });
-    hostPlatform.setNavigationBarTitle({ title: targetName ? `举报：${targetName}` : "举报" });
-});
+defineOptions({ name: 'ReportReportPage' });
+import { reactive } from 'vue';
+import { useReport } from '../../composables/useReport';
+const page = reactive(useReport());
 </script>
 <template>
-<view class="page">
-  <view class="page-heading">举报</view>
-  <view class="page-caption">如果这趟车涉及广告、辱骂或违规内容，告诉我们，我们会尽快处理。</view>
-
-  <view class="target card">
-    <view class="target-label">举报对象</view>
-    <view class="target-name">{{targetName || '这趟车已不存在'}}</view>
-  </view>
-
-  <view class="form">
-    <view class="label">举报理由</view>
-    <view class="games">
-      <template v-for="(item, index) in reasons" :key="item"><view :class="'game ' + (reason === item ? 'game-on' : '')" :data-name="item" @tap="pickReason(eventWithDataset($event, {'name': item}))">{{item}}</view></template>
-    </view>
-
-    <view class="label">补充说明（选填）</view>
-    <textarea class="area" maxlength="500" :value="content" @input="onContent(eventWithDataset($event, {}))" placeholder="方便的话，说说具体是什么情况" />
-    <view class="hint">举报会记录你的账号，恶意举报可能影响使用。</view>
-
-    <button class="btn-primary submit" :loading="submitting" :disabled="submitting" @tap="onSubmit()">提交举报</button>
-  </view>
-</view>
-
+  <app-shell title="举报" subtitle="如果这趟车涉及广告、辱骂或违规内容，告诉我们，我们会尽快处理。">
+    <wd-cell-group
+      ><wd-cell title="举报对象" :value="page.targetName || '组队'" /><app-picker
+        label="举报理由"
+        :model-value="page.reason"
+        :columns="page.reasons"
+        placeholder="请选择举报理由"
+        @confirm="page.pickReason(String($event.value))" /><app-textarea
+        label="补充说明"
+        :model-value="page.content"
+        :maxlength="500"
+        show-word-count
+        auto-height
+        placeholder="方便的话，说说具体是什么情况"
+        @update:model-value="page.onContent(String($event))"
+    /></wd-cell-group>
+    <view class="my-5"
+      ><wd-button
+        block
+        type="danger"
+        :loading="page.submitting"
+        :disabled="page.submitting"
+        @click="page.onSubmit"
+        >提交举报</wd-button
+      ></view
+    >
+  </app-shell>
 </template>
-<style scoped>
-.page-heading { font-size: 44rpx; font-weight: 700; letter-spacing: -1rpx; line-height: 1.35; }
-.page-caption { margin-top: 10rpx; font-size: 26rpx; color: #777e92; line-height: 1.6; }
-.target { margin-top: 28rpx; padding: 24rpx 28rpx; }
-.target-label { font-size: 23rpx; color: #858ba0; }
-.target-name { margin-top: 8rpx; font-size: 32rpx; font-weight: 600; word-break: break-all; }
-.form { margin-top: 24rpx; background: #fff; border: 1rpx solid #e9ebf3; border-radius: 28rpx; padding: 4rpx 28rpx 28rpx; }
-.label { margin: 28rpx 0 14rpx; color: #535b72; font-size: 25rpx; font-weight: 600; }
-.area { width: 100%; min-height: 220rpx; padding: 20rpx; line-height: 1.7; border: 1rpx solid #e9ebf3; background: #f7f8fc; border-radius: 16rpx; box-sizing: border-box; font-size: 28rpx; color: #202438; }
-.games { display: flex; flex-wrap: wrap; gap: 12rpx; }
-.game { padding: 15rpx 23rpx; background: #f5f6fa; color: #697188; border-radius: 14rpx; font-size: 25rpx; }
-.game-on { background: #feecef; color: #c54d69; box-shadow: inset 0 0 0 1rpx #f3c3ce; }
-.hint { margin-top: 12rpx; font-size: 23rpx; color: #858ba0; }
-.submit { margin-top: 32rpx; }
-
-</style>

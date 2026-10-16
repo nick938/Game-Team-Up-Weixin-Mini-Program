@@ -1,11 +1,12 @@
-import { STATUS_TEXT } from "./constants";
+import type { Team } from '../types/domain';
+import { STATUS_TEXT } from './constants';
 
-function pad(n) {
-  return String(n).padStart(2, "0");
+function pad(n: number) {
+  return String(n).padStart(2, '0');
 }
 
-function formatStartAt(ts) {
-  if (!ts) return "";
+function formatStartAt(ts: number | undefined) {
+  if (!ts) return '';
   const d = new Date(ts);
   const now = new Date();
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -13,33 +14,31 @@ function formatStartAt(ts) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const diff = Math.round((day - today) / 86400000);
   if (diff === 0) {
-    return `${d.getHours() < 18 ? "今天" : "今晚"} ${hm}`;
+    return `${d.getHours() < 18 ? '今天' : '今晚'} ${hm}`;
   }
   if (diff === 1) return `明天 ${hm}`;
   if (diff === -1) return `昨天 ${hm}`;
   return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
 }
 
-function formatTimeRange(startAt, endAt) {
+function formatTimeRange(startAt: number, endAt: number | undefined) {
   const start = formatStartAt(startAt);
   if (!endAt) return start;
   const startDay = new Date(startAt).setHours(0, 0, 0, 0);
   const endDay = new Date(endAt).setHours(0, 0, 0, 0);
-  const endHm = `${pad(new Date(endAt).getHours())}:${pad(
-    new Date(endAt).getMinutes()
-  )}`;
+  const endHm = `${pad(new Date(endAt).getHours())}:${pad(new Date(endAt).getMinutes())}`;
   if (startDay === endDay) {
     return `${start}–${endHm}`;
   }
   return `${start} – ${formatStartAt(endAt)}`;
 }
 
-function isSoon(ts) {
+function isSoon(ts: number) {
   const delta = ts - Date.now();
   return delta > 0 && delta <= 60 * 60 * 1000;
 }
 
-function dateParts(ts) {
+function dateParts(ts = Date.now()) {
   const d = new Date(ts || Date.now());
   return {
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
@@ -47,9 +46,9 @@ function dateParts(ts) {
   };
 }
 
-function combineDateTime(dateStr, timeStr) {
-  const [y, m, d] = (dateStr || "").split("-").map(Number);
-  const [hh, mm] = (timeStr || "00:00").split(":").map(Number);
+function combineDateTime(dateStr: string, timeStr: string) {
+  const [y, m, d] = (dateStr || '').split('-').map(Number);
+  const [hh, mm] = (timeStr || '00:00').split(':').map(Number);
   return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
 }
 
@@ -66,30 +65,30 @@ function defaultStartAt() {
   return d.getTime();
 }
 
-function defaultEndAt(startAt) {
+function defaultEndAt(startAt?: number) {
   return (startAt || defaultStartAt()) + 2 * 60 * 60 * 1000;
 }
 
-function teamEndAt(team) {
+function teamEndAt(team: Partial<Team> | null) {
   if (!team) return 0;
   return team.endAt || team.expireAt || team.startAt || 0;
 }
 
-function statusText(status) {
-  return STATUS_TEXT[status] || status || "";
+function statusText(status: string | undefined) {
+  return STATUS_TEXT[status || ''] || status || '';
 }
 
-function decorateTeam(team) {
+function decorateTeam(team: Team) {
   if (!team) return team;
   const displayStatus = team.displayStatus || team.status;
   return {
     ...team,
-    voice: team.voice === "Discord" ? "KOOK" : team.voice,
+    voice: team.voice === 'Discord' ? 'KOOK' : team.voice,
     timeText: formatTimeRange(team.startAt, teamEndAt(team)),
     statusText: statusText(displayStatus),
     soon: isSoon(team.startAt),
-    ongoing: displayStatus === "recruiting" || displayStatus === "full",
-    mark: team.mark == null ? "" : String(team.mark),
+    ongoing: displayStatus === 'recruiting' || displayStatus === 'full',
+    mark: team.mark == null ? '' : String(team.mark),
   };
 }
 

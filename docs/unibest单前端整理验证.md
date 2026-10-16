@@ -1,5 +1,7 @@
 # unibest 单前端整理验证
 
+此文件为首次整理的历史快照；当前状态见 [Wot UI 与 UnoCSS 统一迁移验收](Wot-UI与UnoCSS统一迁移验收.md)。
+
 日期：2026-10-16；当前分支：`codex/uniapp-multiplatform-plan`。
 
 ## 源码与入口

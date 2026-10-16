@@ -18,6 +18,7 @@ project.config.json  微信开发者工具入口，指向新前端的微信构�
 ```sh
 cd apps/miniapp
 npm ci --ignore-scripts
+npm run hooks:install
 npm run dev:h5 -- --port 5196
 ```
 
@@ -47,14 +48,17 @@ npm --prefix apps/miniapp run check:matrix
 
 根目录测试包含服务端身份、组队规则、提醒、权限、头像和朋友圈单页行为；前端测试覆盖会话、Vue 页面交互和组件事件。前端测试工具通过 Vue SFC 编译器执行实际 setup 与响应式状态，替换宿主 API 和网络请求。
 
-`check:matrix` 执行前端测试、类型检查以及 H5、微信、QQ、支付宝、抖音编译，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
+`check:matrix` 执行 ESLint、Prettier、前端测试、严格类型检查以及 H5、微信、QQ、支付宝、抖音编译，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
+
+本次前端统一迁移与浏览器检查见 [Wot UI / UnoCSS 迁移验收](docs/Wot-UI与UnoCSS统一迁移验收.md)。
 
 ## 开发约定
 
+- 所有页面交互控件采用 Wot UI；自有样式采用 UnoCSS，颜色与公共布局统一维护在 `uno.config.ts`。
 - 页面和组件使用 `<script setup lang="ts">`，应用状态由 Pinia 管理，页面状态使用 Vue 响应式 API。
 - `pages.config.ts`、`manifest.config.ts` 是配置源；`src/pages.json`、`src/manifest.json` 和页面类型由构建生成。
 - 微信专属能力集中放在 `src/platform/`，业务请求统一经过 `src/api/`。
-- 业务类型集中在 `src/types/domain.ts`。共享工具暂保留部分 JS，`checkJs` 尚未开启。
+- 业务类型集中在 `src/types/domain.ts`。共享业务工具全部使用 TypeScript，开启 `strict` 并禁用 `allowJs`。
 - 默认版本号维护在 `apps/miniapp/package.json`；正式版显示宿主提供的发布版本号。
 - 品牌运行资源位于 `apps/miniapp/src/static/images/`；宣传素材源文件与生成脚本位于 `docs/`。
 - `docs` 中旧验证记录保留为历史证据，其中旧目录和旧测试数量不代表当前工程状态。
