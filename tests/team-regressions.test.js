@@ -1349,6 +1349,19 @@ test('saving a cloud avatar clears the legacy inline base64', async () => {
   assert.equal(users[0].avatarBase64, '');
 });
 
+test('saving and reading an avatar returns display URL without persisting it over fileID', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', avatarUrl: 'cloud://env/old.png' }];
+  const ctx = backend({ users });
+  const saved = await ctx.saveProfile({ nickName: '玩家', avatarUrl: 'cloud://env/new.png' }, 'u');
+  assert.equal(saved.user.avatarFileID, 'cloud://env/new.png');
+  assert.equal(saved.user.avatarUrl, 'https://tmp.example/cloud://env/new.png');
+  const profile = await ctx.getProfile('u');
+  assert.equal(profile.user.avatarUrl, saved.user.avatarUrl);
+  assert.equal(profile.user.avatarFileID, 'cloud://env/new.png');
+  assert.equal(users[0].avatarUrl, 'cloud://env/new.png');
+  assert.equal(users[0].avatarFileID, undefined);
+});
+
 test('a risky avatar is rejected and the uploaded file is deleted', async () => {
   const users = [{ _id: 'u', nickName: '玩家' }];
   const ctx = backend({

@@ -20,7 +20,7 @@
     <block wx:if="{{proxyMode && !editingId}}">
       <view id="field-proxy" class="label">帮谁发车</view>
       <view wx:if="{{proxyHost}}" class="proxy-picked">
-        <image class="proxy-avatar" src="{{proxyHost.avatarBase64 ? 'data:image/jpeg;base64,' + proxyHost.avatarBase64 : (proxyHost.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
+        <image class="proxy-avatar" src="{{proxyHost.avatarUrl || (proxyHost.avatarBase64 ? 'data:image/jpeg;base64,' + proxyHost.avatarBase64 : '/images/avatar.png')}}" mode="aspectFill" />
         <view class="proxy-picked-name">{{proxyHost.nickName}}</view>
         <view class="proxy-picked-clear" catchtap="clearProxyHost">换一个</view>
       </view>
@@ -30,7 +30,7 @@
         <view wx:if="{{proxySearching}}" class="proxy-search-status">搜索中…</view>
         <view wx:elif="{{proxyKeyword && !proxyResults.length}}" class="proxy-search-status">没找到这个昵称</view>
         <view wx:for="{{proxyResults}}" wx:key="userId" class="proxy-result" data-host="{{item}}" bindtap="pickProxyHost">
-          <image class="proxy-avatar" src="{{item.avatarBase64 ? 'data:image/jpeg;base64,' + item.avatarBase64 : (item.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
+          <image class="proxy-avatar" src="{{item.avatarUrl || (item.avatarBase64 ? 'data:image/jpeg;base64,' + item.avatarBase64 : '/images/avatar.png')}}" mode="aspectFill" />
           <view class="proxy-result-name">{{item.nickName}}</view>
         </view>
       </block>

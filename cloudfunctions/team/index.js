@@ -46,7 +46,7 @@ const RATE_LIMITS = {
   submitReport: { windowMs: 10 * 60 * 1000, max: 5, message: "举报太频繁，请稍后再试" },
   submitBug: { windowMs: 5 * 60 * 1000, max: 3, message: "刚刚已经收到，请稍后再报" },
 };
-// 头像以 base64 内联进 getTeam 响应；单张上限约 150KB 图片，避免多人时撑爆云函数返回体。
+// 仅兼容历史 base64 头像；新头像使用云文件，避免多人时撑爆云函数返回体。
 const AVATAR_BASE64_MAX = 200000;
 
 // 大厅分页：一次最多返回 50 趟，默认 20。状态过滤在内存里做，
@@ -111,9 +111,8 @@ function safeAvatarBase64(value) {
   return value.length <= AVATAR_BASE64_MAX ? value : "";
 }
 
-// 免费开发环境的云存储权限锁定为「仅创建者可读写」，客户端之间互看头像会 403。
-// 云函数作为服务端始终有完整读权限，这里把 cloud:// fileID 批量换成有时效的 HTTPS 链接，
-// 客户端 <image> 直接加载即可，也不需要配置 downloadFile 合法域名。
+// 不依赖存储长期保持公开读：统一由服务端把 fileID 批量换成 HTTPS 展示链接。
+// 私有读时获取临时链接，公开读时沿用 SDK 返回的链接；每次读取重新获取，不入库。
 async function toTempAvatarUrls(fileIDs) {
   const unique = [
     ...new Set(
@@ -827,19 +826,22 @@ async function saveProfile(event, openid) {
   } else {
     await db.collection("users").doc(id).set({ data: { ...payload, _openid: openid } });
   }
-  return ok({ user: { ...existed, ...payload, _id: id, _openid: openid } });
+  return ok({ user: await userWithAvatar({ ...existed, ...payload, _id: id, _openid: openid }) });
+}
+
+async function userWithAvatar(user) {
+  if (!user) return null;
+  const raw = user.avatarUrl;
+  const avatarMap = await toTempAvatarUrls([raw]);
+  return {
+    ...user,
+    avatarFileID: typeof raw === "string" && raw.startsWith("cloud://") ? raw : "",
+    avatarUrl: withTempAvatar(avatarMap, raw),
+  };
 }
 
 async function getProfile(openid) {
-  const user = await getUser(openid);
-  if (user) {
-    const raw = user.avatarUrl;
-    user.avatarFileID = typeof raw === "string" && raw.startsWith("cloud://") ? raw : "";
-    if (raw) {
-      const avatarMap = await toTempAvatarUrls([raw]);
-      user.avatarUrl = withTempAvatar(avatarMap, raw);
-    }
-  }
+  const user = await userWithAvatar(await getUser(openid));
   return ok({
     user: user || null,
     isAdmin: await isAdmin(openid),
