@@ -7,3 +7,5 @@ output/playwright/
 
 # Developer-specific simulator configuration
 project.private.config.json
+
+.pnpm-store/

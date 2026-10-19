@@ -7,23 +7,27 @@ const page = reactive(useMine());
 <template>
   <timeline-preview v-if="page.singlePage" />
   <app-shell v-else title="我的" subtitle="管理你的资料和组队">
-    <wd-cell-group
-      ><wd-cell
-        :title="page.user.nickName || '点这里设置头像昵称'"
-        :label="page.profileHint"
-        is-link
-        @click="page.editProfile"
-        ><template #prefix
-          ><image
-            class="avatar mr-3"
-            :src="
-              page.user.avatarUrl ||
-              (page.user.avatarBase64
-                ? 'data:image/jpeg;base64,' + page.user.avatarBase64
-                : '/static/images/avatar.png')
-            "
-            mode="aspectFill" /></template></wd-cell
-    ></wd-cell-group>
+    <view class="hero-panel profile-surface motion-enter motion-delay !p-4">
+      <wd-cell-group custom-class="!bg-transparent !shadow-none"
+        ><wd-cell
+          custom-class="profile-cell !bg-transparent !p-0"
+          custom-title-class="font-semibold"
+          :title="page.user.nickName || '点这里设置头像昵称'"
+          :label="page.profileHint"
+          is-link
+          @click="page.editProfile"
+          ><template #prefix
+            ><image
+              class="avatar box-border mr-3 border-3 border-solid border-white surface-shadow"
+              :src="
+                page.user.avatarUrl ||
+                (page.user.avatarBase64
+                  ? 'data:image/jpeg;base64,' + page.user.avatarBase64
+                  : '/static/images/avatar.png')
+              "
+              mode="aspectFill" /></template></wd-cell
+      ></wd-cell-group>
+    </view>
     <view class="flex flex-wrap gap-2 my-5"
       ><wd-button :variant="page.teamTab === 'hosted' ? 'base' : 'soft'" @click="page.pickTeamTab('hosted')"
         >我发起的 {{ page.hostedCount }}</wd-button

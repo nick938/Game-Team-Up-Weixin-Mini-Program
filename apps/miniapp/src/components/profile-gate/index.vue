@@ -99,6 +99,7 @@ async function save() {
     :z-index="1100"
     :model-value="show"
     position="bottom"
+    round
     :closable="!saving"
     :close-on-click-modal="!saving"
     safe-area-inset-bottom

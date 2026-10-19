@@ -16,8 +16,8 @@
     "release:upload": "node ../../scripts/miniapp/release.mjs upload",
     "lint": "eslint src *.config.ts --max-warnings=0",
     "lint:fix": "eslint src *.config.ts --fix",
-    "format": "prettier --write src *.config.ts *.mjs *.json README.md UNIBEST.md",
-    "format:check": "prettier --check src *.config.ts *.mjs *.json README.md UNIBEST.md",
+    "format": "prettier --write src *.config.ts *.mjs *.json README.md",
+    "format:check": "prettier --check src *.config.ts *.mjs *.json README.md",
     "hooks:install": "pnpm -w run hooks:install"
   },
   "dependencies": {

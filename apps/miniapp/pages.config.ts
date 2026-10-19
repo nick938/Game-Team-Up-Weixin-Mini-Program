@@ -1,4 +1,4 @@
-// Adapted from unibest base; see UNIBEST.md.
+// Adapted from unibest base; see README.md for template provenance.
 import { defineUniPages } from '@uni-helper/vite-plugin-uni-pages';
 export default defineUniPages({
   pages: [
@@ -118,6 +118,7 @@ export default defineUniPages({
       '^app-(input|textarea|picker|datetime-picker)$': '@/components/app-$1/index.vue',
       '^app-shell$': '@/components/app-shell/index.vue',
       '^team-card$': '@/components/team-card/index.vue',
+      '^lobby-hero$': '@/components/lobby-hero/index.vue',
       '^profile-gate$': '@/components/profile-gate/index.vue',
       '^welcome-letter$': '@/components/welcome-letter/index.vue',
       '^timeline-preview$': '@/components/timeline-preview/index.vue',

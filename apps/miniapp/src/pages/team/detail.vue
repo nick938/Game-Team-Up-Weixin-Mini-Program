@@ -8,7 +8,7 @@ const page = reactive(useTeamDetail());
   <timeline-preview v-if="page.singlePage" />
   <app-shell v-else>
     <template v-if="page.team">
-      <view class="panel bg-gradient-to-br from-brand-light to-white"
+      <view class="hero-panel motion-enter"
         ><view class="flex gap-2 mb-4"
           ><wd-tag :type="page.team.displayStatus === 'full' ? 'success' : 'primary'">{{
             page.team.statusText

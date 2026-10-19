@@ -9,6 +9,7 @@ const emit = defineEmits<{ close: []; retry: [] }>();
     :z-index="1100"
     :model-value="show"
     position="bottom"
+    round
     safe-area-inset-bottom
     closable
     @update:model-value="!$event && emit('close')"

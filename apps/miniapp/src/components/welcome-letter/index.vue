@@ -64,12 +64,15 @@ onShow(() => {
     :close-on-click-modal="false"
     custom-class="!w-11/12 !max-w-[640rpx] !rounded-3xl"
   >
-    <view class="p-6 box-border"
+    <view class="p-6 box-border bg-gradient-to-b from-[#f2efff] to-white"
       ><view class="flex items-center justify-between gap-4 mb-5"
         ><view
-          ><view class="hint text-brand">开黑星球｜游戏搭子</view
+          ><view class="brand-kicker">开黑星球｜游戏搭子</view
           ><view class="text-2xl font-bold mt-2">一起玩，好好玩</view></view
-        ><image class="w-14 h-14 rounded-2xl" src="/static/images/brand/avatar-v1.jpg" mode="aspectFill"
+        ><image
+          class="w-14 h-14 rounded-2xl surface-shadow motion-float"
+          src="/static/images/brand/avatar-v1.jpg"
+          mode="aspectFill"
       /></view>
       <view class="text-sm leading-7"
         >嘿，欢迎上车。这里是给游戏好友发车组队用的。车上都是真人，请友好相处。</view

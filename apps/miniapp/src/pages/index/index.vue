@@ -3,89 +3,113 @@ defineOptions({ name: 'IndexIndexPage' });
 import { reactive } from 'vue';
 import { useLobby } from '../../composables/useLobby';
 const page = reactive(useLobby());
+const gameVisuals: Record<string, { mark: string; label: string; color: string }> = {
+  wangzhe: { mark: '王', label: '王者荣耀', color: 'game-amber' },
+  delta: { mark: 'Δ', label: '三角洲', color: 'game-mint' },
+  valorant: { mark: 'V', label: '无畏契约', color: 'game-rose' },
+  peace: { mark: '和平', label: '和平精英', color: 'game-violet' },
+};
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
-  <app-shell
-    v-else
-    title="找游戏搭子，一起开黑"
-    subtitle="王者开黑、三角洲搭子、瓦搭子、和平精英搭子，快速找到一起玩的队友。"
-  >
-    <view class="panel flex items-center gap-4">
-      <view class="flex-1"
-        ><view class="section-title">热门游戏搭子</view
-        ><view class="flex flex-wrap gap-2 mt-3">
-          <wd-button
-            v-for="game in page.featured"
-            :key="game.seoKey"
-            size="small"
-            variant="soft"
-            @click="page.goGame(game.seoKey || game.slug)"
-            >{{ game.entryLabel }}</wd-button
-          >
-        </view></view
-      ><image class="w-24 h-24 shrink-0" src="/static/images/brand/lobby-v1.jpg" mode="aspectFit" />
+  <app-shell v-else variant="lobby">
+    <lobby-hero @publish="page.goPublish" />
+    <view class="grid grid-cols-4 gap-2 mb-4">
+      <wd-button
+        v-for="game in page.featured"
+        :key="game.seoKey || game.slug"
+        variant="text"
+        custom-class="game-entry"
+        @click="page.goGame(game.seoKey || game.slug)"
+      >
+        <view class="flex flex-col items-center min-w-0">
+          <view class="game-symbol" :class="gameVisuals[game.seoKey || game.slug]?.color || 'game-violet'">{{
+            gameVisuals[game.seoKey || game.slug]?.mark || game.name.slice(0, 1)
+          }}</view>
+          <text class="text-[22rpx] leading-4 font-medium">{{
+            gameVisuals[game.seoKey || game.slug]?.label || game.name
+          }}</text>
+        </view>
+      </wd-button>
     </view>
     <wd-search
       :model-value="page.keyword"
-      placeholder="搜索游戏 / 区服 / 段位 / 备注"
+      placeholder="搜游戏、区服，找到你的下一局"
       hide-cancel
       @update:model-value="page.onSearch(String($event))"
       @clear="page.clearSearch"
     />
-    <view class="flex items-center justify-between gap-3 my-4"
-      ><view class="section-title"
-        >现在的车 <text class="text-muted text-sm">{{ page.filtered.length }}/{{ page.total }}</text></view
-      ><view class="flex gap-2"
-        ><wd-button
+    <view class="flex flex-wrap items-center justify-between gap-3 mt-5 mb-3">
+      <view class="flex items-center gap-2">
+        <view class="text-[34rpx] font-bold text-night">组队广场</view>
+        <text class="text-[22rpx] text-[#85879b]">{{ page.filtered.length }}/{{ page.total }}</text>
+      </view>
+      <view class="sort-segment flex">
+        <wd-button
           v-for="sort in page.sorts"
           :key="sort.key"
           size="small"
-          :variant="page.sortMode === sort.key ? 'base' : 'soft'"
+          variant="text"
+          :custom-class="page.sortMode === sort.key ? 'sort-active' : '!text-muted'"
           @click="page.pickSort(sort.key)"
           >{{ sort.label }}</wd-button
-        ></view
-      ></view
-    >
-    <scroll-view v-if="page.games.length > 1" scroll-x class="mb-4 whitespace-nowrap"
-      ><view class="inline-flex gap-2"
-        ><wd-button
+        >
+      </view>
+    </view>
+    <scroll-view v-if="page.games.length > 1" scroll-x class="mb-3 whitespace-nowrap">
+      <view class="inline-flex gap-2">
+        <wd-button
           v-for="game in page.games"
           :key="game"
           size="small"
           :variant="page.gameFilter === game ? 'base' : 'soft'"
           @click="page.pickGame(game)"
           >{{ game }}</wd-button
-        ></view
-      ></scroll-view
-    >
-    <view v-if="page.listError" class="panel text-center"
-      ><wd-empty :tip="page.listError" /><wd-button variant="soft" @click="page.loadList()"
-        >重新加载</wd-button
-      ></view
-    >
-    <wd-loading v-else-if="page.loading" />
-    <template v-else
-      ><team-card
-        v-for="team in page.filtered"
+        >
+      </view>
+    </scroll-view>
+    <view v-if="page.listError" class="panel !py-7 text-center">
+      <view class="flex-center w-12 h-12 mx-auto rounded-2xl bg-[#eee9ff] text-electric mb-3"
+        ><wd-icon name="wifi" size="24px"
+      /></view>
+      <view class="text-sm font-semibold mb-1">暂时没连上大厅</view>
+      <view class="hint mb-4">{{ page.listError }}</view>
+      <wd-button size="small" variant="soft" @click="page.loadList()">重新加载</wd-button>
+    </view>
+    <view v-else-if="page.loading" aria-label="正在加载队伍">
+      <view v-for="item in 2" :key="item" class="panel !p-4" aria-hidden="true">
+        <view class="flex justify-between mb-4"
+          ><view class="skeleton-shape w-28 h-5" /><view class="skeleton-shape w-14 h-5"
+        /></view>
+        <view class="skeleton-shape w-40 h-3 mb-3" /><view class="skeleton-shape w-28 h-3 mb-5" /><view
+          class="skeleton-shape w-full h-7"
+        />
+      </view>
+    </view>
+    <template v-else>
+      <team-card
+        v-for="(team, index) in page.filtered"
         :key="team._id"
         :team="team"
         :team-id="team.id || team._id"
+        :sequence="index"
         @open="page.onOpen"
       />
-      <view v-if="!page.filtered.length" class="panel text-center"
-        ><wd-empty
+      <view v-if="!page.filtered.length" class="panel text-center">
+        <wd-empty
           icon="/static/images/brand/empty-v1.jpg"
-          :tip="page.keyword ? '已加载的队伍中没有匹配结果' : '还没有队伍，发起一局吧'"
-        /><wd-button v-if="page.hasMore" variant="soft" @click="page.loadMore">继续加载更多</wd-button
-        ><wd-button v-else @click="page.goPublish">发起组队</wd-button></view
-      >
-      <view class="py-6 text-center"
-        ><wd-button v-if="page.hasMore" variant="text" :loading="page.loadingMore" @click="page.loadMore"
+          :tip="page.keyword ? '已加载的队伍中没有匹配结果' : '下一局，等你来发起'"
+        />
+        <wd-button v-if="page.hasMore" variant="soft" @click="page.loadMore">继续加载更多</wd-button>
+        <wd-button v-else @click="page.goPublish">发起组队</wd-button>
+      </view>
+      <view v-if="page.filtered.length" class="py-4 text-center">
+        <wd-button v-if="page.hasMore" variant="text" :loading="page.loadingMore" @click="page.loadMore"
           >加载更多</wd-button
-        ><text v-else class="hint">没有更多了</text></view
-      ></template
-    >
+        >
+        <text v-else class="hint">已经看到这里了，发起你的下一局吧</text>
+      </view>
+    </template>
     <welcome-letter />
   </app-shell>
 </template>

@@ -111,7 +111,7 @@ const page = reactive(usePublish());
         :columns="page.durationOptions"
         @confirm="page.changeDuration(Number($event.value))"
       />
-      <view class="rounded-xl bg-brand-light p-4 mt-3"
+      <view class="rounded-2xl bg-brand-light p-4 mt-3"
         ><view class="font-semibold text-brand">{{ page.timeSummaryLine1 }}</view
         ><view class="hint mt-1">{{ page.timeSummaryLine2 }}</view></view
       ></view
