@@ -11,9 +11,9 @@ export interface User {
 }
 export type TeamRole = 'host' | 'member';
 export interface Team {
+  reactions?: ReactionSummary;
   _id: string;
   id?: string;
-  sourceGroup?: string;
   gameName: string;
   startAt: number;
   endAt?: number;
@@ -111,7 +111,6 @@ export interface TeamSearch {
   platform?: string;
   server?: string;
   voice?: string;
-  sourceGroup?: string;
   availableOnly?: boolean;
   time?: string;
   sortMode?: string;
@@ -145,7 +144,6 @@ export interface TeamResults {
     nextOffset?: number;
     hasMore?: boolean;
     games?: string[];
-    sourceGroups?: string[];
   };
   myTeams: { hosted: Team[]; joined: Team[] };
   searchProxyUsers: { list: User[] };
@@ -160,7 +158,6 @@ export interface TeamResults {
 }
 
 export interface TeamInput {
-  sourceGroup?: string;
   gameName: string;
   startAt: number;
   endAt: number;

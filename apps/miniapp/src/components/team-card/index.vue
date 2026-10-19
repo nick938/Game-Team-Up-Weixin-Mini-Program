@@ -5,11 +5,13 @@ import type { Team } from '../../types/domain';
 import { usableTeamId } from '../../utils/team-entry';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
 import { semantic } from '../../design/tokens';
+import { useCardReactions } from '../../composables/useCardReactions';
 const props = withDefaults(
   defineProps<{ team?: Partial<Team>; teamId?: string; mark?: string; sequence?: number }>(),
   { team: () => ({}), teamId: '', mark: '', sequence: 0 },
 );
 const view = useTeamPresentation(() => props.team);
+const reactions = useCardReactions(() => props.team);
 const occupancy = computed(() =>
   props.team.capacity
     ? Math.min(100, Math.max(0, ((Number(props.team.memberCount) || 0) / props.team.capacity) * 100))
@@ -76,9 +78,20 @@ function onTap() {
           :identity="'host:' + (team.id || team._id)"
         /><text class="text-xs text-secondary">{{ team.hostNickName }} 发起</text></view
       >
-      <view class="text-xs text-secondary break-words mb-3"
-        >来源群 · {{ team.sourceGroup || '未标注群' }}</view
-      >
+      <view class="flex flex-wrap gap-2 mb-3" @tap.stop>
+        <wd-button
+          v-for="item in reactions.REACTIONS"
+          :key="item.id"
+          size="mini"
+          :variant="reactions.state.summary.mine === item.id ? 'base' : 'soft'"
+          :disabled="reactions.state.pending"
+          :aria-label="item.label + '，' + reactions.state.summary.counts[item.id] + '人'"
+          :aria-pressed="reactions.state.summary.mine === item.id"
+          @click="reactions.react(item.id)"
+        >
+          {{ item.emoji }} {{ reactions.state.summary.counts[item.id] }}
+        </wd-button>
+      </view>
       <view
         class="flex items-center justify-between gap-3 pt-3 border-t border-x-0 border-b-0 border-solid border-border"
       >

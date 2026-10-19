@@ -3,7 +3,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
 const MIN_DURATION_MIN = 30;
 const MAX_DURATION_MIN = 24 * 60;
-const MORE_HINT = '语音、队友要求、备注、来源群';
+const MORE_HINT = '语音、队友要求、备注';
 
 const START_PRESETS = [
   { key: 'now', label: '现在' },
@@ -41,8 +41,7 @@ function hasExtraSettings(data: Partial<TeamDraft>) {
   return !!(
     String(data.server || '').trim() ||
     String(data.rankReq || '').trim() ||
-    String(data.note || '').trim() ||
-    String(data.sourceGroup || '').trim()
+    String(data.note || '').trim()
   );
 }
 
@@ -55,7 +54,6 @@ function moreSettingsHint(data: Partial<TeamDraft>) {
   if (server) bits.push(server);
   if (rankReq) bits.push(rankReq);
   if (String(data.note || '').trim()) bits.push('有备注');
-  if (String(data.sourceGroup || '').trim()) bits.push('已标注来源群');
   return bits.filter(Boolean).join(' · ') || MORE_HINT;
 }
 
@@ -205,8 +203,6 @@ function validatePublishTeam(team: Partial<TeamDraft>, extra: PublishOptions) {
   if (!team || !String(team.gameName || '').trim()) {
     return { message: '请选择游戏', anchor: 'field-game' };
   }
-  if (String(team.sourceGroup || '').length > 24)
-    return { message: '来源群最多 24 字', anchor: 'field-source-group' };
   if (!team.platform) {
     return { message: '请选择平台', anchor: 'field-platform' };
   }

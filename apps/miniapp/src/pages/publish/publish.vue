@@ -187,15 +187,6 @@ function duration(value: string | number) {
               placeholder="娱乐局、上分、萌新友好"
               @update:model-value="page.onRank(String($event))"
             />
-            <view id="field-source-group"
-              ><app-input
-                label="来源群"
-                :model-value="page.state.sourceGroup"
-                :maxlength="24"
-                :error="errorFor('field-source-group')"
-                placeholder="选填，不限制跨群加入"
-                @update:model-value="page.state.sourceGroup = String($event)"
-            /></view>
             <app-textarea
               label="备注"
               :model-value="page.note"

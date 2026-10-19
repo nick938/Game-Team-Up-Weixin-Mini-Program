@@ -1,6 +1,5 @@
 import { rememberGame } from '../utils/recent-games';
 import { overlappingTeams } from '../utils/team-schedule';
-import { REACTIONS, emptyReactions, type ReactionId } from '../utils/reactions';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick } from 'vue';
 import {
@@ -94,8 +93,6 @@ export function useTeamDetail() {
     memberProfileRequest: 0,
     requestingNotify: false,
     joining: false,
-    reacting: false,
-    reactions: emptyReactions(),
     mutating: false,
     detailError: '',
     detailNotFound: false,
@@ -158,7 +155,6 @@ export function useTeamDetail() {
       state.coverRequest += 1;
       patchState({
         teamId,
-        reactions: emptyReactions(),
         team: null,
         role: null,
         joinSuccess: false,
@@ -214,7 +210,7 @@ export function useTeamDetail() {
     state.shareCoverPath = path;
   }
   async function loadDetail() {
-    if (isSinglePage() || state.reacting) return;
+    if (isSinglePage()) return;
     const teamId = usableTeamId(state.teamId);
     if (!teamId) {
       patchState({ loading: false, team: null, teamId: '' });
@@ -227,7 +223,11 @@ export function useTeamDetail() {
       const res = await callTeam('getTeam', { teamId });
       if (requestId !== state.detailRequest) return;
       const role = res.role;
-      rememberGame(res.team.gameName);
+      try {
+        rememberGame(res.team.gameName);
+      } catch {
+        // Local history is optional; a successful team response must remain visible.
+      }
       const fields: Record<string, string> = {
         startAt: '开始时间',
         endAt: '结束时间',
@@ -269,7 +269,6 @@ export function useTeamDetail() {
       patchState(
         {
           team: decorateTeam(res.team),
-          reactions: res.reactions || emptyReactions(),
           noteCanFold,
           noteExpanded: false,
           members: res.members || [],
@@ -310,23 +309,6 @@ export function useTeamDetail() {
       // 数据没取到，别让分享还用着上一趟车的封面
       prepareShareCover();
       showError(e);
-    }
-  }
-  async function onReact(reaction: ReactionId) {
-    if (state.reacting || state.loading || !state.team || !REACTIONS.some((item) => item.id === reaction))
-      return;
-    const teamId = state.teamId;
-    state.reacting = true;
-    try {
-      const result = await callTeam('setReaction', {
-        teamId,
-        reaction: state.reactions.mine === reaction ? '' : reaction,
-      });
-      if (teamId === state.teamId) state.reactions = result.reactions;
-    } catch (error) {
-      showError(error);
-    } finally {
-      state.reacting = false;
     }
   }
   function toggleNoteExpand() {
@@ -493,7 +475,6 @@ export function useTeamDetail() {
       platform: team.platform,
       server: team.server,
       voice: team.voice,
-      sourceGroup: team.sourceGroup,
       rankReq: team.rankReq,
       note: team.note,
     };
@@ -597,8 +578,6 @@ export function useTeamDetail() {
     return shareToTimeline(buildShare(), state.shareCoverPath);
   });
   return {
-    REACTIONS,
-    onReact,
     queryCanvasNode,
     waitForCanvasNode,
     pixelRatio,

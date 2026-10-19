@@ -6,7 +6,7 @@ import { PLATFORMS, VOICES } from '../../utils/constants';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
-const props = defineProps<{ query: TeamSearch; sourceGroups: string[]; active?: boolean }>();
+const props = defineProps<{ query: TeamSearch; active?: boolean }>();
 const emit = defineEmits<{ change: [patch: Partial<TeamSearch>] }>();
 const expanded = ref(false);
 watch(
@@ -28,16 +28,6 @@ const times = [
   { label: '一小时内', value: 'soon' },
   { label: '今天开局', value: 'today' },
 ];
-const groupOptions = computed(() => [
-  { label: '全部来源群', value: '' },
-  { label: '未标注群', value: '__ungrouped__' },
-  ...[
-    ...new Set([
-      ...props.sourceGroups,
-      ...(draft.sourceGroup?.startsWith('group:') ? [draft.sourceGroup.slice(6)] : []),
-    ]),
-  ].map((name) => ({ label: name, value: 'group:' + name })),
-]);
 const count = computed(
   () =>
     [
@@ -45,7 +35,6 @@ const count = computed(
       props.query.platform,
       props.query.server,
       props.query.voice,
-      props.query.sourceGroup,
       !props.query.availableOnly,
     ].filter(Boolean).length,
 );
@@ -59,7 +48,6 @@ function reset() {
     platform: '',
     server: '',
     voice: '',
-    sourceGroup: '',
     availableOnly: true,
   });
 }
@@ -69,7 +57,6 @@ function apply() {
     platform: draft.platform,
     server: draft.server,
     voice: draft.voice,
-    sourceGroup: draft.sourceGroup,
     availableOnly: draft.availableOnly,
   });
   expanded.value = false;
@@ -119,7 +106,6 @@ function apply() {
           v-model="draft.voice"
           :columns="[{ label: '全部语音', value: '' }, ...VOICES.map((value) => ({ label: value, value }))]"
         />
-        <app-picker label="来源群" v-model="draft.sourceGroup" :columns="groupOptions" />
       </wd-cell-group>
       <view class="flex gap-3 mt-6"
         ><wd-button variant="text" @click="reset">重置</wd-button

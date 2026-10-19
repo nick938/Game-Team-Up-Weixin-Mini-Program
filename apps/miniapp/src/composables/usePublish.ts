@@ -1,6 +1,5 @@
 import { gameSuggestions, rememberGame } from '../utils/recent-games';
 import { overlappingTeams } from '../utils/team-schedule';
-import { normalizeSourceGroup } from '../utils/source-group';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
 import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
@@ -76,7 +75,6 @@ export function usePublish() {
       timeSummaryLine1: summary.line1,
       timeSummaryLine2: summary.line2,
       capacity: 5,
-      sourceGroup: '',
       roomNo: '',
       roomPwd: '',
       platform: 'Steam',
@@ -204,7 +202,6 @@ export function usePublish() {
       const voice = team.voice === 'Discord' ? 'KOOK' : team.voice;
       const platform = PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : 'Steam';
       const extras = {
-        sourceGroup: team.sourceGroup || '',
         roomNo: team.roomNo || '',
         roomPwd: team.roomPwd || '',
         server: team.server || '',
@@ -265,7 +262,6 @@ export function usePublish() {
     const voice = draft.voice === 'Discord' ? 'KOOK' : draft.voice;
     const platform = PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : 'Steam';
     const extras = {
-      sourceGroup: draft.sourceGroup || '',
       roomNo: draft.roomNo || '',
       roomPwd: draft.roomPwd || '',
       server: draft.server || '',
@@ -537,7 +533,6 @@ export function usePublish() {
       startAt: combineDateTime(state.startDate, state.startTime),
       endAt: combineDateTime(state.endDate, state.endTime),
       capacity: state.capacity,
-      sourceGroup: normalizeSourceGroup(state.sourceGroup),
       roomNo: (state.roomNo || '').trim(),
       roomPwd: (state.roomPwd || '').trim(),
       platform: state.platform,
@@ -564,6 +559,13 @@ export function usePublish() {
           duration: 240,
         });
       });
+  }
+  function rememberPublishedGame(name: string) {
+    try {
+      rememberGame(name);
+    } catch {
+      // Optional local history must never turn a successful server write into a publish error.
+    }
   }
   async function onSubmit() {
     if (state.submitting || state.editLoadError) return;
@@ -606,7 +608,7 @@ export function usePublish() {
       }
       if (editingId) {
         await callTeam('updateTeam', { teamId: editingId, team });
-        rememberGame(team.gameName);
+        rememberPublishedGame(team.gameName);
         patchState(emptyForm());
         toast.success('已保存');
         setTimeout(() => {
@@ -619,7 +621,7 @@ export function usePublish() {
           payload.hostOpenid = state.proxyHost.userId;
         }
         const res = await callTeam('createTeam', payload);
-        rememberGame(team.gameName);
+        rememberPublishedGame(team.gameName);
         const helped = !!payload.hostOpenid;
         patchState(emptyForm());
         toast.success(helped ? '已帮 TA 发车' : '已发车');

@@ -90,41 +90,17 @@ test('avatar keeps its bitmap during replacement, ignores stale loads and retain
   assert.equal(avatar.view.activeToken, 0, 'never display the prior user while a new owner loads');
   assert.equal(avatar.view.layers.length, 1);
 });
-test('group names normalize consistently and filters distinguish legacy teams and reserved-looking labels', () => {
+test('team publishing no longer assigns user group membership to a team', () => {
   const h = harness();
-  const { normalizeSourceGroup, matchSourceGroup, sourceGroupOptions } = h.load('utils/source-group');
-  const { buildLobbyView } = h.load('utils/lobby');
-  const list = [
-    { _id: 'a', sourceGroup: '  Ａ群  ' },
-    { _id: 'b' },
-    { _id: 'c', sourceGroup: '__ungrouped__' },
-  ];
-  assert.equal(normalizeSourceGroup('  Ａ群  '), 'A群');
-  assert.equal(matchSourceGroup(list[1], '__ungrouped__'), true);
-  assert.equal(matchSourceGroup(list[2], 'group:__ungrouped__'), true);
-  assert.deepEqual(
-    buildLobbyView(list, { sourceGroup: 'group:A群' }).map((t) => t._id),
-    ['a'],
-  );
-  assert.equal(sourceGroupOptions(list).length, 4);
-  assert.equal(buildLobbyView(list, { keyword: 'Ａ群' }).length, 1);
-});
-test('editing and republishing preserve source group and publish validates its length', () => {
-  const h = harness(),
-    page = h.page('pages/publish/publish');
-  page.applyDraft({ gameName: 'CS2', platform: 'Steam', capacity: 5, sourceGroup: '  Ａ群  ' });
-  assert.equal(page.buildTeam().sourceGroup, 'A群');
-  const { validatePublishTeam } = h.load('utils/publish-form');
-  assert.equal(
-    validatePublishTeam({ ...page.buildTeam(), sourceGroup: '长'.repeat(25) }, {}).anchor,
-    'field-source-group',
-  );
+  const page = h.page('pages/publish/publish');
+  page.applyDraft({ gameName: 'CS2', platform: 'Steam', capacity: 5, sourceGroup: '旧来源群' });
+  assert.equal('sourceGroup' in page.buildTeam(), false);
   const detail = h.page('pages/team/detail');
-  detail.state.team = { _id: 't', gameName: 'CS2', sourceGroup: 'A群' };
+  detail.state.team = { _id: 't', gameName: 'CS2', sourceGroup: '旧来源群' };
   detail.onRepublish();
-  assert.equal(h.store.republishTeam.sourceGroup, 'A群');
+  assert.equal('sourceGroup' in h.store.republishTeam, false);
 });
-test('reaction mutations block double taps, cancel the current choice, and retain state after failure', async () => {
+test('card reactions prevent double taps, cancel, preserve failures, and ignore another team response', async () => {
   let finish, reject;
   const h = harness({
     callTeam: () =>
@@ -133,28 +109,28 @@ test('reaction mutations block double taps, cancel the current choice, and retai
         reject = fail;
       }),
   });
-  const page = h.page('pages/team/detail');
-  page.state.teamId = 't';
-  page.state.team = { _id: 't' };
-  page.state.loading = false;
-  const pending = page.onReact('like');
-  await page.onReact('fire');
+  const card = h.page('components/team-card/index', { team: { _id: 't' } });
+  const reactions = card.bindings.reactions;
+  const pending = reactions.react('like');
+  await reactions.react('fire');
   assert.equal(h.calls.length, 1);
   const summary = { counts: { like: 1, fire: 0, laugh: 0, love: 0, watch: 0, game: 0 }, mine: 'like' };
   finish({ reactions: summary });
   await pending;
-  const cancel = page.onReact('like');
+  const cancel = reactions.react('like');
   assert.equal(h.calls[1].input.reaction, '');
   reject(new Error('offline'));
   await cancel;
-  assert.equal(page.state.reactions.mine, 'like');
-  assert.equal(page.state.reactions.counts.like, 1);
-  assert.equal(page.state.reacting, false);
-  const changed = page.onReact('fire');
-  page.state.teamId = 'other';
+  assert.equal(reactions.state.summary.mine, 'like');
+  assert.equal(reactions.state.summary.counts.like, 1);
+  assert.equal(reactions.state.pending, false);
+  const changed = reactions.react('fire');
+  card.bindings.props.team = { _id: 'other' };
+  await new Promise((resolve) => setImmediate(resolve));
   finish({ reactions: { ...summary, mine: 'fire' } });
   await changed;
-  assert.equal(page.state.reactions.mine, 'like', 'late response cannot affect a different team');
+  assert.equal(reactions.state.summary.mine, '', 'late response cannot affect a different team');
+  assert.equal(h.emitted.length, 0, 'reacting does not navigate to team details');
 });
 
 test('saved profile invalidates bootstrap cache and appears while the team list is still pending', async () => {
@@ -182,12 +158,6 @@ test('saved profile invalidates bootstrap cache and appears while the team list 
   await loading;
   assert.equal(h.store.user.nickName, '刚保存');
 });
-test('group filter retains its label when a refresh no longer contains that group', () => {
-  const { sourceGroupOptions } = harness().load('utils/source-group');
-  const options = sourceGroupOptions([], 'group:周末群');
-  assert.equal(options.find((item) => item.value === 'group:周末群').label, '周末群');
-});
-
 test('real Vue proxies reuse bootstrap cache and update mine before its team list resolves', async () => {
   const { reactive } = require('../node_modules/vue');
   const store = reactive({ user: null, isAdmin: false, isOrganizer: false });

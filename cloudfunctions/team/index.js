@@ -211,6 +211,7 @@ async function textSafeError(openid, texts, errorMsg) {
 function stripSecret(team, showPwd) {
   const copy = { ...team };
   copy.id = String((team && (team._id || team.id)) || "");
+  delete copy.sourceGroup;
   delete copy.startRemindedOpenids;
   delete copy.startRemindedAt;
   // 不向客户端下发任何身份标识；车头身份由服务端 role 判定。
@@ -675,9 +676,6 @@ function validateTeamInput(input, { isCreate }) {
   const roomPwd = trim(input.roomPwd, ROOM_MAX);
   const server = trim(input.server, SERVER_MAX);
   const rankReq = trim(input.rankReq, RANK_MAX);
-  if (input.sourceGroup != null && typeof input.sourceGroup !== "string") return { error: "来源群格式不正确" };
-  const sourceGroup = typeof input.sourceGroup === "string" ? input.sourceGroup.normalize("NFKC").trim().replace(/\s+/g, " ") : "";
-  if (sourceGroup.length > 24) return { error: "来源群最多 24 字" };
   const note = trim(input.note, NOTE_MAX);
   const platform = PLATFORMS.includes(input.platform)
     ? input.platform
@@ -715,7 +713,6 @@ function validateTeamInput(input, { isCreate }) {
   return {
     value: {
       gameName,
-      sourceGroup,
       roomNo,
       roomPwd,
       server,
@@ -856,8 +853,16 @@ async function getProfile(openid) {
   });
 }
 
+async function decorateTeamCards(teams, openid) {
+  return Promise.all(teams.map(async (team) => {
+    const own = openid ? await optionalReaction(db.collection("team_reactions").doc(reactionDocId(team._id, openid))) : null;
+    return { ...team,
+      reactions: { counts: reactionCounts(team), mine: own && REACTION_IDS.includes(own.reaction) ? own.reaction : "" } };
+  }));
+}
+
 function teamVisibleTexts(team) {
-  return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note, team.sourceGroup];
+  return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note];
 }
 
 async function createTeam(event, openid) {
@@ -1534,7 +1539,7 @@ function searchText(value) {
 }
 function matchTeamSearch(team, query, now) {
   const keyword = searchText(query.keyword);
-  if (keyword && ![team.gameName, team.server, team.rankReq, team.note, team.sourceGroup]
+  if (keyword && ![team.gameName, team.server, team.rankReq, team.note]
     .some((value) => searchText(value).includes(keyword))) return false;
   const gameKey = (value) => searchText(value).replace(/\s+/g, "").replace(/[:：]/g, "");
   const games = Array.isArray(query.gameNames) ? query.gameNames.slice(0, 30).map(gameKey) : [];
@@ -1543,9 +1548,6 @@ function matchTeamSearch(team, query, now) {
   if (query.platform && query.platform !== team.platform) return false;
   if (query.server && !searchText(team.server).includes(searchText(query.server))) return false;
   if (query.voice && query.voice !== (team.voice === "Discord" ? "KOOK" : team.voice)) return false;
-  const group = searchText(team.sourceGroup).replace(/\s+/g, " ");
-  if (query.sourceGroup === "__ungrouped__" && group) return false;
-  if (String(query.sourceGroup || "").startsWith("group:") && group !== searchText(query.sourceGroup.slice(6)).replace(/\s+/g, " ")) return false;
   if (query.availableOnly && (resolveStatus(team, now) !== "recruiting" || team.memberCount >= team.capacity)) return false;
   if (query.time === "now" && Number(team.startAt) > now) return false;
   if (query.time === "soon" && (Number(team.startAt) < now || Number(team.startAt) > now + 3600000)) return false;
@@ -1577,7 +1579,7 @@ async function listTeams(event = {}, openid) {
   });
   const page = filtered.slice(offset, offset + limit);
   const avatarUrls = await toTempAvatarUrls(page.map((team) => team.hostAvatarUrl));
-  const list = page.map((team) => {
+  const list = (await decorateTeamCards(page, openid)).map((team) => {
     const row = stripSecret(team, false);
     row.hostAvatarUrl = withTempAvatar(avatarUrls, team.hostAvatarUrl);
     const role = roleByTeam[team._id];
@@ -1588,7 +1590,6 @@ async function listTeams(event = {}, openid) {
   return ok({ list, total: filtered.length, nextOffset: offset + list.length,
     hasMore: offset + list.length < filtered.length,
     games: [...new Set(active.map((t) => t.gameName).filter(Boolean))],
-    sourceGroups: [...new Set(active.map((t) => String(t.sourceGroup || "").normalize("NFKC").trim().replace(/\s+/g, " ")).filter(Boolean))],
   });
 }
 
@@ -1619,7 +1620,7 @@ async function myTeams(openid) {
   const ids = mems.map((m) => m.teamId);
   const teamList = await getTeamsByIds(ids);
   const teamMap = {};
-  teamList.forEach((t) => {
+  (await decorateTeamCards(teamList, openid)).forEach((t) => {
     teamMap[t._id] = stripSecret(t, false);
   });
   const hosted = [];

@@ -26,12 +26,7 @@ const page = reactive(useGame());
       @update:model-value="page.onSearch(String($event))"
       @clear="page.clearSearch"
     />
-    <team-filters
-      :active="pageActive"
-      :query="page.query()"
-      :source-groups="page.sourceGroups"
-      @change="page.setFilters"
-    />
+    <team-filters :active="pageActive" :query="page.query()" @change="page.setFilters" />
     <team-results
       :teams="page.filtered"
       :total="page.total"

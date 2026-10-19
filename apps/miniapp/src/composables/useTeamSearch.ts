@@ -15,14 +15,12 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     total: 0,
     nextOffset: 0,
     games: ['全部'],
-    sourceGroups: [] as string[],
     gameFilter: '全部',
     keyword: '',
     sortMode: 'latest',
     platform: '',
     server: '',
     voice: '',
-    sourceGroup: '',
     time: '',
     availableOnly: true,
     hasMore: false,
@@ -40,7 +38,6 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
       platform: state.platform,
       server: state.server,
       voice: state.voice,
-      sourceGroup: state.sourceGroup,
       time: state.time,
       availableOnly: state.availableOnly,
       sortMode: state.sortMode,
@@ -79,7 +76,6 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
           ...(state.gameFilter === '全部' ? [] : [state.gameFilter]),
         ]),
       ];
-      state.sourceGroups = res.sourceGroups || [];
     } catch (error) {
       if (id !== requestId) return;
       state.listError = error instanceof Error ? error.message : '加载失败，请重试';
@@ -121,7 +117,6 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
       platform: '',
       server: '',
       voice: '',
-      sourceGroup: '',
       time: '',
       availableOnly: true,
     });

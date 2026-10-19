@@ -88,7 +88,7 @@ test('filter changes query the server and discard an older response arriving las
   });
   const page = h.page('pages/index/index');
   const first = page.loadList();
-  page.setFilters({ platform: '手游', sourceGroup: 'group:A群', time: 'soon' });
+  page.setFilters({ platform: '手游', time: 'soon' });
   assert.equal(pending[1].input.platform, '手游');
   assert.equal(pending[1].input.offset, 0);
   pending[1].resolve({ list: [futureTeam({ _id: 'new' })], total: 1, hasMore: false });
@@ -211,6 +211,83 @@ test('recent games include free text and a game-prefilled publish clears prior e
   await page.hooks.onShow();
   assert.equal(page.state.editingId, '');
   assert.equal(page.state.gameName, 'CS2');
+});
+
+test('successful publish and edit survive a missing or failing recent-game recorder', async (t) => {
+  for (const editingId of ['', 'existing-team']) {
+    for (const missing of [true, false]) {
+      await t.test(
+        `${editingId ? 'edit' : 'create'} with ${missing ? 'missing' : 'throwing'} recorder`,
+        async () => {
+          const h = harness({
+            overrides: {
+              'utils/recent-games': {
+                recentGames: () => [],
+                gameSuggestions: () => [],
+                rememberGame: missing
+                  ? undefined
+                  : () => {
+                      throw new Error('history unavailable');
+                    },
+              },
+            },
+            callTeam: (action) =>
+              action === 'myTeams' ? { hosted: [], joined: [] } : { teamId: 'created-team' },
+          });
+          const page = h.page('pages/publish/publish');
+          Object.assign(page.state, { editingId, gameName: 'CS2', roomNo: '123' });
+          await page.onSubmit();
+          const writes = h.calls.filter((call) => ['createTeam', 'updateTeam'].includes(call.action));
+          assert.equal(writes.length, 1);
+          assert.equal(writes[0].action, editingId ? 'updateTeam' : 'createTeam');
+          assert.equal('sourceGroup' in writes[0].input.team, false);
+          assert.deepEqual(h.toasts, [editingId ? '已保存' : '已发车']);
+          assert.equal(page.state.gameName, '');
+          assert.equal(page.state.submitting, false);
+          await new Promise((resolve) => setTimeout(resolve, 450));
+          assert.equal(h.navigation.length, 1);
+          assert.ok(h.navigation[0].includes(editingId || 'created-team'));
+        },
+      );
+    }
+  }
+});
+
+test('history lookup errors never hide a loaded team or interrupt a game page', async (t) => {
+  for (const failure of ['missing', 'module-unavailable', 'throwing']) {
+    await t.test(failure, async () => {
+      const history = {
+        get rememberGame() {
+          if (failure === 'module-unavailable') {
+            throw new TypeError("Cannot read properties of undefined (reading 'rememberGame')");
+          }
+          if (failure === 'missing') return undefined;
+          return () => {
+            throw new Error('history unavailable');
+          };
+        },
+      };
+      const h = harness({
+        overrides: { 'utils/recent-games': history },
+        callTeam: () => ({
+          team: futureTeam({ gameName: '地平线 6' }),
+          role: 'host',
+          members: [],
+        }),
+      });
+      const detail = h.page('pages/team/detail');
+      detail.state.teamId = 't';
+      await detail.loadDetail();
+      assert.equal(detail.state.team.gameName, '地平线 6');
+      assert.equal(detail.state.role, 'host');
+      assert.equal(detail.state.detailError, '');
+      assert.equal(detail.state.loading, false);
+      const game = h.page('pages/game/game');
+      assert.doesNotThrow(() => game.applyGame({ name: '地平线 6' }));
+      assert.equal(game.state.game.name, '地平线 6');
+      assert.deepEqual(h.toasts, []);
+    });
+  }
 });
 
 test('native tabs remain visible on normal page entry', async () => {

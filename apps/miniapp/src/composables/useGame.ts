@@ -43,7 +43,13 @@ export function useGame() {
             blurb: '约好时间，找到一起开黑的人。',
           }
         : null);
-    if (game.value && !isSinglePage()) rememberGame(game.value.name);
+    if (game.value && !isSinglePage()) {
+      try {
+        rememberGame(game.value.name);
+      } catch {
+        // Local history must not prevent the game page from opening.
+      }
+    }
     hostPlatform.setNavigationBarTitle({ title: pageSeo(game.value).title });
   }
   function onOpen(input: { id?: string; gameName?: string }) {

@@ -1162,15 +1162,6 @@ test('cloud requires a room / join method for creating and editing', () => {
   }
 });
 
-test('source group normalizes and remains optional with a strict length and moderation contract', async () => {
-  const ctx = backend();
-  const valid = ctx.validateTeamInput({ ...teamPayload(), sourceGroup: '  Ａ群   周末  ' }, { isCreate: true });
-  assert.equal(valid.value.sourceGroup, 'A群 周末');
-  assert.equal(ctx.validateTeamInput(teamPayload(), { isCreate: true }).value.sourceGroup, '');
-  assert.match(ctx.validateTeamInput({ ...teamPayload(), sourceGroup: '群'.repeat(25) }, { isCreate: true }).error, /24/);
-  assert.ok(ctx.validateTeamInput({ ...teamPayload(), sourceGroup: {} }, { isCreate: true }).error);
-  assert.ok(ctx.teamVisibleTexts(valid.value).includes('A群 周末'));
-});
 test('reaction retries, switches and cancellations maintain one vote per actor, even on ended teams', async () => {
   const team = { _id: 't', gameName: 'CS2', status: 'recruiting', endAt: Date.now() - 1000 };
   const ctx = backend({ teams: [team] });
@@ -1203,29 +1194,17 @@ test('reaction rejects invalid values, missing teams, banned users and rate limi
   assert.equal(team.reactionCounts, undefined);
 });
 
-test('source group is moderated before create, and older edit payloads preserve it', async () => {
-  const teams = [];
-  const ctx = backend({ teams, users: [{ _id: 'host', nickName: '车头' }], msgCheck: async ({ content }) => ({ result: { suggest: content.includes('测试来源') ? 'risky' : 'pass' } }) });
-  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), sourceGroup: '测试来源' } }, 'host')).ok, false);
-  assert.equal(teams.length, 0);
-  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), sourceGroup: '周末群' } }, 'host')).ok, true);
-  const team = teams[0];
-  const updated = await ctx.updateTeam({ teamId: team._id, team: { note: '改个备注' } }, 'host');
-  assert.equal(updated.ok, true);
-  assert.equal(team.sourceGroup, '周末群');
-});
-
 test('server search covers later database batches before filtering, sorting and paging', async () => {
   const now = Date.now();
   const teams = Array.from({ length: 240 }, (_, i) => ({
     _id: 'row-' + i, gameName: i >= 220 ? 'CS2' : '王者荣耀', platform: 'Steam',
-    server: '国服', voice: 'KOOK', sourceGroup: '  Ａ群  ', rankReq: '娱乐',
+    server: '国服', voice: 'KOOK', rankReq: '娱乐',
     roomPwd: 'secret', capacity: 5, memberCount: 2, status: 'recruiting',
     startAt: now + 600000, endAt: now + 3600000, createdAt: i,
   }));
   teams[239].memberCount = 5;
   const ctx = backend({ teams, paginate: true });
-  const query = { keyword: '娱乐', gameName: 'CS2', sourceGroup: 'group:A群', availableOnly: true, limit: 3 };
+  const query = { keyword: '娱乐', gameName: 'CS2', availableOnly: true, limit: 3 };
   const first = await ctx.listTeams(query, '');
   assert.equal(first.total, 19);
   assert.deepEqual([...first.list.map(t => t._id)], ['row-238', 'row-237', 'row-236']);
@@ -1234,7 +1213,6 @@ test('server search covers later database batches before filtering, sorting and 
   const next = await ctx.listTeams({ ...query, offset: first.nextOffset }, '');
   assert.deepEqual([...next.list.map(t => t._id)], ['row-235', 'row-234', 'row-233']);
   assert.equal(new Set([...first.list, ...next.list].map(t => t._id)).size, 6);
-  assert.equal(first.sourceGroups[0], 'A群');
   assert.equal((await ctx.listTeams({ ...query, platform: '手游' }, '')).total, 0);
   assert.equal((await ctx.listTeams({ ...query, keyword: 'does not exist' }, '')).hasMore, false);
 });
@@ -1293,4 +1271,19 @@ test('behavior events deduplicate per user/team/day and admin statistics do not 
   assert.equal(stats.funnel.full, 0);
   assert.equal((await ctx.trackTeamEvent({ teamId: 't', kind: 'fake' }, 'visitor')).ok, false);
   assert.equal((await ctx.adminOverview('visitor')).ok, false);
+});
+
+
+
+
+test('team lists return each viewer reaction without leaking identity', async () => {
+  const team = { ...teamPayload(), _id: 't', openid: 'host', memberCount: 1, status: 'recruiting' };
+  const ctx = backend({ teams: [team], members: [{ _id: 'm', teamId: 't', openid: 'host', role: 'host' }] });
+  await ctx.setReaction({ teamId: 't', reaction: 'fire' }, 'visitor');
+  const visitor = (await ctx.listTeams({}, 'visitor')).list[0];
+  assert.equal(visitor.reactions.mine, 'fire');
+  assert.equal(visitor.reactions.counts.fire, 1);
+  assert.equal(visitor.openid, undefined);
+  assert.equal((await ctx.listTeams({}, 'host')).list[0].reactions.mine, '');
+  assert.equal((await ctx.myTeams('host')).hosted[0].reactions.counts.fire, 1);
 });

@@ -39,12 +39,7 @@ const gameTabs = computed(() => [
       ><wd-button variant="text" size="small" @click="page.goGame(page.gameFilter)"
         >{{ page.gameFilter }} 专区 <wd-icon name="arrow-right" size="12px" /></wd-button
     ></view>
-    <team-filters
-      :active="pageActive"
-      :query="page.query()"
-      :source-groups="page.sourceGroups"
-      @change="page.setFilters"
-    />
+    <team-filters :active="pageActive" :query="page.query()" @change="page.setFilters" />
     <team-results
       :teams="page.filtered"
       :total="page.total"

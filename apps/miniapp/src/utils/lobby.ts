@@ -1,4 +1,3 @@
-import { matchSourceGroup } from './source-group';
 import type { Team } from '../types/domain';
 // 大厅列表整理：游戏筛选 + 关键词搜索 + 排序。
 // 数据是分页累加来的，这里只处理已加载到本地的部分。
@@ -46,9 +45,7 @@ function normalizeText(value: unknown) {
 function matchKeyword(team: Partial<Team>, keyword: string) {
   const kw = normalizeText(keyword);
   if (!kw) return true;
-  const hay = [team.gameName, team.server, team.rankReq, team.note, team.sourceGroup]
-    .map(normalizeText)
-    .join(' ');
+  const hay = [team.gameName, team.server, team.rankReq, team.note].map(normalizeText).join(' ');
   return hay.indexOf(kw) >= 0;
 }
 
@@ -58,11 +55,8 @@ function filterByGame(list: Team[], gameFilter: string) {
 }
 
 // 先按关键词搜索、再按游戏名筛选，最后按当前排序方式排列。
-function buildLobbyView(
-  list: Team[],
-  { gameFilter = '全部', keyword = '', sortMode = DEFAULT_SORT, sourceGroup = '' } = {},
-) {
-  const searched = (list || []).filter((t) => matchKeyword(t, keyword) && matchSourceGroup(t, sourceGroup));
+function buildLobbyView(list: Team[], { gameFilter = '全部', keyword = '', sortMode = DEFAULT_SORT } = {}) {
+  const searched = (list || []).filter((t) => matchKeyword(t, keyword));
   return sortTeams(filterByGame(searched, gameFilter), sortMode);
 }
 
