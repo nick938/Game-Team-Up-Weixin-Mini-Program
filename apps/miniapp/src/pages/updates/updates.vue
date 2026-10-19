@@ -3,8 +3,12 @@ import { onShow } from '@dcloudio/uni-app';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { UPDATES, LATEST_UPDATE, markUpdateRead } from '../../utils/updates';
 import { isSinglePage } from '../../utils/runtime';
+import { platform } from '../../platform/host';
 defineOptions({ name: 'UpdatesPage' });
 useAppTheme();
+function openChangelog() {
+  platform.navigateTo({ url: '/pages/changelog/changelog' });
+}
 onShow(() => {
   if (!isSinglePage()) markUpdateRead(LATEST_UPDATE.id);
 });
@@ -13,6 +17,9 @@ onShow(() => {
 <template>
   <timeline-preview v-if="isSinglePage()" />
   <app-shell v-else title="更新公告" subtitle="看看开黑星球最近有哪些变化。">
+    <wd-cell-group custom-class="!mb-4">
+      <wd-cell title="更新日志" label="查看各版本的详细变化" is-link @click="openChangelog" />
+    </wd-cell-group>
     <view v-for="update in UPDATES" :key="update.id" class="panel">
       <view class="hint mb-2">{{ update.date }}</view>
       <view class="section-title mb-5">{{ update.title }}</view>

@@ -88,6 +88,10 @@ const page = reactive(useMine());
     <view class="section-label">服务与设置</view>
     <wd-cell-group
       ><wd-cell title="更新公告" label="看看最近更新了什么" is-link @click="page.openUpdates" /><wd-cell
+        title="更新日志"
+        label="按版本查看详细变化"
+        is-link
+        @click="page.openChangelog" /><wd-cell
         v-if="page.isOrganizer && !page.isAdmin"
         title="帮群友发车"
         is-link
