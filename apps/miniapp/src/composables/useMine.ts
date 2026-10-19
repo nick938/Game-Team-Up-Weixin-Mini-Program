@@ -18,7 +18,7 @@ import { getAppVersion } from '../utils/version';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { teamDetailPath } from '../utils/team-entry';
 export function useMine() {
-  const { toast, dialog, showError } = usePageFeedback();
+  const { toast, dialog } = usePageFeedback();
   function splitTeams(list: Team[]) {
     const ongoing: Team[] = [];
     const past: Team[] = [];
@@ -34,6 +34,9 @@ export function useMine() {
   }
   const state = reactive({
     pendingAction: '',
+    loading: false,
+    profileError: '',
+    listError: '',
     singlePage: false,
     ...{
       user: {} as User,
@@ -77,34 +80,50 @@ export function useMine() {
   }
   async function load() {
     if (isSinglePage()) return;
+    if (state.loading) return;
+    state.loading = true;
+    state.profileError = '';
+    state.listError = '';
     try {
-      const [profile, teams] = await Promise.all([callTeam('getProfile'), callTeam('myTeams')]);
-      const app = useAppStore();
-      if (profile.user) {
-        app.user = profile.user;
+      const [profileResult, teamsResult] = await Promise.allSettled([
+        callTeam('getProfile'),
+        callTeam('myTeams'),
+      ]);
+      if (profileResult.status === 'fulfilled') {
+        const profile = profileResult.value;
+        const app = useAppStore();
+        if (profile.user) app.user = profile.user;
+        app.isAdmin = !!profile.isAdmin;
+        app.isOrganizer = !!profile.isOrganizer;
+        patchState({
+          user: profile.user || {},
+          profileHint: getProfileHint(profile.user),
+          isAdmin: !!profile.isAdmin,
+          isOrganizer: !!profile.isOrganizer,
+        });
+      } else {
+        state.profileError = '资料暂时无法加载';
       }
-      app.isAdmin = !!profile.isAdmin;
-      app.isOrganizer = !!profile.isOrganizer;
-      const hosted = splitTeams((teams.hosted || []).map(decorateTeam));
-      const joined = splitTeams((teams.joined || []).map(decorateTeam));
-      patchState({
-        user: profile.user || {},
-        profileHint: getProfileHint(profile.user),
-        isAdmin: !!profile.isAdmin,
-        isOrganizer: !!profile.isOrganizer,
-        hostedOngoing: hosted.ongoing,
-        hostedPast: hosted.past,
-        joinedOngoing: joined.ongoing,
-        joinedPast: joined.past,
-        hostedCount: hosted.ongoing.length + hosted.past.length,
-        joinedCount: joined.ongoing.length + joined.past.length,
-      });
-      updateVisibleTeams();
-    } catch (error) {
-      const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
-      showError(e);
+      if (teamsResult.status === 'fulfilled') {
+        const hosted = splitTeams((teamsResult.value.hosted || []).map(decorateTeam));
+        const joined = splitTeams((teamsResult.value.joined || []).map(decorateTeam));
+        patchState({
+          hostedOngoing: hosted.ongoing,
+          hostedPast: hosted.past,
+          joinedOngoing: joined.ongoing,
+          joinedPast: joined.past,
+          hostedCount: hosted.ongoing.length + hosted.past.length,
+          joinedCount: joined.ongoing.length + joined.past.length,
+        });
+        updateVisibleTeams();
+      } else {
+        state.listError = '队伍暂时无法加载，请重试';
+      }
+    } finally {
+      state.loading = false;
     }
   }
+
   function updateVisibleTeams() {
     patchState({
       visibleTeams:

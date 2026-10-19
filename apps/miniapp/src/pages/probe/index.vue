@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { appThemeStyle } from '../../design/tokens';
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'ProbeIndexPage' });
 import { ref } from 'vue';
 import { dateParts } from '../../utils/format';
@@ -144,7 +147,7 @@ function changeDate(value: number) {
       ><view class="hint mt-4">{{ healthResult }}</view></wd-card
     >
     <wd-popup :z-index="1100" v-model="showPopup" position="bottom" closable safe-area-inset-bottom
-      ><view class="sheet-content"
+      ><view class="sheet-content" :style="appThemeStyle"
         ><view class="section-title mb-4">弹窗验证</view
         ><app-input v-model="room" placeholder="在弹窗内输入加入方式" /><view class="mt-5"
           ><wd-button block @click="showPopup = false">完成</wd-button></view

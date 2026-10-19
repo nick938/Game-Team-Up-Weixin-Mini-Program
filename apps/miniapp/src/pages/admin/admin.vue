@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'AdminAdminPage' });
 import { reactive } from 'vue';
 import { useAdmin } from '../../composables/useAdmin';

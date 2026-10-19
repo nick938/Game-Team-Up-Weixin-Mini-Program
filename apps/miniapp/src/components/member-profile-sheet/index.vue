@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
+import { appThemeStyle } from '../../design/tokens';
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'MemberProfileSheet' });
 import type { User } from '../../types/domain';
-defineProps<{ show: boolean; loading: boolean; user: User | null; error: string }>();
+const props = defineProps<{ show: boolean; loading: boolean; user: User | null; error: string }>();
+useTabBarOverlay(() => props.show);
 const emit = defineEmits<{ close: []; retry: [] }>();
 </script>
 <template>
   <wd-popup
+    root-portal
     :z-index="1100"
     :model-value="show"
     position="bottom"
@@ -13,7 +19,7 @@ const emit = defineEmits<{ close: []; retry: [] }>();
     safe-area-inset-bottom
     closable
     @update:model-value="!$event && emit('close')"
-    ><view class="sheet-content"
+    ><view class="sheet-content" :style="appThemeStyle"
       ><view class="section-title mb-5">公开资料</view><wd-loading v-if="loading" /><view
         v-else-if="error"
         class="text-center"

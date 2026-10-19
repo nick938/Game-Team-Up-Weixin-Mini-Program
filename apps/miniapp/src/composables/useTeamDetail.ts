@@ -14,6 +14,7 @@ import { capabilities } from '../platform/host';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { isSinglePage } from '../utils/runtime';
+import { presentTeam } from '../utils/team-presentation';
 import { decorateTeam, formatStartAt } from '../utils/format';
 import { callTeam } from '../api/team';
 import { requestTeamNotify } from '../utils/subscribe';
@@ -90,6 +91,9 @@ export function useTeamDetail() {
     memberProfileRequest: 0,
     requestingNotify: false,
     joining: false,
+    mutating: false,
+    detailError: '',
+    detailNotFound: false,
     singlePage: false,
     wechatSubscription: capabilities.wechatSubscription,
     ...{
@@ -142,7 +146,18 @@ export function useTeamDetail() {
   function syncTeamId(options: PageQuery) {
     const teamId = resolveTeamId(options || state.options || {}, readLaunchExtras());
     if (teamId !== state.teamId) {
-      patchState({ teamId, noteExpanded: false, noteCanFold: false });
+      state.detailRequest += 1;
+      state.coverRequest += 1;
+      patchState({
+        teamId,
+        team: null,
+        role: null,
+        members: [],
+        seats: [],
+        shareCoverPath: '',
+        noteExpanded: false,
+        noteCanFold: false,
+      });
     }
     return teamId;
   }
@@ -153,16 +168,19 @@ export function useTeamDetail() {
     if (!team) {
       return { title: '开黑星球', path, query };
     }
+    const presentation = presentTeam(team, state.role);
     const time = formatStartAt(team.startAt).replace(/今天 |今晚 |明天 /, '');
     let title = `开黑星球｜${team.gameName}`;
-    if (team.displayStatus === 'recruiting') {
-      title += ` 还差 ${team.needCount} 人 · ${time}`;
-    } else if (team.displayStatus === 'full') {
+    if (presentation.recruitment === 'open') {
+      title += ` 还差 ${presentation.needCount} 人 · ${time}`;
+    } else if (presentation.recruitment === 'full') {
       title += ' 已满员';
-    } else if (team.displayStatus === 'cancelled') {
+    } else if (presentation.lifecycle === 'cancelled') {
       title += ' 已散';
-    } else {
+    } else if (presentation.lifecycle === 'ended') {
       title += ' 已结束';
+    } else {
+      title += ' 状态待确认';
     }
     return { title, path, query };
   }
@@ -192,7 +210,7 @@ export function useTeamDetail() {
     }
     const requestId = (state.detailRequest || 0) + 1;
     state.detailRequest = requestId;
-    patchState({ loading: true });
+    patchState({ loading: true, detailError: '', detailNotFound: false });
     try {
       const res = await callTeam('getTeam', { teamId });
       if (requestId !== state.detailRequest) return;
@@ -205,10 +223,18 @@ export function useTeamDetail() {
           noteCanFold,
           noteExpanded: false,
           members: res.members || [],
-          seats: Array.from({ length: res.team.capacity }, (_, i) => ({
-            key: i,
-            member: (res.members || [])[i] || null,
-          })),
+          seats: Array.from(
+            {
+              length:
+                Number.isInteger(res.team.capacity) && res.team.capacity >= 2 && res.team.capacity <= 20
+                  ? res.team.capacity
+                  : 0,
+            },
+            (_, i) => ({
+              key: i,
+              member: (res.members || [])[i] || null,
+            }),
+          ),
           role,
           loading: false,
         },
@@ -221,7 +247,15 @@ export function useTeamDetail() {
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
       if (requestId !== state.detailRequest) return;
-      patchState({ team: null, loading: false });
+      patchState({
+        team: null,
+        role: null,
+        members: [],
+        seats: [],
+        loading: false,
+        detailError: e.message || '暂时无法加载队伍',
+        detailNotFound: e.code === 'NOT_FOUND' || /不存在|已删除/.test(e.message),
+      });
       // 数据没取到，别让分享还用着上一趟车的封面
       prepareShareCover();
       showError(e);
@@ -292,7 +326,7 @@ export function useTeamDetail() {
       await callTeam('joinTeam', { teamId: state.teamId });
       toast.close();
       toast.success('已上车');
-      loadDetail();
+      await loadDetail();
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
       toast.close();
@@ -300,27 +334,38 @@ export function useTeamDetail() {
         patchState({ showProfile: true, pendingAction: 'join' });
       } else {
         showError(e);
+        await loadDetail();
       }
     } finally {
       state.joining = false;
     }
   }
   function onLeave() {
+    if (state.mutating) return;
+    state.mutating = true;
     void dialog
-      .confirm({ title: '下车？' })
+      .confirm({
+        title: '离开这趟队伍？',
+        msg: '下车后会释放你的位置。',
+        confirmButtonText: '确认下车',
+        cancelButtonText: '继续组队',
+      })
       .then(async () => {
         toast.loading('下车中');
         try {
           await callTeam('leaveTeam', { teamId: state.teamId });
           toast.success('已下车');
-          loadDetail();
+          await loadDetail();
         } catch (error) {
           const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
           toast.close();
           showError(e);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        state.mutating = false;
+      });
   }
   function onManage() {
     if (state.role !== 'host') return;
@@ -360,21 +405,32 @@ export function useTeamDetail() {
     hostPlatform.switchTab({ url: '/pages/publish/publish' });
   }
   function onCancel() {
+    if (state.mutating) return;
+    state.mutating = true;
     void dialog
-      .confirm({ title: '散了这趟？', msg: '散了之后不能再上车。', confirmButtonProps: { type: 'danger' } })
+      .confirm({
+        title: '关闭这趟队伍？',
+        msg: '关闭后其他人将无法上车。',
+        confirmButtonText: '关闭队伍',
+        cancelButtonText: '继续组队',
+        confirmButtonProps: { type: 'danger' },
+      })
       .then(async () => {
         toast.loading('处理中');
         try {
           await callTeam('cancelTeam', { teamId: state.teamId });
           toast.success('已散');
-          loadDetail();
+          await loadDetail();
         } catch (error) {
           const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
           toast.close();
           showError(e);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        state.mutating = false;
+      });
   }
   function goPlaza() {
     hostPlatform.switchTab({ url: '/pages/index/index' });
@@ -434,6 +490,9 @@ export function useTeamDetail() {
     unbindCopyUrl(hostPlatform);
   });
   onUnload(() => {
+    state.detailRequest += 1;
+    state.coverRequest += 1;
+    state.memberProfileRequest += 1;
     unbindCopyUrl(hostPlatform);
   });
   onShareAppMessage(() => {

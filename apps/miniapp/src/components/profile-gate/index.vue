@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { appThemeStyle } from '../../design/tokens';
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'ProfileGate' });
 
 import { usePageFeedback } from '../../composables/usePageFeedback';
@@ -96,6 +99,7 @@ async function save() {
 </script>
 <template>
   <wd-popup
+    root-portal
     :z-index="1100"
     :model-value="show"
     position="bottom"
@@ -105,7 +109,7 @@ async function save() {
     safe-area-inset-bottom
     @update:model-value="!$event && close()"
   >
-    <view class="sheet-content"
+    <view class="sheet-content" :style="appThemeStyle"
       ><view class="section-title mb-4">个人资料</view
       ><scroll-view scroll-y class="h-[58vh]">
         <view class="text-center mb-4">

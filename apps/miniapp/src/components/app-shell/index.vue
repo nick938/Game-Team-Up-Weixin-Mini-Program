@@ -1,17 +1,21 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+import { wotThemeVars } from '../../design/wot-theme';
+import { appThemeStyle, component } from '../../design/tokens';
 defineOptions({ name: 'AppShell' });
-defineProps<{ title?: string; subtitle?: string; variant?: 'lobby' }>();
+defineProps<{ title?: string; subtitle?: string; variant?: 'lobby' | 'form' | 'detail' | 'profile' }>();
+useAppTheme();
 </script>
 <template>
-  <wd-config-provider :button="{ round: true }">
-    <view class="app-page" :class="variant === 'lobby' ? 'lobby-page' : ''">
-      <view v-if="title" class="mb-6 motion-enter"
-        ><view class="brand-kicker flex items-center gap-2 mb-3"
-          ><view class="w-1.5 h-1.5 rounded-full bg-brand" />开黑星球</view
-        ><view class="page-heading">{{ title }}</view
-        ><view v-if="subtitle" class="page-caption">{{ subtitle }}</view></view
-      >
-      <slot /><wd-toast :z-index="1500" /><wd-dialog :z-index="1400" />
+  <wd-config-provider theme="light" :theme-vars="wotThemeVars" :button="{ round: false }">
+    <view class="app-page" :class="variant ? 'page-' + variant : ''" :style="appThemeStyle">
+      <view v-if="title" class="mb-6">
+        <view class="page-heading">{{ title }}</view>
+        <view v-if="subtitle" class="page-caption">{{ subtitle }}</view>
+      </view>
+      <slot />
+      <wd-toast :z-index="component.layer.toast" />
+      <wd-dialog :z-index="component.layer.dialog" />
     </view>
   </wd-config-provider>
 </template>

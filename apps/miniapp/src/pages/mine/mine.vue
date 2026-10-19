@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'MineMinePage' });
 import { reactive } from 'vue';
 import { useMine } from '../../composables/useMine';
@@ -6,8 +8,8 @@ const page = reactive(useMine());
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
-  <app-shell v-else title="我的" subtitle="管理你的资料和组队">
-    <view class="hero-panel profile-surface motion-enter motion-delay !p-4">
+  <app-shell v-else variant="profile">
+    <view class="panel profile-panel !p-4">
       <wd-cell-group custom-class="!bg-transparent !shadow-none"
         ><wd-cell
           custom-class="profile-cell !bg-transparent !p-0"
@@ -28,7 +30,12 @@ const page = reactive(useMine());
               mode="aspectFill" /></template></wd-cell
       ></wd-cell-group>
     </view>
-    <view class="flex flex-wrap gap-2 my-5"
+    <view v-if="page.state.profileError" class="panel flex items-center justify-between gap-3"
+      ><text class="text-sm text-secondary">{{ page.state.profileError }}</text
+      ><wd-button size="small" variant="soft" @click="page.load">重试</wd-button></view
+    >
+    <view class="section-title mt-6 mb-3">我的队伍</view>
+    <view class="flex flex-wrap gap-2 mb-3"
       ><wd-button :variant="page.teamTab === 'hosted' ? 'base' : 'soft'" @click="page.pickTeamTab('hosted')"
         >我发起的 {{ page.hostedCount }}</wd-button
       ><wd-button :variant="page.teamTab === 'joined' ? 'base' : 'soft'" @click="page.pickTeamTab('joined')"
@@ -48,6 +55,13 @@ const page = reactive(useMine());
         >历史</wd-button
       ></view
     >
+    <view v-if="page.state.listError" class="panel"
+      ><view class="text-sm text-secondary mb-3">{{ page.state.listError }}</view
+      ><wd-button variant="soft" :loading="page.state.loading" @click="page.load">重新加载</wd-button></view
+    >
+    <view v-if="page.state.loading && !page.visibleTeams.length" class="panel"
+      ><view class="skeleton-shape h-6 w-40 mb-4" /><view class="skeleton-shape h-4 w-full"
+    /></view>
     <team-card
       v-for="team in page.visibleTeams"
       :key="team._id"
@@ -56,7 +70,9 @@ const page = reactive(useMine());
       :mark="page.teamTab === 'hosted' ? '车头' : '队员'"
       @open="page.onOpen"
     />
-    <view v-if="!page.visibleTeams.length" class="panel text-center"
+    <view
+      v-if="!page.visibleTeams.length && !page.state.loading && !page.state.listError"
+      class="panel text-center"
       ><wd-empty
         icon="/static/images/brand/empty-v1.jpg"
         :tip="page.phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'"
@@ -64,6 +80,7 @@ const page = reactive(useMine());
         >去大厅看看</wd-button
       ></view
     >
+    <view class="section-title mt-6 mb-3">帮助与设置</view>
     <wd-cell-group
       ><wd-cell
         v-if="page.isOrganizer && !page.isAdmin"

@@ -1,4 +1,5 @@
 import type { Team } from '../types/domain';
+import { presentTeam } from './team-presentation';
 import { STATUS_TEXT } from './constants';
 
 function pad(n: number) {
@@ -80,14 +81,16 @@ function statusText(status: string | undefined) {
 
 function decorateTeam(team: Team) {
   if (!team) return team;
-  const displayStatus = team.displayStatus || team.status;
+  const presentation = presentTeam(team);
   return {
     ...team,
     voice: team.voice === 'Discord' ? 'KOOK' : team.voice,
     timeText: formatTimeRange(team.startAt, teamEndAt(team)),
-    statusText: statusText(displayStatus),
-    soon: isSoon(team.startAt),
-    ongoing: displayStatus === 'recruiting' || displayStatus === 'full',
+    statusText: presentation.statusLabel,
+    soon: presentation.timeLabel === '即将开始',
+    started: presentation.lifecycle === 'active',
+    ongoing: presentation.ongoing,
+    needCount: presentation.needCount,
     mark: team.mark == null ? '' : String(team.mark),
   };
 }

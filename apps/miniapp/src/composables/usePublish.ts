@@ -1,5 +1,5 @@
 import { usePageFeedback } from './usePageFeedback';
-import { reactive, toRefs, nextTick, computed } from 'vue';
+import { reactive, toRefs, nextTick, computed, watch } from 'vue';
 import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import type { TeamDraft, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
@@ -80,6 +80,7 @@ export function usePublish() {
       note: '',
       moreHint: moreSettingsHint({}),
       submitting: false,
+      validationError: null as { message: string; anchor?: string } | null,
       showProfile: false,
       pendingAction: '',
       fromLast: false,
@@ -103,6 +104,40 @@ export function usePublish() {
       durationPickerLabels: DURATION_PICKER_LABELS,
     }),
   });
+  // Clear only the error for the field that the user is correcting.
+  watch(
+    () => [
+      state.gameName,
+      state.roomNo,
+      state.capacity,
+      state.startDate,
+      state.startTime,
+      state.endDate,
+      state.endTime,
+      state.platform,
+      state.proxyHost,
+    ],
+    (values, previous) => {
+      const anchors = [
+        'field-game',
+        'field-room',
+        'field-capacity',
+        'field-start',
+        'field-start',
+        'field-end',
+        'field-end',
+        'field-platform',
+        'field-proxy',
+      ];
+      if (
+        values.some(
+          (value, index) => value !== previous[index] && state.validationError?.anchor === anchors[index],
+        )
+      )
+        state.validationError = null;
+    },
+    { flush: 'sync' },
+  );
   const {
     singlePage,
     editingId,
@@ -522,6 +557,7 @@ export function usePublish() {
       now: Date.now(),
       needProxyHost: !state.editingId && state.proxyMode && !(state.proxyHost && state.proxyHost.userId),
     });
+    state.validationError = error;
     if (error) {
       toast.show(error.message);
       scrollToField(error.anchor);

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { computed, ref, useAttrs } from 'vue';
 defineOptions({ name: 'AppDatetimePicker', inheritAttrs: false });
@@ -24,6 +26,7 @@ function confirm(event: { value: number | string | (number | string)[] }) {
   <view>
     <wd-cell :title="label" :value="displayValue" is-link @click="visible = true" />
     <wd-datetime-picker
+      root-portal
       :z-index="1200"
       v-bind="attrs"
       v-model:visible="visible"

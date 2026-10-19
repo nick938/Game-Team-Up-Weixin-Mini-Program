@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'FeedbackFeedbackPage' });
 import { reactive } from 'vue';
 import { useFeedback } from '../../composables/useFeedback';

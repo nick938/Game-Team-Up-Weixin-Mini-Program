@@ -34,7 +34,12 @@ pnpm check:matrix
 - `src/components`：Wot 组合组件与可复用表单入口。
 - `src/api`、`src/platform`：业务请求与宿主能力适配。
 - `src/stores`、`src/types`、`src/utils`：共享状态、业务契约与纯工具。
-- `uno.config.ts`：设计颜色、公共布局 shortcuts、全局基础样式与 Wot 主题。
+- `src/design`：三层设计 Token、Wot UI 映射和 UnoCSS 样式适配；原生导航与分享画布共用语义色。
+- `uno.config.ts`：统一主题、稳定的 px 尺寸与公共布局 shortcuts。
+- `src/composables/useAppTheme.ts`：页面与弹层主题注入；`useTeamPresentation.ts` 在时间边界更新视图。
+- `src/utils/team-presentation.ts`：队伍生命周期、招募状态、角色和公开展示映射。
+
+设计基线见 [design.md](../../design.md)，本轮检查与真机边界见 [前端验证记录](../../docs/frontend-design-validation.md)。修改 `src/design` 中供构建使用的主题模块后，应重启开发服务，避免 UnoCSS 配置导入缓存与 Vue 运行时主题暂时不一致。
 
 ## QQ 接入契约和未完成项
 

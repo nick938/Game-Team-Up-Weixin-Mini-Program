@@ -1,4 +1,5 @@
 // Adapted from unibest base; see README.md for template provenance.
+import { semantic } from './src/design/tokens.ts';
 import { defineUniPages } from '@uni-helper/vite-plugin-uni-pages';
 export default defineUniPages({
   pages: [
@@ -76,16 +77,16 @@ export default defineUniPages({
     },
   ],
   globalStyle: {
-    backgroundColor: '#F5F6FA',
+    backgroundColor: semantic.color.page,
     backgroundTextStyle: 'light',
-    navigationBarBackgroundColor: '#F5F6FA',
+    navigationBarBackgroundColor: semantic.color.page,
     navigationBarTitleText: '开黑星球｜游戏搭子',
     navigationBarTextStyle: 'black',
   },
   tabBar: {
-    color: '#858BA0',
-    selectedColor: '#6255E7',
-    backgroundColor: '#FFFFFF',
+    color: semantic.color.muted,
+    selectedColor: semantic.color.brand,
+    backgroundColor: semantic.color.surface,
     borderStyle: 'white',
     list: [
       {

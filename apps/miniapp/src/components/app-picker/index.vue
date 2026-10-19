@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { computed, ref } from 'vue';
 defineOptions({ name: 'AppPicker', inheritAttrs: false });
@@ -32,6 +34,7 @@ function confirm(event: { value: (string | number)[] }) {
   <view>
     <wd-cell :title="label" :value="displayValue" is-link @click="visible = true" />
     <wd-picker
+      root-portal
       :z-index="1200"
       v-model:visible="visible"
       :title="label"

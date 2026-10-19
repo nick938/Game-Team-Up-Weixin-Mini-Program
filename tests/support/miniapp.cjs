@@ -30,6 +30,7 @@ function harness(options = {}) {
   };
   const showError = error => toasts.push(error.message);
   const overrides = {
+    'composables/useAppTheme': { useAppTheme() {} },
     'platform/host': { platform, buildTarget: target, capabilities: { wechatCloud: target === 'mp-weixin', wechatSubscription: target === 'mp-weixin' }, chooseAvatar: options.chooseAvatar },
     'platform/wechat': { wechatCloud: () => ({ init() { calls.push({ action: 'cloud.init' }); } }) },
     'composables/usePageFeedback': { usePageFeedback: () => ({ showError, toast: { show: message => toasts.push(message), success: message => toasts.push(message), error: message => toasts.push(message), loading() {}, close() {} }, dialog: options.dialog || { alert: async () => ({}), confirm: async () => ({ action: 'confirm' }), prompt: async () => ({ action: 'confirm', value: '' }) } }) },

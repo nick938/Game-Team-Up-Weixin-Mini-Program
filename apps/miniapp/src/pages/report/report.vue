@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'ReportReportPage' });
 import { reactive } from 'vue';
 import { useReport } from '../../composables/useReport';

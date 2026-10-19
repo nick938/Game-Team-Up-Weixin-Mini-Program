@@ -1,3 +1,4 @@
+import { semantic } from '../design/tokens';
 import type { Team } from '../types/domain';
 import { platform } from '../platform/host';
 // 分享卡片的封面：把这一趟车的信息画成 5:4 的图。
@@ -6,24 +7,24 @@ import { platform } from '../platform/host';
 // 云函数返回前整页只剩背景色，截出来是空白卡片。但封面又必须带上「谁、几点、还差几人」，
 // 所以这里自己画：内容取自详情页首屏 hero 卡片，配色也照抄它，卡片和图看起来是一套。
 import { formatStartAt } from './format';
-import { STATUS_TEXT } from './constants';
+import { presentTeam } from './team-presentation';
 
-// 与 detail.wxss 的 .hero / .status / .count / .tags 保持一致
+// Colors share the runtime design source; the canvas contains public fields only.
 const COLORS = {
-  bgFrom: '#e6e1ff',
-  bgMid: '#f3f1ff',
-  bgTo: '#ffffff',
+  bgFrom: semantic.color['brand-light'],
+  bgMid: semantic.color.page,
+  bgTo: semantic.color.surface,
   blob: 'rgba(98, 85, 231, 0.08)',
   blobMint: 'rgba(123, 224, 192, 0.14)',
-  text: '#202438',
-  sub: '#535b72',
-  accent: '#6255e7',
-  tagBg: '#f1f2f9',
-  tagText: '#697188',
-  fullBg: '#e9f7f3',
-  fullText: '#21876f',
-  idleBg: '#f0f1f6',
-  idleText: '#777e92',
+  text: semantic.color.ink,
+  sub: semantic.color.secondary,
+  accent: semantic.color.brand,
+  tagBg: semantic.color['surface-muted'],
+  tagText: semantic.color.secondary,
+  fullBg: semantic.color['brand-light'],
+  fullText: semantic.color.brand,
+  idleBg: semantic.color['surface-muted'],
+  idleText: semantic.color.muted,
 };
 
 // 画布逻辑尺寸，5:4。节点 CSS 宽固定 375 —— 正好等于设计稿的 750rpx，所以 rpx 值除以 2 就是这里的 px。
@@ -40,13 +41,22 @@ function font(size: number, weight?: string) {
 // 封面要画的文案。抽成纯函数，方便单测；画布只负责把这份数据摆上去。
 function coverContent(team: Partial<Team> | null) {
   if (!team) return null;
-  const status = team.displayStatus || team.status || '';
+  const view = presentTeam(team);
+  const status = !view.confirmed
+    ? 'unknown'
+    : view.lifecycle === 'cancelled'
+      ? 'cancelled'
+      : view.lifecycle === 'ended'
+        ? 'expired'
+        : view.recruitment === 'full'
+          ? 'full'
+          : 'recruiting';
   const capacity = Number(team.capacity) || 0;
   const memberCount = Number(team.memberCount) || 0;
 
   let needText = '';
-  if (status === 'recruiting' && team.needCount) {
-    needText = `还差 ${team.needCount} 人`;
+  if (status === 'recruiting' && view.needCount) {
+    needText = `还差 ${view.needCount} 人`;
   }
 
   const tags = [team.platform, team.server, team.voice, team.rankReq].filter(
@@ -55,7 +65,7 @@ function coverContent(team: Partial<Team> | null) {
 
   return {
     status,
-    statusText: STATUS_TEXT[status] || '',
+    statusText: view.statusLabel,
     gameName: String(team.gameName || '开黑'),
     timeText: formatStartAt(team.startAt),
     countText: capacity ? `${memberCount}/${capacity}` : `${memberCount} 人`,

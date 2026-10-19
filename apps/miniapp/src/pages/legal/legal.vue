@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'LegalLegalPage' });
 import { reactive } from 'vue';
 import { useLegal } from '../../composables/useLegal';

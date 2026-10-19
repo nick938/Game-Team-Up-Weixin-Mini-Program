@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAppTheme } from '../../composables/useAppTheme';
+useAppTheme();
 defineOptions({ name: 'WelcomeLetter' });
 import { reactive, toRefs, nextTick, onMounted } from 'vue';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
@@ -59,18 +61,19 @@ onShow(() => {
 </script>
 <template>
   <wd-popup
+    root-portal
     :z-index="1100"
     :model-value="show"
     :close-on-click-modal="false"
-    custom-class="!w-11/12 !max-w-[640rpx] !rounded-3xl"
+    custom-class="!w-11/12 !max-w-[320px] !rounded-3xl"
   >
-    <view class="p-6 box-border bg-gradient-to-b from-[#f2efff] to-white"
+    <view class="p-6 box-border bg-surface"
       ><view class="flex items-center justify-between gap-4 mb-5"
         ><view
           ><view class="brand-kicker">开黑星球｜游戏搭子</view
           ><view class="text-2xl font-bold mt-2">一起玩，好好玩</view></view
         ><image
-          class="w-14 h-14 rounded-2xl surface-shadow motion-float"
+          class="w-14 h-14 rounded-2xl surface-shadow"
           src="/static/images/brand/avatar-v1.jpg"
           mode="aspectFill"
       /></view>

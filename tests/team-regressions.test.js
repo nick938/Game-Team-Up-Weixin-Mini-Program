@@ -179,20 +179,22 @@ test('team share cover content mirrors the detail page hero card', () => {
   const { coverContent, WIDTH, HEIGHT } = loadUtility('team-cover');
   assert.equal(WIDTH / HEIGHT, 5 / 4);
 
+  const startAt = new Date(Date.now() + 86400000).setHours(21, 0, 0, 0);
+  const live = { memberCount: 5, capacity: 12, startAt, endAt: startAt + 7200000 };
   const recruiting = coverContent({
     gameName: '房车（我们到了吗？）',
     displayStatus: 'recruiting',
     needCount: 7,
     memberCount: 5,
     capacity: 12,
-    startAt: new Date(2026, 8, 21, 21, 0).getTime(),
+    ...live,
     platform: 'Steam',
     server: '亚服',
     voice: '不限',
     rankReq: '',
   });
   assert.equal(recruiting.gameName, '房车（我们到了吗？）');
-  assert.equal(recruiting.statusText, '缺人');
+  assert.equal(recruiting.statusText, '还差 7 人');
   assert.equal(recruiting.needText, '还差 7 人');
   assert.equal(recruiting.countText, '5/12');
   assert.match(recruiting.timeText, /21:00/);
@@ -201,14 +203,18 @@ test('team share cover content mirrors the detail page hero card', () => {
 
   assert.equal(coverContent(null), null);
   // 满员后不再显示「还差 N 人」，否则分享出去人数是矛盾的
-  const full = coverContent({ displayStatus: 'full', memberCount: 12, capacity: 12 });
-  assert.equal(full.statusText, '满员');
+  const full = coverContent({ ...live, displayStatus: 'full', memberCount: 12 });
+  assert.equal(full.statusText, '已满员');
   assert.equal(full.needText, '');
-  assert.equal(coverContent({ displayStatus: 'cancelled' }).statusText, '已散');
-  assert.equal(coverContent({ displayStatus: 'expired' }).statusText, '已结束');
+  assert.equal(coverContent({ ...live, displayStatus: 'cancelled' }).statusText, '已散');
+  assert.equal(coverContent({ ...live, displayStatus: 'expired' }).statusText, '已结束');
   // 缺 capacity 时退化成纯人数；缺游戏名也要有东西可画
   assert.equal(coverContent({ memberCount: 3 }).countText, '3 人');
   assert.equal(coverContent({}).gameName, '开黑');
+  assert.equal(coverContent({}).statusText, '状态待确认');
+  const stale = coverContent({ ...live, startAt: Date.now() - 7200000, endAt: Date.now() - 1, displayStatus: 'recruiting' });
+  assert.equal(stale.statusText, '已结束');
+  assert.equal(stale.needText, '');
 });
 
 test('team share cover wraps long game names and clamps to two lines', () => {

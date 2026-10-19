@@ -100,7 +100,7 @@ export function useLobby() {
     loadList(false);
   }
   async function loadList(reset = true) {
-    if (isSinglePage()) return;
+    if (isSinglePage() || state.loading || state.loadingMore) return;
     const offset = reset ? 0 : state.nextOffset || 0;
     patchState(reset ? { loading: true } : { loadingMore: true });
     try {
