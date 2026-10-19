@@ -117,6 +117,7 @@ export default defineUniPages({
       '^member-profile-sheet$': '@/components/member-profile-sheet/index.vue',
       '^admin-overview$': '@/components/admin-overview/index.vue',
       '^app-(input|textarea|picker|datetime-picker)$': '@/components/app-$1/index.vue',
+      '^app-avatar$': '@/components/app-avatar/index.vue',
       '^app-shell$': '@/components/app-shell/index.vue',
       '^team-card$': '@/components/team-card/index.vue',
       '^lobby-hero$': '@/components/lobby-hero/index.vue',

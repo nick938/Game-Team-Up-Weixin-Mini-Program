@@ -28,15 +28,11 @@ const emit = defineEmits<{ close: []; retry: [] }>();
         ><wd-empty :tip="error" /><wd-button variant="soft" @click="emit('retry')">重新加载</wd-button></view
       ><view v-else-if="user"
         ><view class="flex items-center gap-4"
-          ><image
-            class="avatar"
-            :src="
-              user.avatarUrl ||
-              (user.avatarBase64
-                ? 'data:image/jpeg;base64,' + user.avatarBase64
-                : '/static/images/avatar.png')
-            "
-            mode="aspectFill"
+          ><app-avatar
+            :src="user.avatarUrl"
+            :file-id="user.avatarFileID"
+            :identity="user.userId || user._id"
+            :base64="user.avatarBase64"
           /><view class="section-title">{{ user.nickName || '玩家' }}</view></view
         ><view class="mt-5 text-sm whitespace-pre-wrap break-words leading-7">{{
           user.bio || '这位队友还没有填写签名'

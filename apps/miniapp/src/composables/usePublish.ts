@@ -1,3 +1,4 @@
+import { normalizeSourceGroup } from '../utils/source-group';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
 import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
@@ -71,6 +72,7 @@ export function usePublish() {
       timeSummaryLine1: summary.line1,
       timeSummaryLine2: summary.line2,
       capacity: 5,
+      sourceGroup: '',
       roomNo: '',
       roomPwd: '',
       platform: 'Steam',
@@ -196,6 +198,7 @@ export function usePublish() {
       const voice = team.voice === 'Discord' ? 'KOOK' : team.voice;
       const platform = PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : 'Steam';
       const extras = {
+        sourceGroup: team.sourceGroup || '',
         roomNo: team.roomNo || '',
         roomPwd: team.roomPwd || '',
         server: team.server || '',
@@ -253,6 +256,7 @@ export function usePublish() {
     const voice = draft.voice === 'Discord' ? 'KOOK' : draft.voice;
     const platform = PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : 'Steam';
     const extras = {
+      sourceGroup: draft.sourceGroup || '',
       roomNo: draft.roomNo || '',
       roomPwd: draft.roomPwd || '',
       server: draft.server || '',
@@ -521,6 +525,7 @@ export function usePublish() {
       startAt: combineDateTime(state.startDate, state.startTime),
       endAt: combineDateTime(state.endDate, state.endTime),
       capacity: state.capacity,
+      sourceGroup: normalizeSourceGroup(state.sourceGroup),
       roomNo: (state.roomNo || '').trim(),
       roomPwd: (state.roomPwd || '').trim(),
       platform: state.platform,

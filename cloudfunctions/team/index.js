@@ -40,6 +40,7 @@ const REPORT_REASONS = [
 const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
 // 防刷：按 (动作 + 用户) 记录时间窗内的调用次数，超限直接拒绝。写库失败不影响主流程。
 const RATE_LIMITS = {
+  setReaction: { windowMs: 60 * 1000, max: 30, message: "表情操作太频繁，请稍后再试" },
   createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
   joinTeam: { windowMs: 60 * 1000, max: 6, message: "上车太频繁，稍等一下再试" },
   submitFeedback: { windowMs: 30 * 60 * 1000, max: 5, message: "反馈太频繁了，先歇一歇再来" },
@@ -469,6 +470,7 @@ async function ensureCollections() {
     "users",
     "teams",
     "members",
+    "team_reactions",
     "feedback",
     "reports",
     "rate_limits",
@@ -673,6 +675,9 @@ function validateTeamInput(input, { isCreate }) {
   const roomPwd = trim(input.roomPwd, ROOM_MAX);
   const server = trim(input.server, SERVER_MAX);
   const rankReq = trim(input.rankReq, RANK_MAX);
+  if (input.sourceGroup != null && typeof input.sourceGroup !== "string") return { error: "来源群格式不正确" };
+  const sourceGroup = typeof input.sourceGroup === "string" ? input.sourceGroup.normalize("NFKC").trim().replace(/\s+/g, " ") : "";
+  if (sourceGroup.length > 24) return { error: "来源群最多 24 字" };
   const note = trim(input.note, NOTE_MAX);
   const platform = PLATFORMS.includes(input.platform)
     ? input.platform
@@ -710,6 +715,7 @@ function validateTeamInput(input, { isCreate }) {
   return {
     value: {
       gameName,
+      sourceGroup,
       roomNo,
       roomPwd,
       server,
@@ -765,6 +771,7 @@ async function getPublicProfile(event) {
   const user = uid ? await getUser(uid, { strict: true }) : null;
   const profile = publicProfile(user, member);
   const avatarMap = await toTempAvatarUrls([profile.avatarUrl]);
+  profile.avatarFileID = typeof profile.avatarUrl === "string" && profile.avatarUrl.startsWith("cloud://") ? profile.avatarUrl : "";
   profile.avatarUrl = withTempAvatar(avatarMap, profile.avatarUrl);
   return ok({ profile });
 }
@@ -850,7 +857,7 @@ async function getProfile(openid) {
 }
 
 function teamVisibleTexts(team) {
-  return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note];
+  return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note, team.sourceGroup];
 }
 
 async function createTeam(event, openid) {
@@ -1362,6 +1369,67 @@ async function dedupeTeamMembers(teamId, team, list) {
   return { repaired: toDelete.length > 0, kept };
 }
 
+// One deterministic record per actor and team. Set the desired value so retries are idempotent.
+const REACTION_IDS = ["like", "fire", "laugh", "love", "watch", "game"];
+function reactionDocId(teamId, openid) {
+  return require("node:crypto").createHash("sha256").update(JSON.stringify([teamId, openid])).digest("hex");
+}
+function reactionCounts(team) {
+  const counts = {};
+  for (const id of REACTION_IDS) {
+    const n = Number(team && team.reactionCounts && team.reactionCounts[id]);
+    counts[id] = Number.isSafeInteger(n) && n >= 0 ? n : 0;
+  }
+  return counts;
+}
+async function optionalReaction(ref) {
+  try {
+    return (await ref.get()).data || null;
+  } catch (e) {
+    if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return null;
+    throw e;
+  }
+}
+async function readReactionSummary(teamId, openid) {
+  return db.runTransaction(async (tx) => {
+    const team = (await tx.collection("teams").doc(teamId).get()).data;
+    const mine = await optionalReaction(tx.collection("team_reactions").doc(reactionDocId(teamId, openid)));
+    return { counts: reactionCounts(team), mine: mine && REACTION_IDS.includes(mine.reaction) ? mine.reaction : "" };
+  });
+}
+async function setReaction(event, openid) {
+  await requireNotBanned(openid);
+  const teamId = trim(event.teamId, 80);
+  const reaction = event.reaction;
+  if (!teamId) return fail("缺少队伍");
+  if (reaction !== "" && !REACTION_IDS.includes(reaction)) return fail("不支持的表情");
+  const limited = await rateLimitExceeded(openid, "setReaction");
+  if (limited) return fail(limited);
+  const result = await db.runTransaction(async (tx) => {
+    const teamRef = tx.collection("teams").doc(teamId);
+    let team;
+    try { team = (await teamRef.get()).data; } catch (e) {
+      if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return fail("队伍不存在");
+      throw e;
+    }
+    if (!teamExists(team)) return fail("队伍不存在");
+    const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
+    const own = await optionalReaction(ownRef);
+    const previous = own && REACTION_IDS.includes(own.reaction) ? own.reaction : "";
+    const counts = reactionCounts(team);
+    if (previous !== reaction) {
+      if (previous) counts[previous] = Math.max(0, counts[previous] - 1);
+      if (reaction) counts[reaction] += 1;
+      await teamRef.update({ data: { reactionCounts: counts } });
+      if (reaction) await ownRef.set({ data: { teamId, reaction, updatedAt: nowMs() } });
+      else if (own) await ownRef.remove();
+    }
+    return ok({ reactions: { counts, mine: reaction } });
+  });
+  if (result.ok) await recordAction(openid, "setReaction");
+  return result;
+}
+
 async function getTeam(event, openid) {
   const teamId = trim(event.teamId, 80);
   if (!teamId || teamId === "undefined" || teamId === "null") return fail("缺少队伍");
@@ -1417,6 +1485,7 @@ async function getTeam(event, openid) {
   const avatarMap = await toTempAvatarUrls(rawMembers.map((m) => m.avatar));
   const members = rawMembers.map(({ avatar, ...rest }) => ({
     ...rest,
+    avatarFileID: typeof avatar === "string" && avatar.startsWith("cloud://") ? avatar : "",
     avatarUrl: withTempAvatar(avatarMap, avatar),
   }));
 
@@ -1427,6 +1496,7 @@ async function getTeam(event, openid) {
     team: stripSecret(team, showPwd),
     members,
     role,
+    reactions: await readReactionSummary(teamId, openid),
   });
 }
 
@@ -1965,6 +2035,8 @@ exports.main = async (event) => {
         return await joinTeam(event, openid);
       case "leaveTeam":
         return await leaveTeam(event, openid);
+      case "setReaction":
+        return await setReaction(event, openid);
       case "getTeam":
         return await getTeam(event, openid);
       case "listTeams":

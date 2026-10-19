@@ -1,3 +1,4 @@
+import type { ReactionId, ReactionSummary } from '../utils/reactions';
 /** Shared business payloads. Display fields are added by the view formatters. */
 export interface User {
   userId?: string;
@@ -12,6 +13,7 @@ export type TeamRole = 'host' | 'member';
 export interface Team {
   _id: string;
   id?: string;
+  sourceGroup?: string;
   gameName: string;
   startAt: number;
   endAt?: number;
@@ -107,8 +109,9 @@ export interface AdminStats {
 }
 export interface TeamResults {
   getProfile: { user?: User; isAdmin?: boolean; isOrganizer?: boolean };
-  getTeam: { team: Team; members: Member[]; role: TeamRole | null };
+  getTeam: { team: Team; members: Member[]; role: TeamRole | null; reactions?: ReactionSummary };
   getPublicProfile: { profile: User };
+  setReaction: { reactions: ReactionSummary };
   listTeams: { list: Team[]; nextOffset?: number; hasMore?: boolean };
   myTeams: { hosted: Team[]; joined: Team[] };
   searchProxyUsers: { list: User[] };
@@ -123,6 +126,7 @@ export interface TeamResults {
 }
 
 export interface TeamInput {
+  sourceGroup?: string;
   gameName: string;
   startAt: number;
   endAt: number;
@@ -142,6 +146,7 @@ export interface VersionInput {
 export interface TeamRequests {
   getProfile: undefined;
   getTeam: { teamId: string };
+  setReaction: { teamId: string; reaction: ReactionId | '' };
   getPublicProfile: { teamId: string; memberId: string };
   listTeams: { offset?: number; limit?: number };
   myTeams: undefined;

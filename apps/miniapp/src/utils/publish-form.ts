@@ -203,6 +203,8 @@ function validatePublishTeam(team: Partial<TeamDraft>, extra: PublishOptions) {
   if (!team || !String(team.gameName || '').trim()) {
     return { message: '请选择游戏', anchor: 'field-game' };
   }
+  if (String(team.sourceGroup || '').length > 24)
+    return { message: '来源群最多 24 字', anchor: 'field-source-group' };
   if (!team.platform) {
     return { message: '请选择平台', anchor: 'field-platform' };
   }

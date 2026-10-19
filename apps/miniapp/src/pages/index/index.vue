@@ -2,9 +2,16 @@
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'IndexIndexPage' });
-import { reactive } from 'vue';
+import { reactive, ref, computed } from 'vue';
+import { sourceGroupOptions, matchSourceGroup } from '../../utils/source-group';
 import { useLobby } from '../../composables/useLobby';
 const page = reactive(useLobby());
+const sourceGroup = ref('');
+const groupOptions = computed(() => sourceGroupOptions(page.state.teams, sourceGroup.value));
+const visibleTeams = computed(() =>
+  page.filtered.filter((team) => matchSourceGroup(team, sourceGroup.value)),
+);
+
 const gameVisuals: Record<string, { mark: string; label: string; color: string }> = {
   wangzhe: { mark: '王', label: '王者荣耀', color: 'game-amber' },
   delta: { mark: 'Δ', label: '三角洲', color: 'game-mint' },
@@ -41,11 +48,12 @@ const gameVisuals: Record<string, { mark: string; label: string; color: string }
       @update:model-value="page.onSearch(String($event))"
       @clear="page.clearSearch"
     />
-    <view class="hint mt-2">在已加载队伍中搜索，更多队伍可继续加载</view>
+    <view class="hint mt-2 mb-3">搜索和群筛选仅作用于已加载队伍，可继续加载更多</view>
+    <wd-cell-group><app-picker label="来源群" v-model="sourceGroup" :columns="groupOptions" /></wd-cell-group>
     <view class="flex flex-wrap items-center justify-between gap-3 mt-6 mb-3">
       <view class="flex items-center gap-2">
         <view class="text-lg font-bold text-night">组队广场</view>
-        <text class="text-xs text-muted">{{ page.filtered.length }} / {{ page.total }}</text>
+        <text class="text-xs text-muted">{{ visibleTeams.length }} / {{ page.total }}</text>
       </view>
       <view class="sort-segment flex">
         <wd-button
@@ -97,28 +105,29 @@ const gameVisuals: Record<string, { mark: string; label: string; color: string }
         ></view
       >
       <team-card
-        v-for="(team, index) in page.filtered"
+        v-for="(team, index) in visibleTeams"
         :key="team._id"
         :team="team"
         :team-id="team.id || team._id"
         :sequence="index"
         @open="page.onOpen"
       />
-      <view v-if="!page.filtered.length" class="panel text-center">
+      <view v-if="!visibleTeams.length" class="panel text-center">
         <wd-empty
           icon="/static/images/brand/empty-v1.jpg"
           :tip="
-            page.keyword || page.gameFilter !== '全部'
+            sourceGroup || page.keyword || page.gameFilter !== '全部'
               ? '已加载的队伍中没有匹配结果'
               : page.hasMore
                 ? '暂未找到队伍，试试继续加载'
                 : '下一局，等你来发起'
           "
         />
-        <view v-if="page.keyword || page.gameFilter !== '全部'" class="mb-3"
+        <view v-if="sourceGroup || page.keyword || page.gameFilter !== '全部'" class="mb-3"
           ><wd-button
             variant="soft"
             @click="
+              sourceGroup = '';
               page.clearSearch();
               page.pickGame('全部');
             "
@@ -130,7 +139,7 @@ const gameVisuals: Record<string, { mark: string; label: string; color: string }
         >
         <wd-button v-else @click="page.goPublish">发起组队</wd-button>
       </view>
-      <view v-if="page.filtered.length" class="py-4 text-center">
+      <view v-if="visibleTeams.length" class="py-4 text-center">
         <wd-button v-if="page.hasMore" variant="text" :loading="page.loadingMore" @click="page.loadMore"
           >加载更多</wd-button
         >

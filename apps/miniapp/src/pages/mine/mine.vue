@@ -19,20 +19,18 @@ const page = reactive(useMine());
           is-link
           @click="page.editProfile"
           ><template #prefix
-            ><image
-              class="avatar box-border mr-3 border-3 border-solid border-white surface-shadow"
-              :src="
-                page.user.avatarUrl ||
-                (page.user.avatarBase64
-                  ? 'data:image/jpeg;base64,' + page.user.avatarBase64
-                  : '/static/images/avatar.png')
-              "
-              mode="aspectFill" /></template></wd-cell
+            ><app-avatar
+              size="profile"
+              :src="page.user.avatarUrl"
+              :file-id="page.user.avatarFileID"
+              identity="self"
+              :base64="page.user.avatarBase64"
+              class="mr-3" /></template></wd-cell
       ></wd-cell-group>
     </view>
     <view v-if="page.state.profileError" class="panel flex items-center justify-between gap-3"
       ><text class="text-sm text-secondary">{{ page.state.profileError }}</text
-      ><wd-button size="small" variant="soft" @click="page.load">重试</wd-button></view
+      ><wd-button size="small" variant="soft" @click="page.load(true)">重试</wd-button></view
     >
     <view class="section-title mt-6 mb-3">我的队伍</view>
     <view class="flex flex-wrap gap-2 mb-3"
@@ -57,7 +55,9 @@ const page = reactive(useMine());
     >
     <view v-if="page.state.listError" class="panel"
       ><view class="text-sm text-secondary mb-3">{{ page.state.listError }}</view
-      ><wd-button variant="soft" :loading="page.state.loading" @click="page.load">重新加载</wd-button></view
+      ><wd-button variant="soft" :loading="page.state.loading" @click="page.load(true)"
+        >重新加载</wd-button
+      ></view
     >
     <view v-if="page.state.loading && !page.visibleTeams.length" class="panel"
       ><view class="skeleton-shape h-6 w-40 mb-4" /><view class="skeleton-shape h-4 w-full"

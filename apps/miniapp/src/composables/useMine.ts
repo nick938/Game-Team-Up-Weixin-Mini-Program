@@ -1,5 +1,5 @@
 import { usePageFeedback } from './usePageFeedback';
-import { reactive, toRefs, nextTick } from 'vue';
+import { reactive, toRefs, nextTick, watch } from 'vue';
 import {
   onShow,
   onHide,
@@ -13,6 +13,7 @@ import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { isSinglePage } from '../utils/runtime';
 import { decorateTeam } from '../utils/format';
+import { loadMyProfile } from '../utils/my-profile';
 import { callTeam } from '../api/team';
 import { getAppVersion } from '../utils/version';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
@@ -32,6 +33,7 @@ export function useMine() {
     const bio = ((user && user.bio) || '').trim();
     return bio || '写个签名，把 Steam 好友码放进去，队友加你好友';
   }
+  const cachedProfile = useAppStore();
   const state = reactive({
     pendingAction: '',
     loading: false,
@@ -39,7 +41,7 @@ export function useMine() {
     listError: '',
     singlePage: false,
     ...{
-      user: {} as User,
+      user: cachedProfile.user || ({} as User),
       teamTab: 'hosted',
       phase: 'Ongoing',
       visibleTeams: [] as Team[],
@@ -48,14 +50,21 @@ export function useMine() {
       joinedOngoing: [] as Team[],
       joinedPast: [] as Team[],
       showProfile: false,
-      profileHint: '',
+      profileHint: getProfileHint(cachedProfile.user || undefined),
       versionText: '',
-      isAdmin: false,
-      isOrganizer: false,
+      isAdmin: cachedProfile.isAdmin,
+      isOrganizer: cachedProfile.isOrganizer,
       hostedCount: 0,
       joinedCount: 0,
     },
   });
+  watch(
+    () => cachedProfile.user,
+    (user) => {
+      state.user = user || {};
+      state.profileHint = getProfileHint(user || undefined);
+    },
+  );
   const {
     singlePage,
     user,
@@ -78,7 +87,7 @@ export function useMine() {
     Object.assign(state, patch);
     if (done) void nextTick(done);
   }
-  async function load() {
+  async function load(forceProfile = false) {
     if (isSinglePage()) return;
     if (state.loading) return;
     state.loading = true;
@@ -86,20 +95,17 @@ export function useMine() {
     state.listError = '';
     try {
       const [profileResult, teamsResult] = await Promise.allSettled([
-        callTeam('getProfile'),
+        loadMyProfile(forceProfile),
         callTeam('myTeams'),
       ]);
       if (profileResult.status === 'fulfilled') {
-        const profile = profileResult.value;
+        // Bootstrap helper owns profile freshness; a save can complete while teams are loading.
         const app = useAppStore();
-        if (profile.user) app.user = profile.user;
-        app.isAdmin = !!profile.isAdmin;
-        app.isOrganizer = !!profile.isOrganizer;
         patchState({
-          user: profile.user || {},
-          profileHint: getProfileHint(profile.user),
-          isAdmin: !!profile.isAdmin,
-          isOrganizer: !!profile.isOrganizer,
+          user: app.user || {},
+          profileHint: getProfileHint(app.user || undefined),
+          isAdmin: app.isAdmin,
+          isOrganizer: app.isOrganizer,
         });
       } else {
         state.profileError = '资料暂时无法加载';
@@ -160,7 +166,7 @@ export function useMine() {
     } else {
       patchState({ showProfile: false });
     }
-    load();
+    load(true);
   }
   function onOpen(input: { id?: string; gameName?: string }) {
     const id = input.id;
@@ -214,7 +220,7 @@ export function useMine() {
     unbindCopyUrl(hostPlatform);
   });
   onPullDownRefresh(() => {
-    return load().finally(() => hostPlatform.stopPullDownRefresh());
+    return load(true).finally(() => hostPlatform.stopPullDownRefresh());
   });
   onShareAppMessage(() => {
     return shareToFriend(plazaShare());

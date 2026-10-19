@@ -81,6 +81,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
   };
   const ctx = {
     require: (id) => {
+      if (id === "node:crypto") return require(id);
       if (id === "nodemailer") {
         return { createTransport: () => ({ sendMail: sendMail || (async () => ({})) }) };
       }
@@ -335,7 +336,7 @@ test('room profile returns only nickName/avatar/bio and rejects unrelated member
   const ctx = backend({ teams: [{ _id: 't', gameName: 'CS2' }], members: [{ _id: 'm', teamId: 't', openid: 'u', nickName: '旧昵称' }, { _id: 'other', teamId: 'another', openid: 'u' }], users });
   const result = await ctx.getPublicProfile({ teamId: 't', memberId: 'm' });
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarBase64', 'bio', 'nickName'].sort());
+  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarFileID', 'avatarBase64', 'bio', 'nickName'].sort());
   assert.equal(result.profile.nickName, '最新昵称');
   assert.equal(result.profile.bio, 'Steam 00123');
   assert.equal(result.profile.privateField, undefined);
@@ -1158,4 +1159,57 @@ test('cloud requires a room / join method for creating and editing', () => {
     assert.equal(valid.value.roomNo, 'Steam 好友代码 123456');
     assert.equal(valid.value.roomPwd, '');
   }
+});
+
+test('source group normalizes and remains optional with a strict length and moderation contract', async () => {
+  const ctx = backend();
+  const valid = ctx.validateTeamInput({ ...teamPayload(), sourceGroup: '  Ａ群   周末  ' }, { isCreate: true });
+  assert.equal(valid.value.sourceGroup, 'A群 周末');
+  assert.equal(ctx.validateTeamInput(teamPayload(), { isCreate: true }).value.sourceGroup, '');
+  assert.match(ctx.validateTeamInput({ ...teamPayload(), sourceGroup: '群'.repeat(25) }, { isCreate: true }).error, /24/);
+  assert.ok(ctx.validateTeamInput({ ...teamPayload(), sourceGroup: {} }, { isCreate: true }).error);
+  assert.ok(ctx.teamVisibleTexts(valid.value).includes('A群 周末'));
+});
+test('reaction retries, switches and cancellations maintain one vote per actor, even on ended teams', async () => {
+  const team = { _id: 't', gameName: 'CS2', status: 'recruiting', endAt: Date.now() - 1000 };
+  const ctx = backend({ teams: [team] });
+  const vote = (reaction, actor = 'a') => ctx.setReaction({ teamId: 't', reaction }, actor);
+  assert.equal((await vote('like')).reactions.counts.like, 1);
+  assert.equal((await vote('like')).reactions.counts.like, 1);
+  assert.equal((await vote('like', 'b')).reactions.counts.like, 2);
+  const changed = await vote('fire');
+  assert.equal(changed.reactions.counts.like, 1);
+  assert.equal(changed.reactions.counts.fire, 1);
+  assert.equal(changed.reactions.mine, 'fire');
+  const cancel = await vote('');
+  assert.equal(cancel.reactions.counts.fire, 0);
+  assert.equal(cancel.reactions.counts.like, 1);
+  assert.equal((await vote('')).reactions.counts.like, 1);
+  const summary = await ctx.readReactionSummary('t', 'b');
+  assert.equal(summary.mine, 'like');
+  assert.deepEqual(Object.keys(summary).sort(), ['counts', 'mine']);
+  assert.equal(JSON.stringify(summary).includes('openid'), false);
+});
+test('reaction rejects invalid values, missing teams, banned users and rate limits without changing counts', async () => {
+  const team = { _id: 't', gameName: 'CS2', status: 'recruiting' };
+  const ctx = backend({ teams: [team] });
+  assert.equal((await ctx.setReaction({ teamId: 't', reaction: 'custom' }, 'a')).ok, false);
+  assert.equal((await ctx.setReaction({ teamId: 'missing', reaction: 'like' }, 'a')).ok, false);
+  const banned = backend({ teams: [team], users: [{ _id: 'bad', banned: true }] });
+  await assert.rejects(banned.setReaction({ teamId: 't', reaction: 'like' }, 'bad'), { code: 'BANNED' });
+  const limited = backend({ teams: [team], rateLimits: [{ _id: 'setReaction_a', hits: Array(30).fill(Date.now()) }] });
+  assert.equal((await limited.setReaction({ teamId: 't', reaction: 'like' }, 'a')).ok, false);
+  assert.equal(team.reactionCounts, undefined);
+});
+
+test('source group is moderated before create, and older edit payloads preserve it', async () => {
+  const teams = [];
+  const ctx = backend({ teams, users: [{ _id: 'host', nickName: '车头' }], msgCheck: async ({ content }) => ({ result: { suggest: content.includes('测试来源') ? 'risky' : 'pass' } }) });
+  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), sourceGroup: '测试来源' } }, 'host')).ok, false);
+  assert.equal(teams.length, 0);
+  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), sourceGroup: '周末群' } }, 'host')).ok, true);
+  const team = teams[0];
+  const updated = await ctx.updateTeam({ teamId: team._id, team: { note: '改个备注' } }, 'host');
+  assert.equal(updated.ok, true);
+  assert.equal(team.sourceGroup, '周末群');
 });

@@ -60,6 +60,10 @@ function goRoom() {
         <view v-if="tags.length" class="flex flex-wrap gap-2"
           ><text v-for="(tag, index) in tags" :key="index" class="room-tag break-words">{{ tag }}</text></view
         >
+        <view class="text-xs text-secondary break-words mt-3"
+          >来源群 · {{ page.team.sourceGroup || '未标注群' }}</view
+        >
+        <view class="hint mt-1">来源仅作标识，欢迎跨群上车。</view>
         <view v-if="page.team.proxyNickName" class="hint mt-3">由 {{ page.team.proxyNickName }} 代开</view>
       </view>
       <view class="mb-6">
@@ -151,15 +155,11 @@ function goRoom() {
                 custom-class="!p-0 !h-auto"
                 :aria-label="'查看' + seat.member.nickName + '的资料'"
                 @click="page.onMemberProfile(seat.member._id)"
-                ><image
-                  class="avatar"
-                  :src="
-                    seat.member.avatarUrl ||
-                    (seat.member.avatarBase64
-                      ? 'data:image/jpeg;base64,' + seat.member.avatarBase64
-                      : '/static/images/avatar.png')
-                  "
-                  mode="aspectFill"
+                ><app-avatar
+                  :src="seat.member.avatarUrl"
+                  :file-id="seat.member.avatarFileID"
+                  :identity="seat.member._id"
+                  :base64="seat.member.avatarBase64"
               /></wd-button>
               <view class="text-xs truncate mt-2">{{ seat.member.nickName || '玩家' }}</view
               ><view v-if="seat.member.role === 'host'" class="text-xs text-brand mt-1">车头</view>
@@ -170,6 +170,23 @@ function goRoom() {
             >
           </view>
         </view>
+      </view>
+      <view class="panel"
+        ><view class="section-title mb-1">给这趟车贴个表情</view
+        ><view class="hint mb-4">每人一个，再点取消，也可以换一个。</view>
+        <view class="grid grid-cols-3 gap-2"
+          ><wd-button
+            v-for="item in page.REACTIONS"
+            :key="item.id"
+            :variant="page.state.reactions.mine === item.id ? 'base' : 'soft'"
+            :disabled="page.state.reacting || page.loading"
+            :aria-label="item.label + '，' + page.state.reactions.counts[item.id] + '人'"
+            :aria-pressed="page.state.reactions.mine === item.id"
+            @click="page.onReact(item.id)"
+            ><text class="text-lg mr-1">{{ item.emoji }}</text
+            ><text>{{ page.state.reactions.counts[item.id] }}</text></wd-button
+          ></view
+        >
       </view>
       <view v-if="page.team.note" class="panel">
         <view class="section-title mb-3">开黑约定</view>

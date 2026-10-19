@@ -2,13 +2,21 @@
 import { useAppTheme } from '../../composables/useAppTheme';
 import { reactive, ref, computed } from 'vue';
 import { useGame } from '../../composables/useGame';
+import { sourceGroupOptions } from '../../utils/source-group';
 import { buildLobbyView } from '../../utils/lobby';
 defineOptions({ name: 'GameGamePage' });
 useAppTheme();
 const page = reactive(useGame());
 const keyword = ref('');
+const sourceGroup = ref('');
+const groupOptions = computed(() => sourceGroupOptions(page.filtered, sourceGroup.value));
 const visibleTeams = computed(() =>
-  buildLobbyView(page.filtered, { gameFilter: '全部', keyword: keyword.value, sortMode: page.sortMode }),
+  buildLobbyView(page.filtered, {
+    gameFilter: '全部',
+    keyword: keyword.value,
+    sortMode: page.sortMode,
+    sourceGroup: sourceGroup.value,
+  }),
 );
 </script>
 <template>
@@ -18,7 +26,8 @@ const visibleTeams = computed(() =>
       ><text v-for="tag in page.tags" :key="tag" class="room-tag">{{ tag }}</text></view
     >
     <wd-search v-model="keyword" hide-cancel placeholder="搜索已加载队伍的区服、要求" />
-    <view class="hint mt-2">仅搜索本页已加载队伍</view>
+    <view class="hint mt-2 mb-3">搜索和群筛选仅作用于已加载队伍</view>
+    <wd-cell-group><app-picker label="来源群" v-model="sourceGroup" :columns="groupOptions" /></wd-cell-group>
     <view class="flex flex-wrap justify-between items-center gap-3 mt-6 mb-3"
       ><view class="section-title">正在组队</view
       ><view class="sort-segment"
@@ -52,13 +61,21 @@ const visibleTeams = computed(() =>
       ><wd-empty
         icon="/static/images/brand/empty-v1.jpg"
         :tip="
-          keyword
+          keyword || sourceGroup
             ? '已加载队伍中没有匹配结果'
             : page.hasMore
               ? '暂未找到匹配队伍，试试继续加载'
               : '这款游戏还没有队伍，来发起第一局吧'
         "
-      /><wd-button v-if="keyword" variant="soft" @click="keyword = ''">清空搜索</wd-button></view
+      /><wd-button
+        v-if="keyword || sourceGroup"
+        variant="soft"
+        @click="
+          keyword = '';
+          sourceGroup = '';
+        "
+        >清空筛选</wd-button
+      ></view
     >
     <wd-button v-if="page.hasMore" block variant="text" :loading="page.loadingMore" @click="page.loadMore"
       >继续加载更多</wd-button

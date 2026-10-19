@@ -89,6 +89,16 @@ function errorFor(anchor: string) {
           :columns="page.platforms"
           @confirm="page.pickPlatform(String($event.value))" /></wd-cell-group
     ></view>
+    <view id="field-source-group" class="mt-3"
+      ><app-input
+        label="来源群（选填）"
+        :model-value="page.state.sourceGroup"
+        :maxlength="24"
+        :error="errorFor('field-source-group')"
+        placeholder="例如：周末开黑群"
+        help="仅标注来源，其他群的朋友也能上车"
+        @update:model-value="page.state.sourceGroup = String($event)"
+    /></view>
     <view class="section-title mt-6 mb-3">什么时候</view>
     <view id="field-start" class="panel">
       <view class="text-sm font-semibold mb-3">开始时间 <text class="text-danger">*</text></view>

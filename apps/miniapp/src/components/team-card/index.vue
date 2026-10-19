@@ -69,6 +69,9 @@ function onTap() {
           tag
         }}</text>
       </view>
+      <view class="text-xs text-secondary break-words mb-3"
+        >来源群 · {{ team.sourceGroup || '未标注群' }}</view
+      >
       <view
         class="flex items-center justify-between gap-3 pt-3 border-t border-x-0 border-b-0 border-solid border-border"
       >
