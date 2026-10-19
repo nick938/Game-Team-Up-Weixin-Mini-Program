@@ -1,237 +1,271 @@
 <script setup lang="ts">
+import { usePageActive } from '../../composables/usePageActive';
+const pageActive = usePageActive('pages/publish/publish');
+import { reactive, ref, watch } from 'vue';
+import type { FormSchema } from '@wot-ui/ui';
+import type { FormExpose } from '@wot-ui/ui/components/wd-form/types';
 import { useAppTheme } from '../../composables/useAppTheme';
-import { reactive } from 'vue';
+import { recentGames } from '../../utils/recent-games';
 import { usePublish } from '../../composables/usePublish';
+import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
+import AppActionDock from '../../components/app-action-dock/index.vue';
 defineOptions({ name: 'PublishPublishPage' });
 useAppTheme();
 const page = reactive(usePublish());
+const form = ref<FormExpose>();
+const showGames = ref(false);
+watch(pageActive, (value) => {
+  if (!value) showGames.value = false;
+});
+useTabBarOverlay(showGames);
+const games = ref<{ label: string; value: string }[]>([]);
+watch(showGames, (visible) => {
+  if (visible)
+    games.value = [...new Set([...recentGames(), ...page.suggestedGames.map((game) => game.name)])].map(
+      (name) => ({ label: name, value: name }),
+    );
+});
+const starts = page.startPresets.map((item) => ({ value: item.key, payload: { label: item.label } }));
+const durations = page.durationPresets.map((item) => ({ value: item.hours, payload: { label: item.label } }));
+const schema: FormSchema = {
+  isRequired: (path) => ['gameName', 'roomNo'].includes(path),
+  validate: (model) =>
+    ['gameName', 'roomNo']
+      .filter((key) => !String(model[key] || '').trim())
+      .map((key) => ({
+        path: [key],
+        message: key === 'gameName' ? '请选择或输入游戏' : '请填写房间 / 加入方式',
+      })),
+};
 function errorFor(anchor: string) {
   return page.state.validationError?.anchor === anchor ? page.state.validationError.message : '';
+}
+async function submit() {
+  if ((await form.value?.validate())?.valid === false) return;
+  await page.onSubmit();
+}
+function duration(value: string | number) {
+  if (Number(value) === 0) page.patchState({ durationHours: 0 });
+  else page.pickDuration(value);
 }
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
   <app-shell
+    :active="pageActive"
     v-else
     variant="form"
-    :title="page.editingId ? '调整这趟车' : page.proxyMode ? '帮群友开一局' : '喊上好友，开一局'"
-    subtitle="约好游戏和时间，发车后分享给好友。"
+    :title="page.editingId ? '调整这局' : page.proxyMode ? '帮朋友开一局' : '发起一局'"
+    subtitle="选好游戏和时间，把邀请发给队友。"
   >
-    <view v-if="page.canProxy && !page.editingId" class="mb-4">
-      <wd-cell-group
-        ><wd-cell title="帮群友发车" label="以朋友身份发起，他将成为车头"
-          ><wd-switch
-            :model-value="page.proxyMode"
-            @update:model-value="page.toggleProxy(Boolean($event))" /></wd-cell
-      ></wd-cell-group>
-    </view>
-    <view v-if="page.proxyMode && !page.editingId" id="field-proxy" class="panel">
-      <view class="section-title mb-3">帮谁发车</view>
-      <wd-cell
-        v-if="page.proxyHost"
-        :title="page.proxyHost.nickName"
-        value="换一个"
-        is-link
-        @click="page.clearProxyHost"
-      />
-      <template v-else>
-        <wd-search
-          :model-value="page.proxyKeyword"
-          hide-cancel
-          placeholder="搜对方在小程序里的昵称"
-          @update:model-value="page.onProxyKeyword(String($event))"
-        />
-        <view class="hint my-3">对方需要先打开过小程序并设置昵称</view
-        ><wd-loading v-if="page.proxySearching" />
-        <wd-cell
-          v-for="user in page.proxyResults"
-          :key="user.userId"
-          :title="user.nickName"
-          is-link
-          @click="page.pickProxyHost(user)"
-        />
-        <view v-if="page.proxyKeyword && !page.proxySearching && !page.proxyResults.length" class="hint"
-          >没找到这个昵称</view
-        >
-      </template>
-      <view v-if="errorFor('field-proxy')" class="field-error">{{ errorFor('field-proxy') }}</view>
-    </view>
-    <view class="section-title mt-6 mb-3">玩什么</view>
-    <view id="field-game"
-      ><wd-cell-group
-        ><app-input
-          label="游戏"
-          :model-value="page.gameName"
-          :maxlength="40"
-          clearable
-          required
-          placeholder="输入游戏名，也可以选下方推荐"
-          :error="errorFor('field-game')"
-          @update:model-value="page.onGameName(String($event))" /></wd-cell-group
-    ></view>
-    <view class="flex flex-wrap gap-2 my-3">
-      <wd-button
-        v-for="game in page.suggestedGames"
-        :key="game.slug"
-        size="small"
-        round
-        :variant="page.gameName === game.name ? 'base' : 'soft'"
-        @click="page.pickSuggestedGame(game.slug)"
-        >{{ game.name }}</wd-button
-      >
-    </view>
-    <view v-if="page.fromLast" class="hint mb-3">已填入上一趟，时间改到最近</view>
-    <view id="field-platform"
-      ><wd-cell-group
-        ><app-picker
-          label="平台"
-          :model-value="page.selectedPlatform"
-          :columns="page.platforms"
-          @confirm="page.pickPlatform(String($event.value))" /></wd-cell-group
-    ></view>
-    <view id="field-source-group" class="mt-3"
-      ><app-input
-        label="来源群（选填）"
-        :model-value="page.state.sourceGroup"
-        :maxlength="24"
-        :error="errorFor('field-source-group')"
-        placeholder="例如：周末开黑群"
-        help="仅标注来源，其他群的朋友也能上车"
-        @update:model-value="page.state.sourceGroup = String($event)"
-    /></view>
-    <view class="section-title mt-6 mb-3">什么时候</view>
-    <view id="field-start" class="panel">
-      <view class="text-sm font-semibold mb-3">开始时间 <text class="text-danger">*</text></view>
-      <view class="flex flex-wrap gap-2 mb-3"
-        ><wd-button
-          v-for="preset in page.startPresets"
-          :key="preset.key"
-          size="small"
-          :variant="page.startPreset === preset.key ? 'base' : 'soft'"
-          @click="page.pickStartPreset(preset.key)"
-          >{{ preset.label }}</wd-button
-        ></view
-      >
-      <app-datetime-picker
-        label="选择时间"
-        type="datetime"
-        :model-value="page.startTimestamp"
-        :min-date="page.minTimestamp"
-        :max-date="page.maxTimestamp"
-        @confirm="page.changeStart(Number($event.value))"
-      />
-      <view v-if="errorFor('field-start')" class="field-error">{{ errorFor('field-start') }}</view>
-    </view>
-    <view id="field-end" class="panel">
-      <view class="text-sm font-semibold mb-3">玩多久</view>
-      <view class="flex flex-wrap gap-2 mb-3"
-        ><wd-button
-          v-for="preset in page.durationPresets.filter((item) => item.hours > 0)"
-          :key="preset.hours"
-          size="small"
-          :variant="page.durationHours === preset.hours ? 'base' : 'soft'"
-          @click="page.pickDuration(preset.hours)"
-          >{{ preset.label }}</wd-button
-        ></view
-      >
-      <app-picker
-        label="自定义时长"
-        :model-value="page.state.durationMinutes"
-        :columns="page.durationOptions"
-        @confirm="page.changeDuration(Number($event.value))"
-      />
-      <view class="rounded-xl bg-brand-light p-3 mt-3"
-        ><view class="text-sm font-medium text-brand">{{ page.timeSummaryLine1 }}</view
-        ><view class="hint mt-1">{{ page.timeSummaryLine2 }}</view></view
-      >
-      <view v-if="errorFor('field-end')" class="field-error">{{ errorFor('field-end') }}</view>
-    </view>
-    <view class="section-title mt-6 mb-3">怎么进</view>
-    <wd-cell-group>
-      <wd-cell id="field-capacity" title="队伍人数" label="包含车头"
-        ><wd-input-number v-model="page.capacity" disable-input :min="2" :max="20"
-      /></wd-cell>
-      <view id="field-room"
-        ><app-input
-          label="房间 / 加入方式"
-          :model-value="page.roomNo"
-          :maxlength="80"
-          required
-          placeholder="房间号 / Steam 好友代码 / 房间码"
-          :error="errorFor('field-room')"
-          @update:model-value="page.onRoomNo(String($event))"
-      /></view>
-      <app-input
-        label="房间密码（选填）"
-        :model-value="page.roomPwd"
-        :maxlength="32"
-        placeholder="没有就留空"
-        help="仅按队伍成员权限展示，分享卡片不含密码"
-        @update:model-value="page.onRoomPwd(String($event))"
-      />
-    </wd-cell-group>
-    <view v-if="errorFor('field-capacity')" class="field-error">{{ errorFor('field-capacity') }}</view>
-    <view class="section-title mt-6 mb-3"
-      >补充要求 <text class="text-sm font-normal text-muted">选填</text></view
+    <view v-if="page.editingId" class="form-note"
+      ><text>正在编辑已有队伍</text
+      ><wd-button size="small" variant="text" @click="page.startNew">改为新建</wd-button></view
     >
-    <wd-cell-group
-      ><wd-cell
-        title="区服、语音与队友要求"
-        :label="page.moreHint"
-        is-link
-        :arrow-direction="page.showMore ? 'up' : 'down'"
-        @click="page.toggleMore"
-    /></wd-cell-group>
-    <view v-if="page.showMore" class="mt-3">
-      <wd-cell-group>
+    <view v-if="page.fromLast" class="form-note">已沿用上一局配置，请核对房间号与密码。</view>
+    <wd-form ref="form" :model="page.state" :schema="schema" title-width="84px" center border>
+      <view class="section-label">游戏与平台</view>
+      <view class="form-section">
+        <view id="field-game"
+          ><app-input
+            prop="gameName"
+            label="游戏"
+            :model-value="page.gameName"
+            :maxlength="40"
+            clearable
+            required
+            placeholder="输入游戏名"
+            :error="errorFor('field-game')"
+            @update:model-value="page.onGameName(String($event))"
+        /></view>
+        <wd-cell
+          title="常玩游戏"
+          :value="page.gameName ? '重新选择' : '从游戏列表选择'"
+          is-link
+          @click="showGames = true"
+        />
+        <view id="field-platform"
+          ><app-picker
+            label="平台"
+            :model-value="page.selectedPlatform"
+            :columns="page.platforms"
+            @confirm="page.pickPlatform(String($event.value))"
+        /></view>
         <app-input
           label="区服"
           :model-value="page.server"
           :maxlength="20"
-          placeholder="如国服、微信区"
+          placeholder="选填，如国服、微信区"
           @update:model-value="page.onServer(String($event))"
         />
+      </view>
+      <view class="section-label">时间与人数</view>
+      <view class="form-section">
+        <view id="field-start" class="form-segments"
+          ><view class="text-sm mb-3">什么时候开始</view
+          ><wd-segmented
+            :value="page.startPreset"
+            :options="starts"
+            custom-class="glass-segment !flex !w-full"
+            @change="page.pickStartPreset(String($event.value))"
+            ><template #label="{ option }">{{ option.payload.label }}</template></wd-segmented
+          ></view
+        >
+        <app-datetime-picker
+          v-if="page.startPreset === 'custom'"
+          label="开始时间"
+          type="datetime"
+          :model-value="page.startTimestamp"
+          :min-date="page.minTimestamp"
+          :max-date="page.maxTimestamp"
+          @confirm="page.changeStart(Number($event.value))"
+        />
+        <view v-if="errorFor('field-start')" class="field-error px-4">{{ errorFor('field-start') }}</view>
+        <view id="field-end" class="form-segments"
+          ><view class="text-sm mb-3">预计玩多久</view
+          ><wd-segmented
+            :value="page.durationHours"
+            :options="durations"
+            custom-class="glass-segment !flex !w-full"
+            @change="duration($event.value)"
+            ><template #label="{ option }">{{ option.payload.label }}</template></wd-segmented
+          ></view
+        >
         <app-picker
-          label="语音"
-          :model-value="page.voice"
-          :columns="page.voices"
-          @confirm="page.pickVoice(String($event.value))"
+          v-if="page.durationHours === 0"
+          label="自定义时长"
+          :model-value="page.state.durationMinutes"
+          :columns="page.durationOptions"
+          @confirm="page.changeDuration(Number($event.value))"
         />
-        <app-input
-          label="队友要求"
-          :model-value="page.rankReq"
-          :maxlength="20"
-          placeholder="娱乐局、上分、萌新友好"
-          @update:model-value="page.onRank(String($event))"
-        />
-        <app-textarea
-          label="备注"
-          :model-value="page.note"
-          :maxlength="500"
-          show-word-count
-          auto-height
-          placeholder="玩法、麦序、怎么加好友"
-          @update:model-value="page.onNote(String($event))"
-        />
-      </wd-cell-group>
-    </view>
-    <view class="mt-6 mb-4"
+        <wd-cell id="field-capacity" title="总人数" label="包含你"
+          ><wd-input-number v-model="page.capacity" disable-input :min="page.state.minimumCapacity" :max="20"
+        /></wd-cell>
+      </view>
+      <view class="form-note">{{ page.timeSummaryLine1 }} · {{ page.capacity }} 人</view>
+      <view v-if="errorFor('field-end') || errorFor('field-capacity')" class="field-error mb-3">{{
+        errorFor('field-end') || errorFor('field-capacity')
+      }}</view>
+      <view class="section-label">进入游戏</view>
+      <view class="form-section"
+        ><view id="field-room"
+          ><app-input
+            prop="roomNo"
+            label="加入方式"
+            :model-value="page.roomNo"
+            :maxlength="80"
+            required
+            :placeholder="page.roomPlaceholder"
+            :error="errorFor('field-room')"
+            @update:model-value="page.onRoomNo(String($event))" /></view
+      ></view>
+      <view class="form-note">可以填写房间号、好友代码，或游戏内的加入方式。</view>
+      <view class="form-section"
+        ><wd-collapse
+          :model-value="page.showMore ? ['extra'] : []"
+          @change="
+            page.patchState({ showMore: Array.isArray($event.value) && $event.value.includes('extra') })
+          "
+          ><wd-collapse-item name="extra" title="更多设置 · 选填">
+            <app-input
+              label="房间密码"
+              :model-value="page.roomPwd"
+              :maxlength="32"
+              placeholder="仅队伍成员可见"
+              @update:model-value="page.onRoomPwd(String($event))"
+            />
+            <app-picker
+              label="语音"
+              :model-value="page.voice"
+              :columns="page.voices"
+              @confirm="page.pickVoice(String($event.value))"
+            />
+            <app-input
+              label="队友要求"
+              :model-value="page.rankReq"
+              :maxlength="20"
+              placeholder="娱乐局、上分、萌新友好"
+              @update:model-value="page.onRank(String($event))"
+            />
+            <view id="field-source-group"
+              ><app-input
+                label="来源群"
+                :model-value="page.state.sourceGroup"
+                :maxlength="24"
+                :error="errorFor('field-source-group')"
+                placeholder="选填，不限制跨群加入"
+                @update:model-value="page.state.sourceGroup = String($event)"
+            /></view>
+            <app-textarea
+              label="备注"
+              :model-value="page.note"
+              :maxlength="500"
+              show-word-count
+              auto-height
+              placeholder="其他想告诉队友的事"
+              @update:model-value="page.onNote(String($event))"
+            /> </wd-collapse-item></wd-collapse
+      ></view>
+      <view v-if="page.canProxy && !page.editingId" class="form-section"
+        ><wd-cell title="帮朋友发车" label="由对方担任车头"
+          ><wd-switch :model-value="page.proxyMode" @update:model-value="page.toggleProxy(Boolean($event))"
+        /></wd-cell>
+        <view v-if="page.proxyMode" id="field-proxy">
+          <wd-cell
+            v-if="page.proxyHost"
+            :title="page.proxyHost.nickName"
+            value="换一个"
+            is-link
+            @click="page.clearProxyHost"
+          />
+          <template v-else
+            ><wd-search
+              :model-value="page.proxyKeyword"
+              hide-cancel
+              placeholder="搜索朋友在小程序里的昵称"
+              @update:model-value="page.onProxyKeyword(String($event))"
+            /><wd-loading v-if="page.proxySearching" /><wd-cell
+              v-for="user in page.proxyResults"
+              :key="user.userId"
+              :title="user.nickName"
+              is-link
+              @click="page.pickProxyHost(user)"
+            /><view
+              v-if="page.proxyKeyword && !page.proxySearching && !page.proxyResults.length"
+              class="form-note px-4"
+              >没找到，对方需先设置昵称</view
+            ></template
+          >
+          <view v-if="errorFor('field-proxy')" class="field-error px-4 mb-3">{{
+            errorFor('field-proxy')
+          }}</view>
+        </view>
+      </view>
+    </wd-form>
+    <view v-if="page.state.editLoadError" class="panel"
+      ><view class="field-error">{{ page.state.editLoadError }}</view
+      ><wd-button variant="text" @click="page.loadEdit(page.editingId)">重新加载</wd-button></view
+    >
+    <app-action-dock :active="pageActive" tabbed
       ><wd-button
         block
-        size="large"
         :loading="page.submitting"
-        :disabled="page.submitting"
-        @click="page.onSubmit"
-        >{{
-          page.editingId
-            ? '保存修改'
-            : page.proxyMode && page.proxyHost
-              ? '帮 TA 发布组队'
-              : '发布组队 · ' + page.capacity + ' 人'
-        }}</wd-button
-      ></view
-    >
-    <view class="hint text-center mb-4">发布后，把队伍分享给想一起玩的好友</view>
+        :disabled="page.submitting || !!page.state.editLoadError"
+        @click="submit"
+        >{{ page.editingId ? '保存修改' : page.proxyMode && page.proxyHost ? '帮 TA 发布' : '发布队伍'
+        }}<wd-icon name="arrow-right" size="16px" custom-class="!ml-2" /></wd-button
+    ></app-action-dock>
+    <wd-select-picker
+      v-model:visible="showGames"
+      type="radio"
+      root-portal
+      filterable
+      :z-index="1200"
+      title="选择游戏"
+      :model-value="page.gameName"
+      :columns="games"
+      @confirm="page.pickSuggestedGame(String($event.value))"
+    />
     <profile-gate
       :show="page.showProfile"
       @done="page.onProfileDone"

@@ -37,6 +37,7 @@ export default defineUniPages({
         enablePullDownRefresh: true,
       },
     },
+    { path: 'pages/help/help', style: { navigationBarTitleText: '帮助与反馈' } },
     {
       path: 'pages/legal/legal',
       style: {
@@ -84,6 +85,7 @@ export default defineUniPages({
     navigationBarTextStyle: 'black',
   },
   tabBar: {
+    custom: false,
     color: semantic.color.muted,
     selectedColor: semantic.color.brand,
     backgroundColor: semantic.color.surface,

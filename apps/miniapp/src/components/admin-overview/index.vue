@@ -9,7 +9,7 @@ const counters = computed(() => [
   ['缺人中', props.stats.teams.recruiting],
   ['满员中', props.stats.teams.full],
   ['用户数', props.stats.users.total],
-  ['上车人次', props.stats.members.total],
+  ['当前成员记录（含车头）', props.stats.members.total],
   ['待处理举报/报错', props.stats.reports.open],
   ['待处理反馈', props.stats.feedback.open],
 ]);
@@ -21,8 +21,29 @@ const counters = computed(() => [
       ><view class="hint mt-2">{{ label }}</view></view
     ></view
   >
+  <wd-card v-if="stats.funnel" title="近 7 天组队效果" custom-class="!mx-0 !mb-4">
+    <view class="grid grid-cols-2 gap-4 mb-4">
+      <view
+        v-for="[label, value] in [
+          ['发布队伍', stats.funnel.published],
+          ['目前有队员加入', stats.funnel.withMembers],
+          ['目前已满员', stats.funnel.full],
+          ['分享入口访客', stats.funnel.shareVisitors],
+          ['分享访客中有加入记录', stats.funnel.shareJoined],
+          ['复制加入方式', stats.funnel.roomCopies],
+        ]"
+        :key="String(label)"
+        ><view class="text-xl font-semibold">{{ value }}</view
+        ><view class="hint mt-1">{{ label }}</view></view
+      >
+    </view>
+    <view class="hint leading-5"
+      >队伍指标按近 7
+      天发布队伍的当前人数统计，退出会改变结果。分享访客及其加入记录按用户与队伍去重，仅代表记录关联；复制按用户、队伍、日期去重，不能代表实际进入游戏。行为数据从本版本部署后开始积累。</view
+    >
+  </wd-card>
   <wd-card title="最活跃的游戏" custom-class="!mx-0 !mb-4"
-    ><view class="hint mb-3">按进行中场次、总场次与上车人次综合排序</view
+    ><view class="hint mb-3">按进行中场次、总场次与当前成员记录综合排序</view
     ><wd-empty v-if="!stats.topGames.length" tip="还没有数据" /><view
       v-for="game in stats.topGames"
       :key="game.gameName"

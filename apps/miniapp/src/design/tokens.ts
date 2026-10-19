@@ -6,12 +6,12 @@ export const primitive = {
     lavender: '#EEECFF',
     lavenderPressed: '#DED9FF',
     white: '#FFFFFF',
-    page: '#F5F6FA',
+    page: '#F4F5F8',
     surfaceMuted: '#F0F1F6',
     border: '#E4E7EF',
-    ink: '#202438',
+    ink: '#22232A',
     secondary: '#596174',
-    tertiary: '#687085',
+    tertiary: '#7D818F',
     green: '#237A4B',
     greenSoft: '#EAF7EE',
     amber: '#8A5A00',
@@ -60,7 +60,7 @@ export const semantic = {
     secondary: primitive.color.secondary,
     muted: primitive.color.tertiary,
     border: primitive.color.border,
-    'control-border': primitive.color.tertiary,
+    'control-border': primitive.color.border,
     success: primitive.color.green,
     'success-soft': primitive.color.greenSoft,
     warning: primitive.color.amber,
@@ -97,6 +97,13 @@ export const component = {
   overlay: { pickerDuration: 300, frameBuffer: 16 },
   hero: { radius: primitive.radius.hero, height: '136px' },
   avatar: { size: '48px', radius: primitive.radius.control },
+  glass: {
+    surface: 'rgba(255,255,255,.72)',
+    edge: 'rgba(255,255,255,.92)',
+    blur: '24px',
+    shadow:
+      '0 8px 32px rgba(38,43,72,.08),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.45)',
+  },
   layer: { sheet: 1100, picker: 1200, dialog: 1400, toast: 1500 },
 } as const;
 

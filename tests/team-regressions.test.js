@@ -7,11 +7,11 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false, beforeTransaction } = {}) {
   const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
   const deleted = [];
   const db = {
-    command: { gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
+    command: { gt: () => ({}), exists: () => ({}), or: () => ({}), gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
     collection(name) {
       const rows = tables[name] || (tables[name] = []);
       // 默认忽略 skip/limit（老测试依赖全量返回）；paginate 时按真实数据库语义切片。
@@ -44,6 +44,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
       };
     },
     async runTransaction(fn) {
+      if (beforeTransaction) beforeTransaction();
       // 官方限制：事务内只支持单记录操作（collection.doc / collection.add），
       // where 等批量操作会报错。事务包装成只暴露 doc 和 add，防止代码退回旧写法。
       const self = this;
@@ -524,8 +525,8 @@ test('lobby paginates by createdAt desc and reports hasMore/nextOffset', async (
   const page = await ctx2.listTeams({ offset: 0, limit: 2 }, '');
   assert.deepEqual([...page.list.map(t => t._id)], ['live3', 'live2']);
   assert.equal(page.hasMore, true);
-  // 凑满一页即停，nextOffset 指向下一条未消费的原始记录（已取消项会被跳过）。
-  assert.equal(page.nextOffset, 3);
+  // offset counts filtered results, not discarded raw database rows.
+  assert.equal(page.nextOffset, 2);
   const rest = await ctx2.listTeams({ offset: page.nextOffset, limit: 5 }, '');
   assert.deepEqual([...rest.list.map(t => t._id)], ['live1']);
   assert.equal(rest.hasMore, false);
@@ -1212,4 +1213,84 @@ test('source group is moderated before create, and older edit payloads preserve 
   const updated = await ctx.updateTeam({ teamId: team._id, team: { note: '改个备注' } }, 'host');
   assert.equal(updated.ok, true);
   assert.equal(team.sourceGroup, '周末群');
+});
+
+test('server search covers later database batches before filtering, sorting and paging', async () => {
+  const now = Date.now();
+  const teams = Array.from({ length: 240 }, (_, i) => ({
+    _id: 'row-' + i, gameName: i >= 220 ? 'CS2' : '王者荣耀', platform: 'Steam',
+    server: '国服', voice: 'KOOK', sourceGroup: '  Ａ群  ', rankReq: '娱乐',
+    roomPwd: 'secret', capacity: 5, memberCount: 2, status: 'recruiting',
+    startAt: now + 600000, endAt: now + 3600000, createdAt: i,
+  }));
+  teams[239].memberCount = 5;
+  const ctx = backend({ teams, paginate: true });
+  const query = { keyword: '娱乐', gameName: 'CS2', sourceGroup: 'group:A群', availableOnly: true, limit: 3 };
+  const first = await ctx.listTeams(query, '');
+  assert.equal(first.total, 19);
+  assert.deepEqual([...first.list.map(t => t._id)], ['row-238', 'row-237', 'row-236']);
+  assert.equal(first.list[0].roomPwd, '');
+  assert.equal(first.list[0].mark, undefined, 'anonymous readers never inherit host marks');
+  const next = await ctx.listTeams({ ...query, offset: first.nextOffset }, '');
+  assert.deepEqual([...next.list.map(t => t._id)], ['row-235', 'row-234', 'row-233']);
+  assert.equal(new Set([...first.list, ...next.list].map(t => t._id)).size, 6);
+  assert.equal(first.sourceGroups[0], 'A群');
+  assert.equal((await ctx.listTeams({ ...query, platform: '手游' }, '')).total, 0);
+  assert.equal((await ctx.listTeams({ ...query, keyword: 'does not exist' }, '')).hasMore, false);
+});
+
+test('server game aliases, time filters, full teams and global sorting compose', async () => {
+  const now = Date.now();
+  const base = { ...teamPayload(), platform: 'Steam', memberCount: 2, status: 'recruiting', createdAt: 1 };
+  const teams = [
+    { ...base, _id: 'a', gameName: 'CS:GO', startAt: now - 1000, endAt: now + 3600000 },
+    { ...base, _id: 'b', gameName: 'cs 2', startAt: now + 600000, memberCount: 4 },
+    { ...base, _id: 'c', gameName: 'CS2', startAt: now + 600000, memberCount: 5, createdAt: 999 },
+    { ...base, _id: 'd', gameName: 'CS2', startAt: now + 7200000, endAt: now + 10800000 },
+  ];
+  const ctx = backend({ teams });
+  const query = { gameNames: ['CS2', 'csgo'], availableOnly: true };
+  assert.deepEqual([...(await ctx.listTeams({ ...query, time: 'now' }, '')).list.map(t => t._id)], ['a']);
+  assert.deepEqual([...(await ctx.listTeams({ ...query, time: 'soon' }, '')).list.map(t => t._id)], ['b']);
+  const all = await ctx.listTeams({ ...query, availableOnly: false, sortMode: 'hot' }, '');
+  assert.equal(all.total, 4);
+  assert.equal(all.list[0]._id, 'b');
+  assert.equal(all.list.at(-1)._id, 'c', 'full teams follow joinable teams');
+});
+
+test('editing revalidates current member count and cancellation inside its transaction', async () => {
+  for (const mutate of [t => { t.memberCount = 5; }, t => { t.status = 'cancelled'; }]) {
+    const team = { _id: 't', ...teamPayload(), openid: 'host', memberCount: 2, status: 'recruiting' };
+    const ctx = backend({ teams: [team], users: [{ _id: 'host', nickName: '车头' }], beforeTransaction: () => mutate(team) });
+    const res = await ctx.updateTeam({ teamId: 't', team: { ...teamPayload(), capacity: 3 } }, 'host');
+    assert.equal(res.ok, false);
+    assert.equal(team.capacity, 5);
+  }
+});
+
+test('editing records only changed field names and keeps private values out of the public payload', async () => {
+  const team = { _id: 't', ...teamPayload(), openid: 'host', memberCount: 2, status: 'recruiting' };
+  const ctx = backend({ teams: [team], users: [{ _id: 'host', nickName: '车头' }] });
+  const res = await ctx.updateTeam({ teamId: 't', team: { roomPwd: 'new-secret', server: '欧服' } }, 'host');
+  assert.equal(res.ok, true);
+  assert.ok(team.detailsChangedAt);
+  assert.ok(team.changedFields.includes('server'));
+  assert.ok(team.changedFields.includes('roomPwd'));
+  assert.equal(ctx.stripSecret(team, false).roomPwd, '');
+  assert.equal(ctx.validateTeamInput({ ...teamPayload(), capacity: 2.5 }, { isCreate: true }).error, '人数需在 2–20 之间');
+});
+
+test('behavior events deduplicate per user/team/day and admin statistics do not treat copies as attendance', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, createdAt: Date.now(), status: 'recruiting' };
+  const ctx = backend({ teams: [team], env: { ADMIN_OPENIDS: 'admin' } });
+  for (const kind of ['share_view', 'copy_room', 'copy_room']) await ctx.trackTeamEvent({ teamId: 't', kind }, 'visitor');
+  await ctx.recordTeamEvent('t', 'visitor', 'join');
+  const stats = (await ctx.adminOverview('admin')).stats;
+  assert.equal(stats.funnel.shareVisitors, 1);
+  assert.equal(stats.funnel.shareJoined, 1);
+  assert.equal(stats.funnel.roomCopies, 1);
+  assert.equal(stats.funnel.withMembers, 1);
+  assert.equal(stats.funnel.full, 0);
+  assert.equal((await ctx.trackTeamEvent({ teamId: 't', kind: 'fake' }, 'visitor')).ok, false);
+  assert.equal((await ctx.adminOverview('visitor')).ok, false);
 });

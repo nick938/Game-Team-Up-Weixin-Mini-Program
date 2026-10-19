@@ -1,5 +1,5 @@
 import { usePageFeedback } from './usePageFeedback';
-import { reactive, toRefs, nextTick, watch } from 'vue';
+import { reactive, toRefs, nextTick, watch, computed } from 'vue';
 import {
   onShow,
   onHide,
@@ -17,6 +17,7 @@ import { loadMyProfile } from '../utils/my-profile';
 import { callTeam } from '../api/team';
 import { getAppVersion } from '../utils/version';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
+import { scheduledTeams } from '../utils/team-schedule';
 import { teamDetailPath } from '../utils/team-entry';
 export function useMine() {
   const { toast, dialog } = usePageFeedback();
@@ -228,7 +229,13 @@ export function useMine() {
   onShareTimeline(() => {
     return shareToTimeline(plazaShare());
   });
+  const nextTeam = computed(() => scheduledTeams([...state.hostedOngoing, ...state.joinedOngoing])[0]);
+  function openHelp() {
+    hostPlatform.navigateTo({ url: '/pages/help/help' });
+  }
   return {
+    nextTeam,
+    openHelp,
     splitTeams,
     getProfileHint,
     state,

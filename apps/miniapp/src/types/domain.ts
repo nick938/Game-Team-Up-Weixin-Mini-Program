@@ -19,6 +19,11 @@ export interface Team {
   endAt?: number;
   expireAt?: number;
   createdAt?: number;
+  updatedAt?: number;
+  detailsChangedAt?: number;
+  changedFields?: string[];
+  hostNickName?: string;
+  hostAvatarUrl?: string;
   capacity: number;
   memberCount: number;
   roomNo?: string;
@@ -97,7 +102,29 @@ export interface AdminRow extends Partial<Team>, User {
   version?: string;
   systemInfo?: string;
 }
+export interface TeamSearch {
+  offset?: number;
+  limit?: number;
+  keyword?: string;
+  gameName?: string;
+  gameNames?: string[];
+  platform?: string;
+  server?: string;
+  voice?: string;
+  sourceGroup?: string;
+  availableOnly?: boolean;
+  time?: string;
+  sortMode?: string;
+}
 export interface AdminStats {
+  funnel?: {
+    published: number;
+    withMembers: number;
+    full: number;
+    shareVisitors: number;
+    shareJoined: number;
+    roomCopies: number;
+  };
   teams: { total: number; active: number; recruiting: number; full: number };
   users: { total: number };
   members: { total: number };
@@ -112,7 +139,14 @@ export interface TeamResults {
   getTeam: { team: Team; members: Member[]; role: TeamRole | null; reactions?: ReactionSummary };
   getPublicProfile: { profile: User };
   setReaction: { reactions: ReactionSummary };
-  listTeams: { list: Team[]; nextOffset?: number; hasMore?: boolean };
+  listTeams: {
+    list: Team[];
+    total?: number;
+    nextOffset?: number;
+    hasMore?: boolean;
+    games?: string[];
+    sourceGroups?: string[];
+  };
   myTeams: { hosted: Team[]; joined: Team[] };
   searchProxyUsers: { list: User[] };
   submitFeedback: { mailed?: boolean; mailError?: string };
@@ -148,7 +182,8 @@ export interface TeamRequests {
   getTeam: { teamId: string };
   setReaction: { teamId: string; reaction: ReactionId | '' };
   getPublicProfile: { teamId: string; memberId: string };
-  listTeams: { offset?: number; limit?: number };
+  listTeams: TeamSearch;
+  trackTeamEvent: { teamId: string; kind: 'detail_view' | 'share_view' | 'copy_room' };
   myTeams: undefined;
   searchProxyUsers: { keyword: string };
   createTeam: { team: TeamInput; hostOpenid?: string };

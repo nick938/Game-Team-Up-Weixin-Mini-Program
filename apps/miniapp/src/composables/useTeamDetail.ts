@@ -1,3 +1,5 @@
+import { rememberGame } from '../utils/recent-games';
+import { overlappingTeams } from '../utils/team-schedule';
 import { REACTIONS, emptyReactions, type ReactionId } from '../utils/reactions';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick } from 'vue';
@@ -115,6 +117,9 @@ export function useTeamDetail() {
       showProfile: false,
       pendingAction: '',
       notifyHint: '',
+      changeNotice: '',
+      joinSuccess: false,
+      trackedTeamId: '',
       notifyAuthorized: false,
       noteCanFold: false,
       noteExpanded: false,
@@ -156,6 +161,9 @@ export function useTeamDetail() {
         reactions: emptyReactions(),
         team: null,
         role: null,
+        joinSuccess: false,
+        changeNotice: '',
+        notifyAuthorized: false,
         members: [],
         seats: [],
         shareCoverPath: '',
@@ -168,7 +176,7 @@ export function useTeamDetail() {
   function buildShare() {
     const team = state.team;
     const query = teamShareQuery(state.teamId);
-    const path = query ? `/pages/team/detail?${query}` : '/pages/index/index';
+    const path = query ? `/pages/team/detail?${query}&from=share` : '/pages/index/index';
     if (!team) {
       return { title: '开黑星球', path, query };
     }
@@ -186,7 +194,7 @@ export function useTeamDetail() {
     } else {
       title += ' 状态待确认';
     }
-    return { title, path, query };
+    return { title, path, query: query ? query + '&from=share' : query };
   }
   async function prepareShareCover() {
     const team = state.team;
@@ -219,6 +227,43 @@ export function useTeamDetail() {
       const res = await callTeam('getTeam', { teamId });
       if (requestId !== state.detailRequest) return;
       const role = res.role;
+      rememberGame(res.team.gameName);
+      const fields: Record<string, string> = {
+        startAt: '开始时间',
+        endAt: '结束时间',
+        platform: '平台',
+        server: '区服',
+        roomNo: '加入方式',
+        roomPwd: '密码',
+      };
+      let seenAt = 0;
+      try {
+        seenAt = Number(hostPlatform.getStorageSync('team-seen:' + teamId)) || 0;
+      } catch {
+        /* Optional. */
+      }
+      const changed = Number(res.team.detailsChangedAt || 0);
+      const changeNotice =
+        role && changed > seenAt
+          ? '车头更新了' +
+            (res.team.changedFields || [])
+              .map((field) => fields[field])
+              .filter(Boolean)
+              .join('、') +
+            '，请重新核对。'
+          : '';
+      try {
+        hostPlatform.setStorageSync('team-seen:' + teamId, Math.max(changed, seenAt));
+      } catch {
+        /* Optional. */
+      }
+      if (state.trackedTeamId !== teamId) {
+        state.trackedTeamId = teamId;
+        void callTeam('trackTeamEvent', {
+          teamId,
+          kind: state.entryOptions.from === 'share' ? 'share_view' : 'detail_view',
+        }).catch(() => {});
+      }
       const note = (res.team && res.team.note) || '';
       const noteCanFold = shouldFoldNote(note);
       patchState(
@@ -241,6 +286,7 @@ export function useTeamDetail() {
             }),
           ),
           role,
+          changeNotice,
           loading: false,
         },
         // 回调里 canvas 节点才渲染出来，此时才画得了封面
@@ -318,7 +364,12 @@ export function useTeamDetail() {
   function copyRoom() {
     const no = state.team && state.team.roomNo;
     if (!no) return;
-    hostPlatform.setClipboardData({ data: String(no) });
+    hostPlatform.setClipboardData({
+      data: String(no),
+      success: () => {
+        void callTeam('trackTeamEvent', { teamId: state.teamId, kind: 'copy_room' }).catch(() => {});
+      },
+    });
   }
   function copyPwd() {
     const pwd = state.team && state.team.roomPwd;
@@ -336,18 +387,39 @@ export function useTeamDetail() {
     state.requestingNotify = false;
     patchState({
       notifyAuthorized: ok,
-      notifyHint: ok ? '' : '未获得通知授权，可再次点击重试或检查微信订阅设置',
+      notifyHint: ok
+        ? '已获得本次授权，实际送达取决于微信订阅状态与发送结果。'
+        : '未获得通知授权，可再次点击重试或检查微信订阅设置',
     });
   }
   async function onJoin() {
     if (state.joining) return;
     state.joining = true;
     try {
-      await requestTeamNotify();
+      let conflicts = [] as Team[];
+      try {
+        const mine = await callTeam('myTeams');
+        conflicts = overlappingTeams([...mine.hosted, ...mine.joined], state.team || {});
+      } catch {
+        /* Optional schedule lookup. */
+      }
+      if (conflicts.length) {
+        try {
+          await dialog.confirm({
+            title: '开局时间有重叠',
+            msg: `与「${conflicts[0].gameName}」等 ${conflicts.length} 个队伍重叠，仍要加入吗？`,
+            confirmButtonText: '继续加入',
+            cancelButtonText: '再看看',
+          });
+        } catch {
+          return;
+        }
+      }
       toast.loading('上车中');
       await callTeam('joinTeam', { teamId: state.teamId });
       toast.close();
-      toast.success('已上车');
+      state.joinSuccess = true;
+      toast.success('已加入，复制加入方式进入游戏');
       await loadDetail();
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
@@ -433,7 +505,7 @@ export function useTeamDetail() {
     void dialog
       .confirm({
         title: '关闭这趟队伍？',
-        msg: '关闭后其他人将无法上车。',
+        msg: '将关闭整局并释放所有位置。已授权且有可用订阅额度的队友会收到散局提醒。',
         confirmButtonText: '关闭队伍',
         cancelButtonText: '继续组队',
         confirmButtonProps: { type: 'danger' },

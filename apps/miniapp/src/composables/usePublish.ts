@@ -1,3 +1,5 @@
+import { gameSuggestions, rememberGame } from '../utils/recent-games';
+import { overlappingTeams } from '../utils/team-schedule';
 import { normalizeSourceGroup } from '../utils/source-group';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
@@ -5,11 +7,11 @@ import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@d
 import type { TeamDraft, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
+import { loadMyProfile } from '../utils/my-profile';
 import { isSinglePage } from '../utils/runtime';
 import { PLATFORMS, VOICES, MAX_TEAM_HOURS } from '../utils/constants';
 import { dateParts, combineDateTime, defaultStartAt, defaultEndAt } from '../utils/format';
 import { callTeam } from '../api/team';
-import { requestTeamNotify } from '../utils/subscribe';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { teamDetailPath } from '../utils/team-entry';
 import { GAME_CATALOG, findGame } from '../utils/games';
@@ -30,7 +32,7 @@ import {
   validatePublishTeam,
 } from '../utils/publish-form';
 export function usePublish() {
-  const { toast, showError } = usePageFeedback();
+  const { toast, dialog, showError } = usePageFeedback();
   const MAX_TEAM_MS = MAX_TEAM_HOURS * 60 * 60 * 1000;
   const DURATION_PICKER = buildDurationPicker();
   const DURATION_PICKER_LABELS = DURATION_PICKER.map((item) => item.label);
@@ -56,6 +58,8 @@ export function usePublish() {
     });
     return {
       editingId: '',
+      minimumCapacity: 2,
+      editLoadError: '',
       platforms: sortPlatforms('Steam', PLATFORMS),
       voices: VOICES,
       gameName: '',
@@ -187,10 +191,12 @@ export function usePublish() {
     if (done) void nextTick(done);
   }
   async function loadEdit(id: string) {
+    state.editLoadError = '';
     toast.loading('加载中');
     try {
       const res = await callTeam('getTeam', { teamId: id });
       const team = res.team;
+      if (res.role !== 'host') throw new Error('只有车头可以编辑');
       const startAt = team.startAt;
       const endAt = team.endAt || team.expireAt || team.startAt;
       const start = dateParts(startAt);
@@ -219,6 +225,7 @@ export function usePublish() {
       patchState({
         ...emptyForm(),
         editingId: id,
+        minimumCapacity: Math.max(2, team.memberCount),
         showMore: hasExtraSettings(extras),
         gameName: team.gameName || '',
         startDate: start.date,
@@ -242,6 +249,8 @@ export function usePublish() {
       });
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
+      state.editingId = id;
+      state.editLoadError = e.message;
       showError(e);
     } finally {
       toast.close();
@@ -297,6 +306,10 @@ export function usePublish() {
       ...extras,
       moreHint: moreSettingsHint(extras),
     });
+  }
+  function startNew() {
+    patchState(emptyForm());
+    void loadProxyAccess();
   }
   function toggleMore() {
     patchState({ showMore: !state.showMore });
@@ -380,9 +393,8 @@ export function usePublish() {
   }
   function pickSuggestedGame(input: string) {
     const game = findGame(input);
-    if (!game) return;
-    const patch: Partial<typeof state> = { gameName: game.name };
-    if (PLATFORMS.indexOf(game.platform) >= 0) {
+    const patch: Partial<typeof state> = { gameName: game?.name || input };
+    if (game && PLATFORMS.indexOf(game.platform) >= 0) {
       patch.platform = game.platform;
       patch.platforms = sortPlatforms(game.platform, PLATFORMS);
     }
@@ -399,7 +411,7 @@ export function usePublish() {
     patchState(withTimeSummary(patch));
   }
   function decCap() {
-    if (state.capacity <= 2) return;
+    if (state.capacity <= state.minimumCapacity) return;
     patchState({ capacity: state.capacity - 1 });
   }
   function incCap() {
@@ -448,7 +460,7 @@ export function usePublish() {
     const cached = !!(app.isAdmin || app.isOrganizer);
     if (cached) patchState({ canProxy: true });
     try {
-      const profile = await callTeam('getProfile');
+      const profile = await loadMyProfile();
       const canProxy = !!(profile.isAdmin || profile.isOrganizer);
       app.isAdmin = !!profile.isAdmin;
       app.isOrganizer = !!profile.isOrganizer;
@@ -554,7 +566,7 @@ export function usePublish() {
       });
   }
   async function onSubmit() {
-    if (state.submitting) return;
+    if (state.submitting || state.editLoadError) return;
     const team = buildTeam();
     const error = validatePublishTeam(team, {
       maxMs: MAX_TEAM_MS,
@@ -572,11 +584,29 @@ export function usePublish() {
     state.submitting = true;
     patchState({ submitting: true });
     try {
-      if (!editingId) {
-        await requestTeamNotify();
+      // A schedule conflict is advisory; it never silently prevents participation.
+      let conflicts = [] as import('../types/domain').Team[];
+      try {
+        const mine = await callTeam('myTeams');
+        conflicts = overlappingTeams([...mine.hosted, ...mine.joined], { ...team, _id: editingId });
+      } catch {
+        /* Schedule lookup is optional; publish still works when it fails. */
+      }
+      if (conflicts.length && !state.proxyMode) {
+        try {
+          await dialog.confirm({
+            title: '和你参加的局时间重叠',
+            msg: `与「${conflicts[0].gameName}」等 ${conflicts.length} 个队伍重叠，仍要发布吗？`,
+            confirmButtonText: '继续发布',
+            cancelButtonText: '返回调整',
+          });
+        } catch {
+          return;
+        }
       }
       if (editingId) {
         await callTeam('updateTeam', { teamId: editingId, team });
+        rememberGame(team.gameName);
         patchState(emptyForm());
         toast.success('已保存');
         setTimeout(() => {
@@ -589,6 +619,7 @@ export function usePublish() {
           payload.hostOpenid = state.proxyHost.userId;
         }
         const res = await callTeam('createTeam', payload);
+        rememberGame(team.gameName);
         const helped = !!payload.hostOpenid;
         patchState(emptyForm());
         toast.success(helped ? '已帮 TA 发车' : '已发车');
@@ -637,7 +668,7 @@ export function usePublish() {
       app.editingTeamId = null;
       app.republishTeam = null;
       app.prefillGame = null;
-      if (state.editingId === editingId) return;
+      if (state.editingId === editingId && !state.editLoadError) return;
       await loadEdit(editingId);
       return;
     }
@@ -647,6 +678,7 @@ export function usePublish() {
       applyDraft(draft);
     } else if (prefill) {
       app.prefillGame = null;
+      patchState(emptyForm());
       const patch: Partial<typeof state> = { gameName: prefill.name || '' };
       if (prefill.platform && PLATFORMS.indexOf(prefill.platform) >= 0) {
         patch.platform = prefill.platform;
@@ -669,6 +701,14 @@ export function usePublish() {
   onShareTimeline(() => {
     return shareToTimeline(plazaShare('开黑星球｜发起组队开黑'));
   });
+  const visibleSuggestions = computed(() => gameSuggestions(state.gameName));
+  const roomPlaceholder = computed(() =>
+    state.platform === 'Steam'
+      ? 'Steam 好友代码 / 房间号'
+      : state.platform === '手游'
+        ? '游戏 ID / 房间码 / 加好友方式'
+        : '房间号 / 游戏 ID / 加入方式',
+  );
   const startTimestamp = computed(() => combineDateTime(state.startDate, state.startTime));
   const minTimestamp = new Date().setHours(0, 0, 0, 0);
   const maxTimestamp = Date.now() + 7 * 24 * 3600000;
@@ -683,6 +723,9 @@ export function usePublish() {
     if (index >= 0) pickCustomDuration(index);
   }
   return {
+    visibleSuggestions,
+    roomPlaceholder,
+    startNew,
     startTimestamp,
     minTimestamp,
     maxTimestamp,

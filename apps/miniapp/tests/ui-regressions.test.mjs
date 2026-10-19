@@ -16,7 +16,7 @@ const team = {
 };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-test('joining requests authorization before writing even when permission is declined', async () => {
+test('joining proceeds without requesting optional reminder authorization', async () => {
   const order = [];
   const h = harness({
     requestTeamNotify: async () => {
@@ -31,7 +31,8 @@ test('joining requests authorization before writing even when permission is decl
   const page = h.page('pages/team/detail');
   page.state.teamId = team._id;
   await page.onJoin();
-  assert.deepEqual(order.slice(0, 2), ['subscribe', 'joinTeam']);
+  assert.deepEqual(order.slice(0, 2), ['myTeams', 'joinTeam']);
+  assert.ok(!order.includes('subscribe'));
 });
 
 test('detail current query wins over launch query and both share entries retain its id', () => {
@@ -40,8 +41,8 @@ test('detail current query wins over launch query and both share entries retain 
   page.hooks.onLoad({ id: team._id });
   page.state.team = team;
   assert.equal(page.state.teamId, team._id);
-  assert.equal(page.hooks.onShareAppMessage().path, '/pages/team/detail?id=team-1');
-  assert.equal(page.hooks.onShareTimeline().query, 'id=team-1');
+  assert.equal(page.hooks.onShareAppMessage().path, '/pages/team/detail?id=team-1&from=share');
+  assert.equal(page.hooks.onShareTimeline().query, 'id=team-1&from=share');
   page.state.shareCoverPath = 'wxfile://cover.jpg';
   assert.equal(page.hooks.onShareAppMessage().imageUrl, 'wxfile://cover.jpg');
 });
@@ -118,7 +119,7 @@ test('welcome dismissal persists across component instances and feedback still n
 test('editing survives another onShow and writes update instead of create', async () => {
   const h = harness({
       store: { editingTeamId: team._id },
-      callTeam: async (action) => (action === 'getTeam' ? { team } : { ok: true }),
+      callTeam: async (action) => (action === 'getTeam' ? { team, role: 'host' } : { ok: true }),
     }),
     page = h.page('pages/publish/publish');
   await page.hooks.onShow();
@@ -225,13 +226,13 @@ test('legal documents switch in place with a safe fallback', () => {
   assert.equal(page.state.title, '隐私政策');
 });
 
-test('returning to the lobby resets game filter and preserves search/sort', async () => {
+test('returning to the lobby preserves game filter, search and sort', async () => {
   const h = harness(),
     page = h.page('pages/index/index');
   Object.assign(page.state, { gameFilter: 'CS2', keyword: 'room', sortMode: 'hot' });
   page.hooks.onShow();
   await flush();
-  assert.equal(page.state.gameFilter, '全部');
+  assert.equal(page.state.gameFilter, 'CS2');
   assert.equal(page.state.keyword, 'room');
   assert.equal(page.state.sortMode, 'hot');
 });

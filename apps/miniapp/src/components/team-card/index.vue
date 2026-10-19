@@ -41,8 +41,8 @@ function onTap() {
         <view class="flex items-start justify-between gap-3 w-full min-w-0">
           <view class="min-w-0 flex-1">
             <view class="text-lg font-semibold break-words line-clamp-2">{{ team.gameName || '组队' }}</view>
-            <view v-if="mark || view.timeLabel" class="flex flex-wrap items-center gap-2 mt-1">
-              <text v-if="mark" class="text-xs text-brand">{{ mark }}</text>
+            <view v-if="mark || team.mark || view.timeLabel" class="flex flex-wrap items-center gap-2 mt-1">
+              <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
               <text v-if="view.timeLabel" class="hint">{{ view.timeLabel }}</text>
             </view>
           </view>
@@ -69,6 +69,13 @@ function onTap() {
           tag
         }}</text>
       </view>
+      <view v-if="team.hostNickName" class="flex items-center gap-2 mb-3"
+        ><app-avatar
+          size="small"
+          :src="team.hostAvatarUrl"
+          :identity="'host:' + (team.id || team._id)"
+        /><text class="text-xs text-secondary">{{ team.hostNickName }} 发起</text></view
+      >
       <view class="text-xs text-secondary break-words mb-3"
         >来源群 · {{ team.sourceGroup || '未标注群' }}</view
       >

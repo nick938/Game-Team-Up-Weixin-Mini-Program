@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { usePageActive } from '../../composables/usePageActive';
+const pageActive = usePageActive('pages/team/detail');
+import AppActionDock from '../../components/app-action-dock/index.vue';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { reactive, computed } from 'vue';
 import { useTeamDetail } from '../../composables/useTeamDetail';
@@ -25,7 +28,7 @@ function goRoom() {
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
-  <app-shell v-else variant="detail">
+  <app-shell :active="pageActive" v-else variant="detail">
     <view class="flex items-center justify-between mb-3">
       <text class="brand-kicker">队伍邀请</text>
       <wd-button variant="text" size="small" @click="page.goPlaza"
@@ -66,19 +69,34 @@ function goRoom() {
         <view class="hint mt-1">来源仅作标识，欢迎跨群上车。</view>
         <view v-if="page.team.proxyNickName" class="hint mt-3">由 {{ page.team.proxyNickName }} 代开</view>
       </view>
-      <view class="mb-6">
+      <view v-if="page.state.changeNotice" class="panel !bg-brand-light text-sm">{{
+        page.state.changeNotice
+      }}</view>
+      <view v-if="page.role === 'member' && view.ongoing" class="panel"
+        ><view class="text-sm font-semibold mb-2">{{
+          page.state.joinSuccess ? '加入成功，接下来进入游戏' : '你已加入这局'
+        }}</view
+        ><view class="hint">复制下方房间号或好友码，打开游戏加入队友。这里占位不会自动进入游戏。</view></view
+      >
+      <app-action-dock :active="pageActive">
         <wd-button
           v-if="view.primaryAction === 'join'"
           block
           :loading="page.state.joining"
           :disabled="page.state.joining"
           @click="page.onJoin"
-          >上车 · 还差 {{ view.needCount }} 人</wd-button
+          >{{ view.lifecycle === 'active' ? '中途加入' : '加入队伍' }} · 还差
+          {{ view.needCount }} 人</wd-button
         >
         <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
           >邀请好友，一起开黑</wd-button
         >
-        <wd-button v-else-if="view.primaryAction === 'room'" block @click="goRoom">查看进房信息</wd-button>
+        <wd-button
+          v-else-if="view.primaryAction === 'room'"
+          block
+          @click="page.team.roomNo ? page.copyRoom() : goRoom()"
+          >{{ page.team.roomNo ? '复制加入方式，进入游戏' : '查看进房信息' }}</wd-button
+        >
         <wd-button v-else block @click="page.goPlaza">{{
           view.recruitment === 'full'
             ? '这趟已满员，去大厅看看'
@@ -102,7 +120,7 @@ function goRoom() {
             >再发一趟</wd-button
           >
         </view>
-      </view>
+      </app-action-dock>
       <view id="room-info" class="panel">
         <view class="section-title mb-3">怎么加入游戏</view>
         <view class="flex items-start justify-between gap-3">
@@ -206,7 +224,8 @@ function goRoom() {
           :loading="page.state.requestingNotify"
           :disabled="page.notifyAuthorized"
           @click="page.onEnableNotify"
-          >{{ page.notifyAuthorized ? '已授权开打前提醒' : '开打前 10 分钟提醒我' }}</wd-button
+          >{{ page.notifyAuthorized ? '本次已授权提醒' : '开打前提醒我（可选）' }}</wd-button
+        ><view class="hint mt-2">开始前 10 分钟内才加入可能赶不上提醒，请留意开局时间。</view
         ><view v-if="page.notifyHint" class="hint mt-2">{{ page.notifyHint }}</view>
       </view>
       <view class="flex flex-wrap gap-2 mt-5">
@@ -262,6 +281,7 @@ function goRoom() {
       >
       <wd-button block @click="page.goPlaza">去大厅看看</wd-button>
     </view>
+    <view class="h-32" aria-hidden="true" />
     <team-manage-sheet
       v-if="page.role === 'host'"
       :show="page.showManage"

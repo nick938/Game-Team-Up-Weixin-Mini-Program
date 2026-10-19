@@ -41,7 +41,14 @@ function harness(options = {}) {
   };
   const cache = new Map();
   let activeHooks;
-  function load(name, props = {}) {
+  function registerHook(name, callback) {
+    const previous = activeHooks[name];
+    activeHooks[name] = previous ? (...args) => {
+      const results = [previous(...args), callback(...args)];
+      return results.some(result => result && typeof result.then === 'function') ? Promise.all(results) : results[results.length - 1];
+    } : callback;
+  }
+  function load(name, props = {}, asComponent = false) {
     name = name.replaceAll('\\', '/').replace(/\.(js|ts|vue)$/, '');
     if (overrides[name]) return overrides[name];
     if (cache.has(name)) return cache.get(name);
@@ -57,14 +64,15 @@ function harness(options = {}) {
     const { outputText } = ts.transpileModule(source, { compilerOptions: { allowJs: true, target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } });
     const module = { exports: {} };
     const localRequire = specifier => {
-      if (specifier === 'vue') return { ...vue, useAttrs: () => ({}), onMounted: callback => { activeHooks.mounted = callback; }, onUnmounted: callback => { activeHooks.unmounted = callback; } };
-      if (specifier === '@dcloudio/uni-app') return new Proxy({}, { get: (_, hook) => callback => { activeHooks[hook] = callback; } });
+      if (specifier === 'vue') return { ...vue, useAttrs: () => ({}), onMounted: callback => registerHook('mounted', callback), onUnmounted: callback => registerHook('unmounted', callback) };
+      if (specifier === '@dcloudio/uni-app') return new Proxy({}, { get: (_, hook) => callback => registerHook(hook, callback) });
       if (!specifier.startsWith('.')) return appRequire(specifier);
-      return load(path.relative(sourceRoot, path.resolve(path.dirname(file), specifier)));
+      return load(path.relative(sourceRoot, path.resolve(path.dirname(file), specifier)), {}, true);
     };
     const execute = vm.runInThisContext(`(function(require, module, exports, uni, __BUILD_TARGET__, __APP_VERSION__) { ${outputText}\n})`, { filename: file });
     execute(localRequire, module, module.exports, { ...platform, compressImage: ({ src, success }) => success({ tempFilePath: src }), ...options.uni }, target, appRequire('./package.json').version);
     if (!isVue) { cache.set(name, module.exports); return module.exports; }
+    if (asComponent) return module.exports;
     const hooks = {}, previousHooks = activeHooks;
     activeHooks = hooks;
     const bindings = module.exports.default.setup(vue.reactive(props), { expose() {}, emit: (name, detail) => emitted.push({ name, detail }) });

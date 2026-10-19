@@ -76,11 +76,13 @@ export function presentTeam(
   const primaryAction: TeamAction =
     !ongoing || (full && viewerRole === 'visitor')
       ? 'browse'
-      : full
+      : viewerRole === 'member'
         ? 'room'
-        : viewerRole === 'visitor'
-          ? 'join'
-          : 'share';
+        : viewerRole === 'host'
+          ? full
+            ? 'room'
+            : 'share'
+          : 'join';
   const secondaryActions: TeamAction[] = !ongoing
     ? viewerRole === 'host'
       ? ['republish']

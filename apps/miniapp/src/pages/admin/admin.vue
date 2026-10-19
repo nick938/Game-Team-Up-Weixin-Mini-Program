@@ -10,9 +10,14 @@ const page = reactive(useAdmin());
   <app-shell title="管理端" subtitle="数据概览、组队、用户与反馈处理。">
     <wd-empty v-if="page.denied" tip="你没有管理权限，请联系管理员" />
     <template v-else
-      ><scroll-view scroll-x class="whitespace-nowrap mb-5"
-        ><view class="inline-flex gap-2"
-          ><wd-button
+      ><view class="mb-5"
+        ><wd-tabs
+          :model-value="page.tab"
+          slidable="always"
+          :map-num="99"
+          line-theme="text"
+          @change="page.pickTab(String($event.name))"
+          ><wd-tab
             v-for="tab in [
               { key: 'overview', label: '概览' },
               { key: 'teams', label: '组队' },
@@ -22,13 +27,9 @@ const page = reactive(useAdmin());
               { key: 'feedback', label: '反馈' },
             ]"
             :key="tab.key"
-            size="small"
-            :variant="page.tab === tab.key ? 'base' : 'soft'"
-            @click="page.pickTab(tab.key)"
-            >{{ tab.label }}</wd-button
-          ></view
-        ></scroll-view
-      >
+            :name="tab.key"
+            :title="tab.label" /></wd-tabs
+      ></view>
       <wd-loading v-if="page.loading" />
       <admin-overview v-else-if="page.tab === 'overview' && page.stats" :stats="page.stats" />
       <template v-else-if="page.tab === 'users'"

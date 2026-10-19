@@ -7,6 +7,7 @@ defineOptions({ name: 'AppPicker', inheritAttrs: false });
 type Option = string | number | { label: string; value: string | number };
 const props = defineProps<{
   label: string;
+  compact?: boolean;
   modelValue?: string | number;
   columns: Option[];
   placeholder?: string;
@@ -32,7 +33,10 @@ function confirm(event: { value: (string | number)[] }) {
 </script>
 <template>
   <view>
-    <wd-cell :title="label" :value="displayValue" is-link @click="visible = true" />
+    <wd-button v-if="compact" size="small" variant="soft" @click="visible = true"
+      >{{ modelValue ? displayValue : label }} <wd-icon name="arrow-down" size="12px"
+    /></wd-button>
+    <wd-cell v-else :title="label" :value="displayValue" is-link @click="visible = true" />
     <wd-picker
       root-portal
       :z-index="1200"

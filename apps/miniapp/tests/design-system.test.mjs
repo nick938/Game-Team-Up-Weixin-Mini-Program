@@ -33,7 +33,10 @@ for (const started of [false, true]) {
         assert.equal(view.lifecycle, started ? 'active' : 'scheduled');
         assert.equal(view.recruitment, full ? 'full' : 'open');
         assert.equal(view.canJoin, !full && !role);
-        assert.equal(view.primaryAction, full ? (role ? 'room' : 'browse') : role ? 'share' : 'join');
+        assert.equal(
+          view.primaryAction,
+          full ? (role ? 'room' : 'browse') : role === 'member' ? 'room' : role === 'host' ? 'share' : 'join',
+        );
         assert.equal(view.canViewPassword, false, 'role does not invent an authorized password');
       });
     }
@@ -117,7 +120,7 @@ test('failed join refreshes team state without replaying the write', async () =>
   page.state.teamId = 't';
   await page.onJoin();
   assert.deepEqual(
-    h.calls.map((call) => call.action),
+    h.calls.filter((call) => ['joinTeam', 'getTeam'].includes(call.action)).map((call) => call.action),
     ['joinTeam', 'getTeam'],
   );
   assert.equal(page.state.team.displayStatus, 'full');

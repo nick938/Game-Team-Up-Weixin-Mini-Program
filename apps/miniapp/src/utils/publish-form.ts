@@ -3,7 +3,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
 const MIN_DURATION_MIN = 30;
 const MAX_DURATION_MIN = 24 * 60;
-const MORE_HINT = '区服、语音、队友要求、备注';
+const MORE_HINT = '语音、队友要求、备注、来源群';
 
 const START_PRESETS = [
   { key: 'now', label: '现在' },
@@ -41,7 +41,8 @@ function hasExtraSettings(data: Partial<TeamDraft>) {
   return !!(
     String(data.server || '').trim() ||
     String(data.rankReq || '').trim() ||
-    String(data.note || '').trim()
+    String(data.note || '').trim() ||
+    String(data.sourceGroup || '').trim()
   );
 }
 
@@ -54,6 +55,7 @@ function moreSettingsHint(data: Partial<TeamDraft>) {
   if (server) bits.push(server);
   if (rankReq) bits.push(rankReq);
   if (String(data.note || '').trim()) bits.push('有备注');
+  if (String(data.sourceGroup || '').trim()) bits.push('已标注来源群');
   return bits.filter(Boolean).join(' · ') || MORE_HINT;
 }
 
@@ -233,6 +235,9 @@ function validatePublishTeam(team: Partial<TeamDraft>, extra: PublishOptions) {
   }
   if (!String(team.roomNo || '').trim()) {
     return { message: '请填写房间 / 加入方式', anchor: 'field-room' };
+  }
+  if (!Number.isInteger(team.capacity) || Number(team.capacity) < 2 || Number(team.capacity) > 20) {
+    return { message: '人数需在 2–20 之间', anchor: 'field-capacity' };
   }
   if (opts.needProxyHost) {
     return { message: '请先选择要帮谁发车', anchor: 'field-proxy' };

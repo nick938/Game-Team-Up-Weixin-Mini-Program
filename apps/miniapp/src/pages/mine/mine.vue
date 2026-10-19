@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { usePageActive } from '../../composables/usePageActive';
+const pageActive = usePageActive('pages/mine/mine');
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'MineMinePage' });
 import { reactive } from 'vue';
+import NextTeam from '../../components/next-team/index.vue';
 import { useMine } from '../../composables/useMine';
 const page = reactive(useMine());
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
-  <app-shell v-else variant="profile">
+  <app-shell :active="pageActive" v-else variant="profile">
     <view class="panel profile-panel !p-4">
       <wd-cell-group custom-class="!bg-transparent !shadow-none"
         ><wd-cell
@@ -32,26 +35,22 @@ const page = reactive(useMine());
       ><text class="text-sm text-secondary">{{ page.state.profileError }}</text
       ><wd-button size="small" variant="soft" @click="page.load(true)">重试</wd-button></view
     >
-    <view class="section-title mt-6 mb-3">我的队伍</view>
-    <view class="flex flex-wrap gap-2 mb-3"
-      ><wd-button :variant="page.teamTab === 'hosted' ? 'base' : 'soft'" @click="page.pickTeamTab('hosted')"
-        >我发起的 {{ page.hostedCount }}</wd-button
-      ><wd-button :variant="page.teamTab === 'joined' ? 'base' : 'soft'" @click="page.pickTeamTab('joined')"
-        >我加入的 {{ page.joinedCount }}</wd-button
-      ></view
-    >
-    <view class="flex gap-2 mb-4"
-      ><wd-button
-        size="small"
-        :variant="page.phase === 'Ongoing' ? 'base' : 'soft'"
-        @click="page.pickPhase('Ongoing')"
-        >进行中</wd-button
-      ><wd-button
-        size="small"
-        :variant="page.phase === 'Past' ? 'base' : 'soft'"
-        @click="page.pickPhase('Past')"
-        >历史</wd-button
-      ></view
+    <next-team v-if="page.nextTeam" :team="page.nextTeam" @open="page.onOpen" @refresh="page.load()" />
+    <view class="mt-6 mb-4"
+      ><wd-tabs :model-value="page.teamTab" line-theme="text" @change="page.pickTeamTab(String($event.name))"
+        ><wd-tab name="hosted" :title="'我发起的 ' + page.hostedCount" /><wd-tab
+          name="joined"
+          :title="'我加入的 ' + page.joinedCount" /></wd-tabs
+    ></view>
+    <wd-segmented
+      :value="page.phase"
+      :options="[
+        { value: 'Ongoing', payload: { label: '未结束' } },
+        { value: 'Past', payload: { label: '历史记录' } },
+      ]"
+      custom-class="glass-segment !flex !w-full !mb-5"
+      @change="page.pickPhase(String($event.value))"
+      ><template #label="{ option }">{{ option.payload.label }}</template></wd-segmented
     >
     <view v-if="page.state.listError" class="panel"
       ><view class="text-sm text-secondary mb-3">{{ page.state.listError }}</view
@@ -70,17 +69,23 @@ const page = reactive(useMine());
       :mark="page.teamTab === 'hosted' ? '车头' : '队员'"
       @open="page.onOpen"
     />
-    <view
-      v-if="!page.visibleTeams.length && !page.state.loading && !page.state.listError"
-      class="panel text-center"
+    <view v-if="!page.visibleTeams.length && !page.state.loading && !page.state.listError" class="empty-state"
       ><wd-empty
-        icon="/static/images/brand/empty-v1.jpg"
-        :tip="page.phase === 'Past' ? '还没有历史组队' : '下一局，等你出发'"
-      /><wd-button v-if="page.phase === 'Ongoing'" variant="soft" @click="page.goPlaza"
-        >去大厅看看</wd-button
-      ></view
-    >
-    <view class="section-title mt-6 mb-3">帮助与设置</view>
+        icon="empty"
+        :icon-size="58"
+        :tip="
+          page.phase === 'Past'
+            ? '还没有历史记录'
+            : page.teamTab === 'hosted'
+              ? '还没有待开的队伍'
+              : '还没有加入队伍'
+        " /><view class="hint mb-2">{{
+        page.phase === 'Past' ? '结束的队伍会保存在这里' : '约好时间，和队友一起出发'
+      }}</view
+      ><wd-button v-if="page.phase === 'Ongoing'" variant="text" @click="page.goPlaza"
+        >去大厅看看 <wd-icon name="arrow-right" size="14px" /></wd-button
+    ></view>
+    <view class="section-label">服务与设置</view>
     <wd-cell-group
       ><wd-cell
         v-if="page.isOrganizer && !page.isAdmin"
@@ -90,19 +95,11 @@ const page = reactive(useMine());
         v-if="page.isAdmin"
         title="管理端"
         is-link
-        @click="page.openAdmin" /><wd-cell title="联系作者" is-link @click="page.openAuthor" /><wd-cell
-        title="意见反馈"
+        @click="page.openAdmin" /><wd-cell
+        title="帮助与反馈"
+        label="常见问题、意见反馈、报错与联系作者"
         is-link
-        @click="page.openFeedback" /><wd-cell title="报个错" is-link @click="page.openBug" /><wd-cell
-        title="用户协议"
-        is-link
-        @click="page.openLegal('agreement')" /><wd-cell
-        title="隐私政策"
-        is-link
-        @click="page.openLegal('privacy')" /><wd-cell
-        title="社区公约"
-        is-link
-        @click="page.openLegal('community')"
+        @click="page.openHelp" /><wd-cell title="社区公约" is-link @click="page.openLegal('community')"
     /></wd-cell-group>
     <view class="hint text-center py-5">{{ page.versionText }}</view
     ><profile-gate

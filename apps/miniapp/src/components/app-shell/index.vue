@@ -3,7 +3,12 @@ import { useAppTheme } from '../../composables/useAppTheme';
 import { wotThemeVars } from '../../design/wot-theme';
 import { appThemeStyle, component } from '../../design/tokens';
 defineOptions({ name: 'AppShell' });
-defineProps<{ title?: string; subtitle?: string; variant?: 'lobby' | 'form' | 'detail' | 'profile' }>();
+defineProps<{
+  active?: boolean;
+  title?: string;
+  subtitle?: string;
+  variant?: 'lobby' | 'form' | 'detail' | 'profile';
+}>();
 useAppTheme();
 </script>
 <template>
