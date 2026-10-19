@@ -43,7 +43,7 @@ function contact() {
       ><view class="text-sm text-secondary leading-6">{{ answer }}</view></view
     >
     <wd-cell-group
-      ><wd-cell
+      ><wd-cell title="更新公告" is-link @click="open('updates/updates')" /><wd-cell
         title="意见反馈"
         label="功能建议与体验反馈"
         is-link
