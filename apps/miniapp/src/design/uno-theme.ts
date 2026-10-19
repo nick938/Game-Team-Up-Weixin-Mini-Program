@@ -51,7 +51,16 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .wd-root-portal .wd-datetime-picker__popup{border-radius:var(--wot-datetime-picker-popup-radius);overflow:hidden}
 .lobby-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 24px;min-height:92px;box-sizing:border-box}
 .hero-mascot{width:60px;height:60px;border-radius:20px;box-shadow:0 8px 24px rgba(98,85,231,.13)}
-.room-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-title-padding:16px 16px 8px;--wot-card-content-padding:0 16px 16px}
+.room-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-title-padding:12px 12px 8px;--wot-card-content-padding:0 12px 12px}
+.room-status-compact{display:inline-block;padding:2px 6px;font-size:11px;line-height:16px}
+.room-reactions{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-top:1px solid ${c.border};padding-top:8px}
+.room-reactions .room-reaction.wd-button{width:100%;min-width:0;min-height:44px;padding:0 2px;font-size:12px;line-height:18px;white-space:nowrap;border-radius:10px;--wot-button-primary-color:${c.muted};--wot-button-primary-color-active:${c.muted};background:transparent}
+.room-reactions .room-reaction-active.wd-button{--wot-button-primary-color:${c.brand};--wot-button-primary-color-active:${c['brand-pressed']}}
+.reaction-symbol{display:inline-flex;align-items:center;vertical-align:middle;margin-right:4px}
+.reaction-pulse{animation:reaction-pop 200ms ease-out}
+.room-enter{animation:app-enter 180ms ease-out backwards}
+@keyframes reaction-pop{0%,100%{transform:scale(1)}45%{transform:scale(1.18)}}
+@media(max-width:360px){.room-card.wd-card{--wot-card-title-padding:12px 11px 8px;--wot-card-content-padding:0 11px 12px}.room-reactions{gap:0}.reaction-symbol{margin-right:1px}}
 .room-inactive.wd-card{--wot-card-bg:${c.page}}
 .room-progress .wd-progress__bar{border-radius:99px}
 
@@ -65,8 +74,17 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .app-dock--tabbed{bottom:calc(12px + var(--window-bottom, 0px))}
 .app-dock .wd-button{border-radius:18px;min-height:46px}
 .glass-segment{border-radius:16px;border:1px solid rgba(255,255,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
-.filter-toolbar{display:flex;align-items:center;gap:12px;padding:10px 0 2px}
-.filter-sort{flex:1;min-width:0;--wot-segmented-item-padding:6px 8px}
+.game-quick-row{display:flex;white-space:nowrap}
+.game-quick-row .game-quick-tab.wd-button{padding:0 9px;min-width:44px;height:44px;white-space:nowrap;color:${c.muted};border-radius:0}
+.game-quick-label{display:inline-block;line-height:26px;padding:6px 0;border-bottom:2px solid transparent;transition:border-color 140ms ease,color 140ms ease}
+.game-quick-active{border-bottom-color:${c.brand};color:${c.ink};font-weight:600}
+@media(prefers-reduced-motion:reduce){.game-quick-label{transition:none!important}}
+.filter-toolbar{display:flex;align-items:center;gap:6px;padding:6px 0 2px}
+.filter-sort{flex:1;min-width:0;--wot-segmented-item-padding:6px 3px;--wot-segmented-item-font-size:12px}
+.filter-toolbar .toolbar-search.wd-button{position:relative;padding:0;min-width:36px;flex-shrink:0;--wot-button-primary-color:${c.secondary}}
+.search-indicator{position:absolute;top:9px;right:5px;width:5px;height:5px;border-radius:50%;background:${c.brand}}
+.app-page .lobby-search{--wot-search-padding:4px 0;--wot-search-input-height:36px;--wot-search-input-font-size:13px}
+.app-page .lobby-search .wd-search__block{min-height:36px;box-shadow:none}
 .filter-sheet{padding:22px 16px calc(24px + env(safe-area-inset-bottom));max-height:82vh;overflow-y:auto;box-sizing:border-box;background:#F7F8FB}
 .sheet-heading{font-size:20px;font-weight:600;letter-spacing:-.3px}
 .content-heading{font-size:22px;line-height:30px;font-weight:650;letter-spacing:-.6px}
@@ -81,6 +99,6 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .skeleton-shape{background:${c['surface-muted']};border-radius:8px;animation:skeleton-breathe 1.4s ease-in-out infinite}
 @keyframes skeleton-breathe{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes app-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.skeleton-shape{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
+@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.room-enter,.reaction-pulse,.skeleton-shape{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
 `;
 }

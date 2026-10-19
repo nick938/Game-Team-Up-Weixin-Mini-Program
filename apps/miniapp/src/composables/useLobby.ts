@@ -12,7 +12,7 @@ import { platform as hostPlatform } from '../platform/host';
 import { isSinglePage } from '../utils/runtime';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { teamDetailPath } from '../utils/team-entry';
-import { FEATURED_GAMES, findGame } from '../utils/games';
+import { GAME_CATALOG, FEATURED_GAMES, findGame } from '../utils/games';
 import { recentGames } from '../utils/recent-games';
 import { callTeam } from '../api/team';
 import { decorateTeam } from '../utils/format';
@@ -28,6 +28,28 @@ export function useLobby() {
   const recent = ref<string[]>([]);
   const nextTeam = computed(() => scheduledTeams(personalTeams.value)[0]);
   const featured = FEATURED_GAMES;
+  const gameOptions = computed(() =>
+    [
+      ...new Set([
+        '全部',
+        ...search.state.games,
+        ...recent.value,
+        ...GAME_CATALOG.map((game) => game.name),
+        search.state.gameFilter,
+      ]),
+    ]
+      .filter(Boolean)
+      .map((name) => ({ label: name, value: name })),
+  );
+  const gameTabs = computed(() => {
+    const quick = gameOptions.value
+      .map((item) => item.value)
+      .filter((name) => name !== '全部')
+      .slice(0, 3);
+    const selected = search.state.gameFilter;
+    if (selected !== '全部' && !quick.includes(selected)) quick.splice(2, 1, selected);
+    return ['全部', ...quick];
+  });
   const HOME_SHARE_TITLE = '找一些朋友，玩一些游戏';
   function onOpen(input: { id?: string; gameName?: string }) {
     const url = teamDetailPath(input.id, { gameName: input.gameName });
@@ -81,6 +103,8 @@ export function useLobby() {
   onShareAppMessage(() => shareToFriend(plazaShare(HOME_SHARE_TITLE)));
   onShareTimeline(() => shareToTimeline(plazaShare(HOME_SHARE_TITLE)));
   return {
+    gameTabs,
+    gameOptions,
     ...search,
     singlePage,
     featured,

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamResults' });
 import type { Team } from '../../types/domain';
-defineProps<{
+import { ref, watch, onUnmounted } from 'vue';
+const props = defineProps<{
   teams: Team[];
   total: number;
   loading: boolean;
@@ -9,6 +10,22 @@ defineProps<{
   hasMore: boolean;
   error: string;
 }>();
+const introIds = ref<string[]>([]);
+let introPlayed = false;
+let introTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => props.teams,
+  (teams) => {
+    if (introPlayed || !teams.length) return;
+    introPlayed = true;
+    introIds.value = teams.slice(0, 4).map((team) => team._id);
+    introTimer = setTimeout(() => {
+      introIds.value = [];
+    }, 360);
+  },
+  { immediate: true },
+);
+onUnmounted(() => clearTimeout(introTimer));
 const emit = defineEmits<{
   open: [detail: { id?: string; gameName?: string }];
   retry: [];
@@ -39,6 +56,7 @@ const emit = defineEmits<{
       :key="team._id"
       :team="team"
       :team-id="team.id || team._id"
+      :sequence="introIds.indexOf(team._id)"
       @open="emit('open', $event)"
     />
     <view v-if="!teams.length" class="empty-state"

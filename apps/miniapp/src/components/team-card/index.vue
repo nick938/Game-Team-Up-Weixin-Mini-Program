@@ -4,23 +4,19 @@ import { computed } from 'vue';
 import type { Team } from '../../types/domain';
 import { usableTeamId } from '../../utils/team-entry';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
-import { semantic } from '../../design/tokens';
 import { useCardReactions } from '../../composables/useCardReactions';
 const props = withDefaults(
   defineProps<{ team?: Partial<Team>; teamId?: string; mark?: string; sequence?: number }>(),
-  { team: () => ({}), teamId: '', mark: '', sequence: 0 },
+  { team: () => ({}), teamId: '', mark: '', sequence: -1 },
 );
 const view = useTeamPresentation(() => props.team);
 const reactions = useCardReactions(() => props.team);
-const occupancy = computed(() =>
-  props.team.capacity
-    ? Math.min(100, Math.max(0, ((Number(props.team.memberCount) || 0) / props.team.capacity) * 100))
-    : 0,
-);
-const tags = computed(() =>
-  [props.team.platform, props.team.server, props.team.voice, props.team.rankReq].filter(
-    (value) => value && value !== '不限',
-  ),
+const conditions = computed(() =>
+  [
+    ...new Set(
+      [props.team.server, props.team.rankReq, props.team.voice].filter((value) => value && value !== '不限'),
+    ),
+  ].join(' · '),
 );
 const emit = defineEmits<{ open: [detail: { id: string; gameName: string }] }>();
 function onTap() {
@@ -32,6 +28,8 @@ function onTap() {
 <template>
   <view
     class="tap-feedback"
+    :class="sequence >= 0 && sequence < 4 ? 'room-enter' : ''"
+    :style="sequence >= 0 && sequence < 4 ? { animationDelay: sequence * 30 + 'ms' } : undefined"
     role="button"
     :aria-label="'查看队伍：' + (team.gameName || '组队')"
     @tap="onTap"
@@ -42,75 +40,81 @@ function onTap() {
       <template #title>
         <view class="flex items-start justify-between gap-3 w-full min-w-0">
           <view class="min-w-0 flex-1">
-            <view class="text-lg font-semibold break-words line-clamp-2">{{ team.gameName || '组队' }}</view>
-            <view v-if="mark || team.mark || view.timeLabel" class="flex flex-wrap items-center gap-2 mt-1">
-              <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
-              <text v-if="view.timeLabel" class="hint">{{ view.timeLabel }}</text>
-            </view>
+            <view class="text-base font-semibold leading-6 break-words line-clamp-2">{{
+              team.gameName || '组队'
+            }}</view>
+            <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
           </view>
-          <text
-            class="room-status"
-            :class="
-              view.tone === 'open'
-                ? 'bg-success-soft text-success'
-                : view.tone === 'full'
-                  ? 'bg-brand-light text-brand'
-                  : 'bg-surface-muted text-secondary'
-            "
-            >{{ view.statusLabel }}</text
-          >
+          <view class="shrink-0 text-right">
+            <view class="text-base font-semibold leading-6"
+              >{{ team.memberCount || 0
+              }}<text class="text-xs text-secondary font-normal"> / {{ team.capacity || 0 }} 人</text></view
+            >
+            <text
+              class="room-status room-status-compact"
+              :class="
+                view.tone === 'open'
+                  ? 'bg-success-soft text-success'
+                  : view.tone === 'full'
+                    ? 'bg-brand-light text-brand'
+                    : 'bg-surface-muted text-secondary'
+              "
+              >{{ view.statusLabel }}</text
+            >
+          </view>
         </view>
       </template>
-      <view class="room-meta flex items-start gap-2 mb-3"
-        ><wd-icon name="time-line" size="16px" /><text class="min-w-0 flex-1">{{
-          team.timeText || '时间待确认'
-        }}</text></view
-      >
-      <view v-if="tags.length" class="flex flex-wrap gap-2 mb-3 max-h-[60px] overflow-hidden">
-        <text v-for="(tag, index) in tags" :key="index" class="room-tag break-words max-w-full">{{
-          tag
-        }}</text>
+      <view class="room-meta flex items-start gap-2 mb-2">
+        <wd-icon name="time-line" size="14px" />
+        <text class="min-w-0 flex-1 text-xs leading-5"
+          >{{ view.timeLabel ? view.timeLabel + ' · ' : '' }}{{ team.timeText || '时间待确认' }}</text
+        >
+        <text v-if="team.platform" class="room-tag shrink-0">{{ team.platform }}</text>
       </view>
-      <view v-if="team.hostNickName" class="flex items-center gap-2 mb-3"
-        ><app-avatar
-          size="small"
+      <view v-if="team.hostNickName || conditions" class="flex items-center gap-2 mb-2 min-w-0">
+        <app-avatar
+          v-if="team.hostNickName"
+          size="compact"
           :src="team.hostAvatarUrl"
           :identity="'host:' + (team.id || team._id)"
-        /><text class="text-xs text-secondary">{{ team.hostNickName }} 发起</text></view
-      >
-      <view class="flex flex-wrap gap-2 mb-3" @tap.stop>
+        />
+        <text
+          v-if="team.hostNickName"
+          class="text-xs text-secondary truncate max-w-[35%]"
+          :aria-label="team.hostNickName + ' 发起'"
+          >{{ team.hostNickName }}</text
+        >
+        <text
+          v-if="conditions"
+          class="text-xs text-secondary truncate min-w-0 flex-1 text-right"
+          :aria-label="conditions"
+          >{{ conditions }}</text
+        >
+      </view>
+      <view class="room-reactions" @tap.stop>
         <wd-button
           v-for="item in reactions.REACTIONS"
           :key="item.id"
           size="mini"
-          :variant="reactions.state.summary.mine === item.id ? 'base' : 'soft'"
+          :custom-class="
+            'room-reaction' + (reactions.state.summary.mine === item.id ? ' room-reaction-active' : '')
+          "
+          variant="text"
           :disabled="reactions.state.pending"
           :aria-label="item.label + '，' + reactions.state.summary.counts[item.id] + '人'"
           :aria-pressed="reactions.state.summary.mine === item.id"
           @click="reactions.react(item.id)"
         >
-          {{ item.emoji }} {{ reactions.state.summary.counts[item.id] }}
+          <view class="reaction-symbol" :class="reactions.state.pulse === item.id ? 'reaction-pulse' : ''">
+            <wd-icon
+              :name="reactions.state.summary.mine === item.id ? item.activeIcon : item.icon"
+              size="19px"
+            />
+          </view>
+          <text>{{
+            reactions.state.summary.counts[item.id] > 99 ? '99+' : reactions.state.summary.counts[item.id]
+          }}</text>
         </wd-button>
-      </view>
-      <view
-        class="flex items-center justify-between gap-3 pt-3 border-t border-x-0 border-b-0 border-solid border-border"
-      >
-        <view class="flex-1 min-w-0 max-w-[150px]">
-          <view class="mb-2"
-            ><text class="text-lg font-semibold">{{ team.memberCount || 0 }}</text
-            ><text class="text-xs text-secondary"> / {{ team.capacity || 0 }} 人已上车</text></view
-          >
-          <wd-progress
-            custom-class="room-progress"
-            :percentage="occupancy"
-            :duration="0"
-            :color="view.ongoing ? semantic.color.brand : semantic.color.muted"
-            hide-text
-          />
-        </view>
-        <view class="min-h-[44px] flex items-center text-sm font-medium text-brand"
-          >查看队伍 <wd-icon name="arrow-right" size="14px" custom-class="!ml-1"
-        /></view>
       </view>
     </wd-card>
   </view>

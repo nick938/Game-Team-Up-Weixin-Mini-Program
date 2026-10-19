@@ -100,7 +100,7 @@ test('team publishing no longer assigns user group membership to a team', () => 
   detail.onRepublish();
   assert.equal('sourceGroup' in h.store.republishTeam, false);
 });
-test('card reactions prevent double taps, cancel, preserve failures, and ignore another team response', async () => {
+test('card reactions update optimistically, prevent double taps, roll back failures, and ignore another team response', async () => {
   let finish, reject;
   const h = harness({
     callTeam: () =>
@@ -112,18 +112,39 @@ test('card reactions prevent double taps, cancel, preserve failures, and ignore 
   const card = h.page('components/team-card/index', { team: { _id: 't' } });
   const reactions = card.bindings.reactions;
   const pending = reactions.react('like');
+  assert.equal(reactions.state.summary.mine, 'like', 'selection changes before the server responds');
+  assert.equal(reactions.state.summary.counts.like, 1);
+  assert.equal(reactions.state.pulse, 'like', 'feedback starts immediately');
+  assert.equal(reactions.state.pending, true);
   await reactions.react('fire');
   assert.equal(h.calls.length, 1);
   const summary = { counts: { like: 1, fire: 0, laugh: 0, love: 0, watch: 0, game: 0 }, mine: 'like' };
   finish({ reactions: summary });
   await pending;
+  assert.equal(reactions.state.pulse, 'like');
   const cancel = reactions.react('like');
+  assert.equal(reactions.state.summary.mine, '');
+  assert.equal(reactions.state.summary.counts.like, 0, 'cancel decrements immediately');
+  assert.equal(summary.counts.like, 1, 'optimistic changes do not mutate the server snapshot');
   assert.equal(h.calls[1].input.reaction, '');
   reject(new Error('offline'));
   await cancel;
   assert.equal(reactions.state.summary.mine, 'like');
   assert.equal(reactions.state.summary.counts.like, 1);
   assert.equal(reactions.state.pending, false);
+  assert.equal(reactions.state.pulse, '', 'failed writes never play success feedback');
+  const switched = reactions.react('fire');
+  assert.equal(reactions.state.summary.mine, 'fire');
+  assert.equal(reactions.state.summary.counts.like, 0);
+  assert.equal(reactions.state.summary.counts.fire, 1);
+  finish({ reactions: { ...summary, counts: { ...summary.counts, like: 0, fire: 7 }, mine: 'fire' } });
+  await switched;
+  assert.equal(reactions.state.summary.counts.fire, 7, 'server response reconciles concurrent users');
+  const canceled = reactions.react('fire');
+  finish({ reactions: { ...summary, counts: { ...summary.counts, like: 0, fire: 6 }, mine: '' } });
+  await canceled;
+  assert.equal(reactions.state.summary.mine, '');
+  assert.equal(reactions.state.summary.counts.fire, 6);
   const changed = reactions.react('fire');
   card.bindings.props.team = { _id: 'other' };
   await new Promise((resolve) => setImmediate(resolve));

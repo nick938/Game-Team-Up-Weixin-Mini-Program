@@ -130,6 +130,22 @@ test('game pages pass aliases to the same global search and preserve the game wh
   assert.equal(h.store.prefillGame.name, 'CS2');
 });
 
+test('lobby keeps a short game row while more games includes active, recent and custom games', async () => {
+  const active = ['自定义游戏', 'CS2', '王者荣耀', 'DOTA2'];
+  const h = harness({ callTeam: () => ({ list: [], games: active }) });
+  h.load('utils/recent-games').rememberGame('最近玩的游戏');
+  const page = h.page('pages/index/index');
+  await page.hooks.onShow();
+  await flush();
+  assert.deepEqual([...page.view.gameTabs], ['全部', '自定义游戏', 'CS2', '王者荣耀']);
+  assert.ok(page.view.gameOptions.some((item) => item.value === '最近玩的游戏'));
+  assert.ok(page.view.gameOptions.some((item) => item.value === '无畏契约'));
+  page.pickGame('DOTA2');
+  assert.ok(page.view.gameTabs.includes('DOTA2'), 'a selection from more games stays visible');
+  assert.ok(page.view.gameTabs.length <= 4);
+  assert.equal(h.calls.at(-1).input.gameName, 'DOTA2');
+});
+
 test('schedule overlaps are advisory but canceling never writes a join or publication', async () => {
   const h = harness({
     dialog: {

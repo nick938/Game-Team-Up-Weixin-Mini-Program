@@ -82,4 +82,4 @@ VITE_API_BASE_URL=https://你的测试API域名
 
 ## 自动上传
 
-微信、QQ 使用统一应用清单与 GitHub Actions，参见 [微信 / QQ 自动上传](../../docs/微信QQ自动上传.md)。默认版本读取本目录 package.json，支持单次构建覆盖。
+GitHub Actions 当前只检查和上传微信；推送版本 Tag 后自动上传开发版本，见 [微信 Tag 自动上传](../../docs/微信Tag自动上传.md)。Tag、package.json 和最新更新日志版本必须一致。QQ 本地构建命令保留，Actions 暂停 QQ。

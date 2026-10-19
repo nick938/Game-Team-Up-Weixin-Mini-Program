@@ -76,6 +76,7 @@ function apply() {
     <wd-button size="small" variant="text" custom-class="!px-1 !text-secondary" @click="open"
       ><wd-icon name="filter" size="17px" /> 筛选{{ count ? ' · ' + count : '' }}</wd-button
     >
+    <slot name="actions" />
   </view>
   <wd-popup
     v-model="expanded"

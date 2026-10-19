@@ -4,11 +4,25 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const library = import('../scripts/miniapp/release.mjs');
+const wechatPlan = import('../scripts/miniapp/wechat-plan.mjs');
 const apps = [
   { id: 'wechat-a', platform: 'weixin', environment: 'miniapp-wechat-a', appid: 'wx0123456789abcdef' },
   { id: 'qq-a', platform: 'qq', environment: 'miniapp-qq-a', appid: '' },
   { id: 'qq-b', platform: 'qq', environment: 'miniapp-qq-b', appid: '' },
 ];
+
+test('WeChat tags drive the release version and reject mismatched code or notes', async () => {
+  const { wechatReleaseVersion } = await wechatPlan;
+  const event = { GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/tags/v1.8.5', MINIAPP_VERSION: '9.9.9' };
+  assert.equal(wechatReleaseVersion(event, '1.8.5', '1.8.5'), '1.8.5');
+  assert.throws(() => wechatReleaseVersion(event, '1.8.4', '1.8.5'), /必须一致/);
+  assert.throws(() => wechatReleaseVersion(event, '1.8.5', '1.8.4'), /必须一致/);
+  for (const ref of ['refs/heads/main', 'refs/tags/v01.8.5', 'refs/tags/v1.8.5-beta', 'refs/tags/v1.8.5\nanything=1', 'refs/tags/v1.8.5$(id)']) {
+    assert.throws(() => wechatReleaseVersion({ ...event, GITHUB_REF: ref }, '1.8.5', '1.8.5'));
+  }
+  assert.equal(wechatReleaseVersion({ GITHUB_EVENT_NAME: 'workflow_dispatch' }, '1.8.5', '1.8.5'), '1.8.5');
+  assert.throws(() => wechatReleaseVersion({ GITHUB_EVENT_NAME: 'pull_request' }, '1.8.5', '1.8.5'));
+});
 
 test('release selection supports platforms and explicit app IDs without silently dropping typos', async () => {
   const { selectApps } = await library;

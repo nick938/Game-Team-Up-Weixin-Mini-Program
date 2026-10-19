@@ -1564,6 +1564,8 @@ async function listTeams(event = {}, openid) {
     { endAt: _.exists(false), expireAt: _.exists(false), startAt: _.gt(now) },
   ]);
   const active = (await readAllRows("teams", activeCondition)).filter((team) => isOngoing(team, now));
+  const gameCounts = new Map();
+  active.forEach((team) => { if (team.gameName) gameCounts.set(team.gameName, (gameCounts.get(team.gameName) || 0) + 1); });
   const filtered = active.filter((team) => matchTeamSearch(team, event, now));
   filtered.sort((a, b) => {
     const available = (t) => resolveStatus(t, now) === "recruiting" && t.memberCount < t.capacity;
@@ -1589,7 +1591,7 @@ async function listTeams(event = {}, openid) {
   });
   return ok({ list, total: filtered.length, nextOffset: offset + list.length,
     hasMore: offset + list.length < filtered.length,
-    games: [...new Set(active.map((t) => t.gameName).filter(Boolean))],
+    games: [...gameCounts.keys()].sort((a, b) => gameCounts.get(b) - gameCounts.get(a) || a.localeCompare(b)),
   });
 }
 

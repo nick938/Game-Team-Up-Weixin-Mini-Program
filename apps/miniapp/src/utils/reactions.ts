@@ -1,10 +1,10 @@
 export const REACTIONS = [
-  { id: 'like', emoji: '👍', label: '赞一个' },
-  { id: 'fire', emoji: '🔥', label: '火热' },
-  { id: 'laugh', emoji: '😂', label: '有意思' },
-  { id: 'love', emoji: '❤️', label: '喜欢' },
-  { id: 'watch', emoji: '👀', label: '围观' },
-  { id: 'game', emoji: '🎮', label: '想玩' },
+  { id: 'like', icon: 'thumb-up', activeIcon: 'thumb-up-fill', label: '赞一个' },
+  { id: 'fire', icon: 'lightning-circle-fill', activeIcon: 'lightning-circle-fill', label: '火热' },
+  { id: 'laugh', icon: 'face-smile-fill', activeIcon: 'face-smile-fill', label: '有意思' },
+  { id: 'love', icon: 'heart', activeIcon: 'heart-fill', label: '喜欢' },
+  { id: 'watch', icon: 'eye', activeIcon: 'eye-fill', label: '围观' },
+  { id: 'game', icon: 'play-circle', activeIcon: 'play-circle-fill', label: '想玩' },
 ] as const;
 export type ReactionId = (typeof REACTIONS)[number]['id'];
 export interface ReactionSummary {

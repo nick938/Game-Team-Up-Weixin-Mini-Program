@@ -2,6 +2,7 @@ name: Miniapp CI
 
 on:
   push:
+    branches: ["**"]
     paths:
       - "package.json"
       - "pnpm-workspace.yaml"
@@ -65,10 +66,6 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [weixin, qq]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -80,11 +77,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # Compilation does not require an AppID, token, API or upload permissions.
-      - run: pnpm run build:${{ matrix.platform }}
+      # Branch and PR checks compile WeChat without upload credentials.
+      - run: pnpm run build:weixin
       - uses: actions/upload-artifact@v7
         with:
-          name: miniapp-ci-${{ matrix.platform }}-${{ github.sha }}
-          path: apps/miniapp/dist/build/mp-${{ matrix.platform }}/
+          name: miniapp-ci-weixin-${{ github.sha }}
+          path: apps/miniapp/dist/build/mp-weixin/
           if-no-files-found: error
           retention-days: 7

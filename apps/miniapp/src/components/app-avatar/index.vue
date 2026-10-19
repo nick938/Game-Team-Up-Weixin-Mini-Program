@@ -8,7 +8,7 @@ const props = withDefaults(
     identity?: string;
     base64?: string;
     alt?: string;
-    size?: 'small' | 'member' | 'profile';
+    size?: 'compact' | 'small' | 'member' | 'profile';
   }>(),
   { size: 'member', alt: '玩家头像' },
 );
@@ -59,7 +59,15 @@ watch(() => [props.src, props.fileId, props.identity, props.base64], update, { i
 <template>
   <view
     class="relative overflow-hidden rounded-xl shrink-0 bg-surface-muted"
-    :class="size === 'profile' ? 'w-14 h-14' : size === 'small' ? 'w-10 h-10' : 'w-12 h-12'"
+    :class="
+      size === 'compact'
+        ? 'w-6 h-6'
+        : size === 'profile'
+          ? 'w-14 h-14'
+          : size === 'small'
+            ? 'w-10 h-10'
+            : 'w-12 h-12'
+    "
     role="img"
     :aria-label="alt"
   >

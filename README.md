@@ -81,13 +81,13 @@ pnpm check:matrix
 
 - 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)。
 - 开发与模板：[前端说明](apps/miniapp/README.md)。
-- 部署与维护：[自动上传](docs/微信QQ自动上传.md)、本文的头像维护说明。
+- 部署与维护：[自动上传](docs/微信Tag自动上传.md)、本文的头像维护说明。
 - HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)。
 - 素材维护：[品牌设计说明](docs/brand/设计说明.md)、[推广配图说明](docs/promo/设计说明.md)。
 
 ## 微信与 QQ CI 上传
 
-相关代码 push / PR 后自动测试并编译两端。手动运行 **Miniapp Upload**，选择目标和版本，即可批量构建上传。首次需配置 GitHub Environments、上传凭据与微信 IP 白名单，见 [完整配置说明](docs/微信QQ自动上传.md)。本工作流不执行提审、正式上线或云函数部署。
+相关代码 push / PR 后自动测试并编译微信。推送 `vX.Y.Z` Tag 后，**WeChat Upload** 校验 Tag、代码和最新更新日志版本一致，再构建并上传微信开发版本；也保留手动上传入口。Actions 暂不构建或上传 QQ。凭据、出口 IP 与人工提审步骤见 [完整配置说明](docs/微信Tag自动上传.md)。本工作流不执行提审、正式上线或云函数部署。
 
 ### 卡片表情
 
