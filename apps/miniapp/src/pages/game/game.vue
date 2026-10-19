@@ -55,6 +55,6 @@ const page = reactive(useGame());
         @click="page.goGame(game.seoKey || game.slug)"
     /></wd-cell-group>
     <view class="h-24" aria-hidden="true" />
-    <welcome-letter />
+    <entry-notices />
   </app-shell>
 </template>

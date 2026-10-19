@@ -110,6 +110,6 @@ const page = reactive(useMine());
       :show="page.showProfile"
       @done="page.onProfileDone"
       @close="page.onProfileClose"
-    /><welcome-letter />
+    /><entry-notices />
   </app-shell>
 </template>

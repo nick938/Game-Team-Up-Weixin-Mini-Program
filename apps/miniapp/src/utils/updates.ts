@@ -1,5 +1,6 @@
 import { platform } from '../platform/host';
 import { useAppStore } from '../stores/app';
+import { APP_VERSION } from './constants';
 
 // Add new announcements at the top. Keep an announcement's id stable after release.
 export const UPDATES = [
@@ -22,20 +23,22 @@ export const UPDATES = [
 export const LATEST_UPDATE = UPDATES[0];
 const readInSession = new WeakMap<object, Set<string>>();
 export function hasReadUpdate(id: string): boolean {
-  if (readInSession.get(useAppStore())?.has(id)) return true;
+  const key = APP_VERSION + ':' + id;
+  if (readInSession.get(useAppStore())?.has(key)) return true;
   try {
-    return !!platform.getStorageSync('update-notice:' + id);
+    return !!platform.getStorageSync('update-notice:' + key);
   } catch {
     return false;
   }
 }
 export function markUpdateRead(id: string) {
+  const key = APP_VERSION + ':' + id;
   const store = useAppStore();
   const ids = readInSession.get(store) || new Set<string>();
-  ids.add(id);
+  ids.add(key);
   readInSession.set(store, ids);
   try {
-    platform.setStorageSync('update-notice:' + id, 1);
+    platform.setStorageSync('update-notice:' + key, 1);
   } catch {
     // An unavailable cache must not show the same announcement again this session.
   }

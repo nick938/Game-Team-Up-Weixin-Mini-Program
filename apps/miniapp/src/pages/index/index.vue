@@ -53,6 +53,6 @@ const gameTabs = computed(() => [
       @clear="page.clearFilters"
       @publish="page.goPublish"
     />
-    <welcome-letter />
+    <entry-notices />
   </app-shell>
 </template>

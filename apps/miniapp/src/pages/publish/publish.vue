@@ -261,6 +261,6 @@ function duration(value: string | number) {
       :show="page.showProfile"
       @done="page.onProfileDone"
       @close="page.onProfileClose"
-    /><welcome-letter />
+    /><entry-notices />
   </app-shell>
 </template>

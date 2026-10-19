@@ -282,6 +282,6 @@ function goRoom() {
       id="shareCover"
       class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
     />
-    <welcome-letter />
+    <entry-notices />
   </app-shell>
 </template>

@@ -127,6 +127,7 @@ export default defineUniPages({
       '^lobby-hero$': '@/components/lobby-hero/index.vue',
       '^profile-gate$': '@/components/profile-gate/index.vue',
       '^welcome-letter$': '@/components/welcome-letter/index.vue',
+      '^entry-notices$': '@/components/entry-notices/index.vue',
       '^timeline-preview$': '@/components/timeline-preview/index.vue',
     },
   },
