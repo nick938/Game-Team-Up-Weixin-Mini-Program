@@ -92,7 +92,7 @@ test('Wot single-column picker adapts array values and ignores an empty confirma
   ]);
 });
 
-test('nested Wot overlays hide the native tab bar until the last overlay closes or unmounts', () => {
+test('nested Wot overlays keep tabs hidden until closing animations finish or unmount', async () => {
   let hidden = 0,
     shown = 0;
   const h = harness({ platform: { hideTabBar: () => hidden++, showTabBar: () => shown++ } });
@@ -105,5 +105,36 @@ test('nested Wot overlays hide the native tab bar until the last overlay closes 
   first.view.visible = false;
   assert.equal(shown, 0);
   second.hooks.unmounted();
+  assert.equal(shown, 0);
+  await new Promise((resolve) => setTimeout(resolve, 340));
+  assert.equal(shown, 1);
+});
+
+test('popup waits for after-leave and ignores obsolete close events after reopening', () => {
+  let shown = 0;
+  const h = harness({ platform: { showTabBar: () => shown++ } });
+  const sheet = h.page('components/team-manage-sheet/index', { show: true });
+  sheet.bindings.props.show = false;
+  assert.equal(shown, 0);
+  sheet.bindings.props.show = true;
+  sheet.afterLeave();
+  assert.equal(shown, 0);
+  sheet.bindings.props.show = false;
+  sheet.afterLeave();
+  assert.equal(shown, 1);
+  sheet.afterLeave();
+  assert.equal(shown, 1);
+});
+
+test('a reopened picker cancels pending tab restoration and unmount releases immediately', async () => {
+  let shown = 0;
+  const h = harness({ platform: { showTabBar: () => shown++ } });
+  const picker = h.page('components/app-picker/index', { label: 'platform', columns: ['Steam'] });
+  picker.view.visible = true;
+  picker.view.visible = false;
+  picker.view.visible = true;
+  await new Promise((resolve) => setTimeout(resolve, 340));
+  assert.equal(shown, 0);
+  picker.hooks.unmounted();
   assert.equal(shown, 1);
 });

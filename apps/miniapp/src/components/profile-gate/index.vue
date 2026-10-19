@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { appThemeStyle } from '../../design/tokens';
+import { appThemeStyle, component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'ProfileGate' });
@@ -14,7 +14,7 @@ import { useAppStore, type User } from '../../stores/app';
 const { showError } = usePageFeedback();
 const props = defineProps<{ show: boolean }>();
 const emit = defineEmits<{ close: []; done: [{ user: User }] }>();
-useTabBarOverlay(() => props.show);
+const { afterLeave } = useTabBarOverlay(() => props.show, { waitForAfterLeave: true });
 const store = useAppStore();
 const avatarUrl = ref(''),
   avatarFileID = ref(''),
@@ -99,6 +99,8 @@ async function save() {
 </script>
 <template>
   <wd-popup
+    :duration="component.sheet.duration"
+    @after-leave="afterLeave"
     root-portal
     :z-index="1100"
     :model-value="show"

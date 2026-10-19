@@ -6,13 +6,13 @@ export const spacing = Object.fromEntries(
   Array.from({ length: 385 }, (_, i) => [String(i / 2), `${i * 2}px`]),
 );
 export const fontSize = {
-  xs: ['12px', '18px'],
-  sm: ['14px', '22px'],
-  base: ['16px', '24px'],
-  lg: ['18px', '26px'],
-  xl: ['20px', '28px'],
-  '2xl': ['24px', '30px'],
-  '3xl': ['30px', '36px'],
+  xs: [semantic.typography.caption, semantic.lineHeight.caption],
+  sm: [semantic.typography.secondary, semantic.lineHeight.secondary],
+  base: [semantic.typography.body, semantic.lineHeight.body],
+  lg: [semantic.typography.section, semantic.lineHeight.section],
+  xl: [semantic.typography.title, semantic.lineHeight.title],
+  '2xl': [semantic.typography.hero, semantic.lineHeight.heading],
+  '3xl': [semantic.typography.display, semantic.lineHeight.display],
 };
 const wotStyle = Object.entries(wotThemeVars)
   .map(([key, value]) => {
@@ -26,7 +26,7 @@ const wotStyle = Object.entries(wotThemeVars)
 export function baseStyles() {
   const c = semantic.color;
   return `
-page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;font-size:16px;line-height:1.5}
+page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-family:${semantic.fontFamily};font-size:${semantic.typography.body};line-height:1.5}
 .wot-theme-light{${appThemeStyle}}
 .app-page{width:100%;max-width:${semantic.layout.contentMax};padding:16px ${semantic.layout.gutter} calc(24px + env(safe-area-inset-bottom));margin:0 auto;box-sizing:border-box;min-height:100vh}
 @media(max-width:359px){.app-page{padding-left:${semantic.layout.narrowGutter};padding-right:${semantic.layout.narrowGutter}}}
@@ -34,7 +34,7 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .app-page .wd-cell-group__body{border-radius:inherit}
 .app-page .profile-panel .wd-cell-group{border:0}
 .profile-cell .wd-cell__right{flex:0 0 20px}
-.wd-button{min-height:44px;height:auto;white-space:normal;transition:transform ${primitive.motion.press}ms ease}
+.wd-button{min-height:${semantic.layout.hitMin};height:auto;white-space:normal;transition:transform ${primitive.motion.press}ms ease}
 .wd-button:active:not(.is-disabled):not(.is-loading),.tap-feedback:active{transform:scale(0.98)}
 .wd-button:focus-visible{outline:2px solid ${c.brand};outline-offset:3px}
 .app-page .wd-search__block{border-radius:${component.button.radius};border:1px solid ${c['control-border']};min-height:48px;box-sizing:border-box}

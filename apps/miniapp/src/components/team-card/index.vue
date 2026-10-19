@@ -40,9 +40,7 @@ function onTap() {
       <template #title>
         <view class="flex items-start justify-between gap-3 w-full min-w-0">
           <view class="min-w-0 flex-1">
-            <view class="text-lg font-semibold leading-[26px] break-words line-clamp-2">{{
-              team.gameName || '组队'
-            }}</view>
+            <view class="text-lg font-semibold break-words line-clamp-2">{{ team.gameName || '组队' }}</view>
             <view v-if="mark || view.timeLabel" class="flex flex-wrap items-center gap-2 mt-1">
               <text v-if="mark" class="text-xs text-brand">{{ mark }}</text>
               <text v-if="view.timeLabel" class="hint">{{ view.timeLabel }}</text>

@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
-import { appThemeStyle } from '../../design/tokens';
+import { appThemeStyle, component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'MemberProfileSheet' });
 import type { User } from '../../types/domain';
 const props = defineProps<{ show: boolean; loading: boolean; user: User | null; error: string }>();
-useTabBarOverlay(() => props.show);
+const { afterLeave } = useTabBarOverlay(() => props.show, { waitForAfterLeave: true });
 const emit = defineEmits<{ close: []; retry: [] }>();
 </script>
 <template>
   <wd-popup
+    :duration="component.sheet.duration"
+    @after-leave="afterLeave"
     root-portal
     :z-index="1100"
     :model-value="show"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { appThemeStyle } from '../../design/tokens';
+import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
+import { appThemeStyle, component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'ProbeIndexPage' });
@@ -9,6 +10,7 @@ import { dateParts } from '../../utils/format';
 const target = __BUILD_TARGET__;
 const room = ref('');
 const showPopup = ref(false);
+const { afterLeave } = useTabBarOverlay(showPopup, { waitForAfterLeave: true });
 const date = ref('2026-10-15');
 const feedback = ref('尚未验证');
 const loginResult = ref('尚未验证');
@@ -146,7 +148,14 @@ function changeDate(value: number) {
         >验证 HTTP 链路</wd-button
       ><view class="hint mt-4">{{ healthResult }}</view></wd-card
     >
-    <wd-popup :z-index="1100" v-model="showPopup" position="bottom" closable safe-area-inset-bottom
+    <wd-popup
+      :duration="component.sheet.duration"
+      @after-leave="afterLeave"
+      :z-index="1100"
+      v-model="showPopup"
+      position="bottom"
+      closable
+      safe-area-inset-bottom
       ><view class="sheet-content" :style="appThemeStyle"
         ><view class="section-title mb-4">弹窗验证</view
         ><app-input v-model="room" placeholder="在弹窗内输入加入方式" /><view class="mt-5"

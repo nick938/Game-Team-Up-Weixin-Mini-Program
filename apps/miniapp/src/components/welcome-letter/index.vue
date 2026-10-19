@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'WelcomeLetter' });
@@ -27,7 +28,7 @@ const state = reactive({
   show: false,
 });
 const { show } = toRefs(state);
-useTabBarOverlay(show);
+const { afterLeave } = useTabBarOverlay(show, { waitForAfterLeave: true });
 function patchState(patch: Partial<typeof state>, done?: () => void) {
   Object.assign(state, patch);
   if (done) void nextTick(done);
@@ -61,6 +62,8 @@ onShow(() => {
 </script>
 <template>
   <wd-popup
+    :duration="component.sheet.duration"
+    @after-leave="afterLeave"
     root-portal
     :z-index="1100"
     :model-value="show"

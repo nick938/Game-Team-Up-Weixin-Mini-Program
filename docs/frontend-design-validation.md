@@ -22,7 +22,7 @@
 | 格式             | 通过                                                            | `npm --prefix apps/miniapp run format:check` |
 | TypeScript / Vue | 通过                                                            | `npm --prefix apps/miniapp run typecheck`    |
 | 根目录回归测试   | 97 项通过                                                       | `output/playwright/server-tests.log`         |
-| 前端测试         | 65 项通过，含状态矩阵、密码可见性、重复提交、冲突刷新及错误清除 | `output/playwright/frontend-tests.log`       |
+| 前端测试         | 67 项通过，含状态矩阵、密码可见性、重复提交、冲突刷新及错误清除 | `output/playwright/frontend-tests.log`       |
 | 微信构建         | 通过                                                            | `output/playwright/build-weixin.log`         |
 | QQ 构建          | 通过                                                            | `output/playwright/build-qq.log`             |
 | H5 构建          | 通过                                                            | `output/playwright/build-h5.log`             |
@@ -58,4 +58,13 @@
 - 有效微信会话下的真实发布、加入、下车、关闭、并发抢位、密码字段过滤和云端持久化。
 - 好友分享和朋友圈单页的宿主实际行为、订阅授权与提醒送达。
 - QQ 的真实登录和业务接口接入；本次仅确认 QQ 产物可编译。
-- 未保存编辑的离开确认、系统大字体与全量实际角色页面视觉回归仍按 `design.md` 清单继续验收，不据本次 H5 检查标记全部完成。
+- 系统大字体与全量实际角色页面视觉回归仍按 `design.md` 清单继续验收，不据本次 H5 检查标记全部完成。
+
+## P2 收尾记录
+
+- 普通 Popup 使用实际关闭动画完成事件释放 TabBar 占用；选择器按 Wot 2.3.2 的 300ms 默认时长加一帧缓冲处理，覆盖快速重开、嵌套和卸载。
+- UnoCSS 与 Wot 的字体和行高从 Token 读取，清除两套重复字号表，圆角和插画颜色也使用同一来源。
+- 规范的紧凑按钮统一为 44px；验收表区分本地进度与平台交付结果。
+- 用户明确不需要未保存离开确认，本轮从规范和待办中移除；不新增相关复杂度。
+
+P2 收尾验证：67 项前端回归、类型检查与微信构建通过；新增动画结束、快速重开和嵌套卸载场景测试。
