@@ -1,6 +1,8 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamCard' });
 import { computed } from 'vue';
+import ReactionEffect from '../reaction-effect/index.vue';
+import { prepareCardShare } from '../../utils/card-share';
 import type { Team } from '../../types/domain';
 import { usableTeamId } from '../../utils/team-entry';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
@@ -11,13 +13,10 @@ const props = withDefaults(
 );
 const view = useTeamPresentation(() => props.team);
 const reactions = useCardReactions(() => props.team);
-const conditions = computed(() =>
-  [
-    ...new Set(
-      [props.team.server, props.team.rankReq, props.team.voice].filter((value) => value && value !== '不限'),
-    ),
-  ].join(' · '),
-);
+const visitors = computed(() => {
+  const count = Number(props.team.viewCount);
+  return Number.isSafeInteger(count) && count >= 0 ? count : 0;
+});
 const emit = defineEmits<{ open: [detail: { id: string; gameName: string }] }>();
 function onTap() {
   const team = props.team || {};
@@ -46,86 +45,167 @@ function onTap() {
             <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
           </view>
           <view class="shrink-0 text-right">
-            <view v-if="view.recruitment === 'open'" class="text-base font-semibold text-brand"
-              >还缺 {{ view.needCount }} 人</view
-            >
-            <view class="text-xs text-secondary leading-6"
-              >{{ team.memberCount || 0
-              }}<text class="text-xs text-secondary font-normal"> / {{ team.capacity || 0 }} 人</text></view
+            <view
+              class="room-occupancy"
+              :aria-label="`${team.memberCount || 0}人，最多${team.capacity || 0}人`"
+              >{{ team.memberCount || 0 }}<text class="text-muted">/{{ team.capacity || 0 }}</text></view
             >
             <text
-              class="room-status room-status-compact"
-              :class="
-                view.tone === 'open'
-                  ? 'bg-success-soft text-success'
-                  : view.tone === 'full'
-                    ? 'bg-brand-light text-brand'
-                    : 'bg-surface-muted text-secondary'
-              "
-              >{{
-                view.recruitment === 'open'
-                  ? view.lifecycle === 'active'
-                    ? '可中途加入'
-                    : '招募中'
-                  : view.statusLabel
-              }}</text
+              v-if="view.lifecycle === 'cancelled' || view.lifecycle === 'ended'"
+              class="text-xs text-muted"
+              >{{ view.statusLabel }}</text
             >
           </view>
         </view>
       </template>
       <view class="room-meta flex items-start gap-2 mb-2">
         <wd-icon name="time-line" size="14px" />
-        <text class="min-w-0 flex-1 text-xs leading-5"
-          >{{ view.timeLabel ? view.timeLabel + ' · ' : '' }}{{ team.timeText || '时间待确认' }}</text
-        >
-        <text v-if="team.platform" class="room-tag shrink-0">{{ team.platform }}</text>
+        <text class="min-w-0 flex-1 text-xs leading-5">{{ team.timeText || '时间待确认' }}</text>
       </view>
-      <view v-if="team.hostNickName || conditions" class="flex items-center gap-2 mb-2 min-w-0">
-        <wd-avatar
-          v-if="team.hostNickName"
-          size="small"
-          shape="square"
-          mode="aspectFill"
-          :src="team.hostAvatarUrl || '/static/images/avatar.png'"
-        />
-        <text
-          v-if="team.hostNickName"
-          class="text-xs text-secondary truncate max-w-[35%]"
-          :aria-label="team.hostNickName + ' 发起'"
-          >{{ team.hostNickName }}</text
-        >
-        <text
-          v-if="conditions"
-          class="text-xs text-secondary truncate min-w-0 flex-1 text-right"
-          :aria-label="conditions"
-          >{{ conditions }}</text
-        >
+      <view class="room-host-row">
+        <view class="room-host">
+          <wd-avatar
+            v-if="team.hostNickName"
+            size="small"
+            shape="square"
+            mode="aspectFill"
+            :src="team.hostAvatarUrl || '/static/images/avatar.png'"
+          />
+          <text class="text-xs text-secondary truncate">{{ team.hostNickName || '玩家' }}</text>
+        </view>
+        <view @tap.stop>
+          <wd-button
+            size="small"
+            variant="soft"
+            open-type="share"
+            :button-id="'team-forward-' + (teamId || team.id || team._id)"
+            custom-class="room-forward"
+            @click="prepareCardShare(team, teamId)"
+            ><wd-icon name="share-external" size="15px" /> 转发</wd-button
+          >
+        </view>
       </view>
+      <view class="room-visitors"><wd-icon name="eye" size="13px" /> {{ visitors }} 人看过</view>
       <view class="room-reactions" @tap.stop>
-        <wd-button
-          v-for="item in reactions.REACTIONS"
-          :key="item.id"
-          size="mini"
-          :custom-class="
-            'room-reaction' + (reactions.state.summary.mine === item.id ? ' room-reaction-active' : '')
-          "
-          variant="text"
-          :disabled="reactions.state.pending"
-          :aria-label="item.label + '，' + reactions.state.summary.counts[item.id] + '人'"
-          :aria-pressed="reactions.state.summary.mine === item.id"
-          @click="reactions.react(item.id)"
-        >
-          <view class="reaction-symbol" :class="reactions.state.pulse === item.id ? 'reaction-pulse' : ''">
-            <wd-icon
-              :name="reactions.state.summary.mine === item.id ? item.activeIcon : item.icon"
-              size="19px"
-            />
-          </view>
-          <text>{{
-            reactions.state.summary.counts[item.id] > 99 ? '99+' : reactions.state.summary.counts[item.id]
-          }}</text>
-        </wd-button>
+        <view v-for="item in reactions.REACTIONS" :key="item.id" class="reaction-slot">
+          <wd-button
+            size="mini"
+            :custom-class="
+              'room-reaction' +
+              (reactions.state.summary.selected?.includes(item.id) ? ' room-reaction-active' : '')
+            "
+            variant="text"
+            :disabled="reactions.state.pending"
+            :aria-label="item.label + '，' + (reactions.state.summary.counts[item.id] || 0) + '人'"
+            :aria-pressed="reactions.state.summary.selected?.includes(item.id)"
+            @click="reactions.react(item.id)"
+          >
+            <view
+              :key="reactions.state.effectId"
+              class="reaction-symbol"
+              :class="
+                reactions.state.cancelPulse === item.id
+                  ? 'reaction-cancel'
+                  : reactions.state.pulse === item.id
+                    ? 'reaction-pulse reaction-pulse-' + item.id
+                    : ''
+              "
+            >
+              <image
+                v-if="item.id === 'next'"
+                class="reaction-pigeon-icon"
+                src="/static/images/reactions/pigeon.png"
+                mode="aspectFit"
+              />
+              <wd-icon
+                v-else
+                :name="reactions.state.summary.selected?.includes(item.id) ? item.activeIcon : item.icon"
+                size="16px"
+              />
+            </view>
+            <text>{{ item.label }}</text>
+            <text v-if="reactions.state.summary.counts[item.id]" class="reaction-count">{{
+              (reactions.state.summary.counts[item.id] || 0) > 99
+                ? '99+'
+                : reactions.state.summary.counts[item.id]
+            }}</text>
+          </wd-button>
+          <reaction-effect
+            v-if="reactions.state.pulse === item.id"
+            :key="reactions.state.effectId"
+            :kind="item.id"
+          />
+        </view>
       </view>
     </wd-card>
   </view>
 </template>
+
+<style scoped>
+.room-occupancy {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: #6255e7;
+  white-space: nowrap;
+}
+.room-host-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 6px;
+}
+.room-host {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.room-host-row :deep(.room-forward.wd-button) {
+  min-width: 64px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.room-visitors {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #9295a5;
+  margin-bottom: 10px;
+}
+.reaction-count {
+  margin-left: 2px;
+  font-size: 10px;
+}
+.reaction-slot {
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+}
+.room-reactions :deep(.room-reaction.wd-button) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0;
+  line-height: 18px;
+  font-size: 12px;
+}
+.room-reactions :deep(.room-reaction .wd-button__content),
+.room-reactions :deep(.room-reaction .wd-button__text) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  white-space: nowrap;
+  line-height: 18px;
+}
+.reaction-pigeon-icon {
+  width: 18px;
+  height: 18px;
+}
+</style>

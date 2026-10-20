@@ -52,6 +52,7 @@ export type TeamRole = 'host' | 'member';
 export interface Team {
   weeklyId?: string;
   reactions?: ReactionSummary;
+  viewCount?: number;
   _id: string;
   id?: string;
   gameName: string;
@@ -231,7 +232,7 @@ export interface TeamRequests {
   votePlay: { weekId: string; gameId: string };
   getProfile: undefined;
   getTeam: { teamId: string };
-  setReaction: { teamId: string; reaction: ReactionId | '' };
+  setReaction: { teamId: string; reaction: ReactionId | ''; enabled?: boolean };
   getPublicProfile: { teamId: string; memberId: string };
   listTeams: TeamSearch;
   trackTeamEvent: { teamId: string; kind: 'detail_view' | 'share_view' | 'copy_room' };

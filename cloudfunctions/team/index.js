@@ -476,6 +476,7 @@ async function ensureCollections() {
     "members",
     "team_reactions",
     "team_events",
+    "team_views",
     "daily_play",
     "play_options",
     "weekly_play",
@@ -865,7 +866,7 @@ async function decorateTeamCards(teams, openid) {
   return Promise.all(teams.map(async (team) => {
     const own = openid ? await optionalReaction(db.collection("team_reactions").doc(reactionDocId(team._id, openid))) : null;
     return { ...team,
-      reactions: { counts: reactionCounts(team), mine: own && REACTION_IDS.includes(own.reaction) ? own.reaction : "" } };
+      reactions: reactionSummary(team, own) };
   }));
 }
 
@@ -1411,7 +1412,15 @@ async function dedupeTeamMembers(teamId, team, list) {
 }
 
 // One deterministic record per actor and team. Set the desired value so retries are idempotent.
-const REACTION_IDS = ["like", "fire", "laugh", "love", "watch", "game"];
+const REACTION_IDS = ["like", "fire", "laugh", "love", "watch", "game", "dislike", "busy", "time", "next"];
+const REACTION_GROUPS = { like: ["like", "dislike"], dislike: ["like", "dislike"], love: ["love"], busy: ["busy", "time", "next"], time: ["busy", "time", "next"], next: ["busy", "time", "next"] };
+function selectedReactions(own) {
+  return [...new Set((Array.isArray(own?.reactions) ? own.reactions : own?.reaction ? [own.reaction] : []).filter(id => REACTION_IDS.includes(id)))];
+}
+function reactionSummary(team, own) {
+  const selected = selectedReactions(own);
+  return { counts: reactionCounts(team), selected, mine: selected[selected.length - 1] || "" };
+}
 function reactionDocId(teamId, openid) {
   return require("node:crypto").createHash("sha256").update(JSON.stringify([teamId, openid])).digest("hex");
 }
@@ -1435,7 +1444,7 @@ async function readReactionSummary(teamId, openid) {
   return db.runTransaction(async (tx) => {
     const team = (await tx.collection("teams").doc(teamId).get()).data;
     const mine = await optionalReaction(tx.collection("team_reactions").doc(reactionDocId(teamId, openid)));
-    return { counts: reactionCounts(team), mine: mine && REACTION_IDS.includes(mine.reaction) ? mine.reaction : "" };
+    return reactionSummary(team, mine);
   });
 }
 async function setReaction(event, openid) {
@@ -1444,6 +1453,7 @@ async function setReaction(event, openid) {
   const reaction = event.reaction;
   if (!teamId) return fail("缺少队伍");
   if (reaction !== "" && !REACTION_IDS.includes(reaction)) return fail("不支持的表情");
+  if (event.enabled !== undefined && (typeof event.enabled !== "boolean" || !REACTION_GROUPS[reaction])) return fail("不支持的表情操作");
   const limited = await rateLimitExceeded(openid, "setReaction");
   if (limited) return fail(limited);
   const result = await db.runTransaction(async (tx) => {
@@ -1456,16 +1466,19 @@ async function setReaction(event, openid) {
     if (!teamExists(team)) return fail("队伍不存在");
     const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
     const own = await optionalReaction(ownRef);
-    const previous = own && REACTION_IDS.includes(own.reaction) ? own.reaction : "";
+    const previous = selectedReactions(own);
+    // Legacy clients can still send their single desired reaction; v2 updates one dimension.
+    const next = event.enabled === undefined ? (reaction ? [reaction] : []) : event.enabled
+      ? [...previous.filter(id => !REACTION_GROUPS[reaction].includes(id)), reaction]
+      : previous.filter(id => id !== reaction);
     const counts = reactionCounts(team);
-    if (previous !== reaction) {
-      if (previous) counts[previous] = Math.max(0, counts[previous] - 1);
-      if (reaction) counts[reaction] += 1;
+    for (const id of REACTION_IDS) counts[id] = Math.max(0, counts[id] + Number(next.includes(id)) - Number(previous.includes(id)));
+    if (JSON.stringify(previous) !== JSON.stringify(next)) {
       await teamRef.update({ data: { reactionCounts: counts } });
-      if (reaction) await ownRef.set({ data: { teamId, reaction, updatedAt: nowMs() } });
+      if (next.length) await ownRef.set({ data: { teamId, reactions: next, reaction: next[next.length - 1], updatedAt: nowMs() } });
       else if (own) await ownRef.remove();
     }
-    return ok({ reactions: { counts, mine: reaction } });
+    return ok({ reactions: { counts, selected: next, mine: next[next.length - 1] || "" } });
   });
   if (result.ok) await recordAction(openid, "setReaction");
   return result;
@@ -1624,6 +1637,19 @@ async function recordTeamEvent(teamId, openid, kind) {
   const id = require("node:crypto").createHash("sha256").update(`${dayKey(nowMs())}:${teamId}:${openid}:${kind}`).digest("hex");
   await db.collection("team_events").doc(id).set({ data: { teamId, openid, kind, createdAt: nowMs() } });
 }
+// All-time unique detail visitors. Old manual watch reactions are never used here.
+async function recordTeamView(teamId, openid) {
+  return db.runTransaction(async tx => {
+    const teamRef = tx.collection("teams").doc(teamId);
+    const team = (await teamRef.get()).data;
+    if (!teamExists(team)) throw new Error("队伍不存在");
+    const viewRef = tx.collection("team_views").doc(reactionDocId(teamId, openid));
+    if (await optionalReaction(viewRef)) return;
+    await viewRef.set({ data: { teamId, createdAt: nowMs() } });
+    const current = Number(team.viewCount);
+    await teamRef.update({ data: { viewCount: (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1 } });
+  });
+}
 async function trackTeamEvent(event, openid) {
   await requireNotBanned(openid);
   const limited = await rateLimitExceeded(openid, "trackTeamEvent");
@@ -1634,6 +1660,7 @@ async function trackTeamEvent(event, openid) {
   const team = (await db.collection("teams").doc(teamId).get()).data;
   if (!teamExists(team)) return fail("队伍不存在");
   await recordTeamEvent(teamId, openid, event.kind);
+  if (["detail_view", "share_view"].includes(event.kind)) await recordTeamView(teamId, openid);
   await recordAction(openid, "trackTeamEvent");
   return ok();
 }

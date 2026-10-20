@@ -1,0 +1,42 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { harness } = require('../../../tests/support/miniapp.cjs');
+const team = {
+  _id: 'target',
+  gameName: '机械狂欢',
+  startAt: Date.now() + 3600000,
+  endAt: Date.now() + 7200000,
+  timeText: '今晚 20:30–22:30',
+  memberCount: 2,
+  capacity: 4,
+  roomNo: 'private-room',
+  roomPwd: 'secret',
+};
+for (const page of ['pages/index/index', 'pages/game/game', 'pages/mine/mine', 'pages/friday/friday']) {
+  test(`${page} shares the clicked card and preserves menu sharing`, () => {
+    const h = harness();
+    const rendered = h.page(page);
+    const { prepareCardShare } = h.load('utils/card-share');
+    prepareCardShare(team);
+    const payload = rendered.hooks.onShareAppMessage({
+      from: 'button',
+      target: { id: 'team-forward-target' },
+    });
+    assert.ok(payload.path.includes('/pages/team/detail?'));
+    assert.ok(payload.path.includes('id=target'));
+    assert.ok(payload.path.includes('from=share'));
+    assert.ok(payload.title.includes('机械狂欢'));
+    assert.ok(payload.title.includes('20:30–22:30'));
+    assert.ok(payload.title.includes('2/4'));
+    assert.ok(payload.imageUrl);
+    assert.ok(!JSON.stringify(payload).includes('private-room'));
+    assert.ok(!JSON.stringify(payload).includes('secret'));
+    prepareCardShare(team);
+    const menu = rendered.hooks.onShareAppMessage({ from: 'menu' });
+    assert.ok(!menu.path.includes('id=target'));
+    const other = rendered.hooks.onShareAppMessage({ from: 'button', target: { id: 'unrelated' } });
+    assert.ok(!other.path.includes('id=target'));
+  });
+}

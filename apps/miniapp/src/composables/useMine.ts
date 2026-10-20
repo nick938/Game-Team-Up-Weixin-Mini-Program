@@ -1,3 +1,4 @@
+import { cardShareFromEvent } from '../utils/card-share';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, watch, computed } from 'vue';
 import {
@@ -223,8 +224,8 @@ export function useMine() {
   onPullDownRefresh(() => {
     return load(true).finally(() => hostPlatform.stopPullDownRefresh());
   });
-  onShareAppMessage(() => {
-    return shareToFriend(plazaShare());
+  onShareAppMessage((event) => {
+    return cardShareFromEvent(event) || shareToFriend(plazaShare());
   });
   onShareTimeline(() => {
     return shareToTimeline(plazaShare());

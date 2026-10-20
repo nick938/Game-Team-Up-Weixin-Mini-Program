@@ -54,11 +54,16 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .room-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-title-padding:12px 12px 8px;--wot-card-content-padding:0 12px 12px}
 .next-team-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-content-padding:12px;--wot-card-bg:rgba(250,251,255,.96);box-shadow:0 2px 12px rgba(38,43,72,.04)}
 .room-status-compact{display:inline-block;padding:2px 6px;font-size:11px;line-height:16px}
-.room-reactions{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-top:1px solid ${c.border};padding-top:8px}
-.room-reactions .room-reaction.wd-button{width:100%;min-width:0;min-height:44px;padding:0 2px;font-size:12px;line-height:18px;white-space:nowrap;border-radius:10px;--wot-button-primary-color:${c.muted};--wot-button-primary-color-active:${c.muted};background:transparent}
+.room-reactions{display:grid;grid-template-columns:.9fr .9fr 1.15fr 1.65fr;gap:2px;border-top:1px solid ${c.border};padding-top:8px}
+.room-reactions .room-reaction.wd-button{width:100%;min-width:0;min-height:44px;padding:0;font-size:12px;line-height:18px;white-space:nowrap;border-radius:10px;--wot-button-primary-color:${c.muted};--wot-button-primary-color-active:${c.muted};background:transparent}
 .room-reactions .room-reaction-active.wd-button{--wot-button-primary-color:${c.brand};--wot-button-primary-color-active:${c['brand-pressed']}}
-.reaction-symbol{display:inline-flex;align-items:center;vertical-align:middle;margin-right:4px}
-.reaction-pulse{animation:reaction-pop 200ms ease-out}
+.reaction-symbol{display:inline-flex;align-items:center;vertical-align:middle;margin-right:3px}
+.room-reactions .room-reaction .wd-button__content,.room-reactions .room-reaction .wd-button__text{min-width:0;white-space:nowrap}
+.reaction-pulse{animation:reaction-pop 250ms ease-out}
+.reaction-pulse-dislike{animation:reaction-press 300ms ease-out}
+.reaction-cancel{animation:reaction-cancel 180ms ease-out}
+@keyframes reaction-press{0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(4px) scale(.88)}75%{transform:translateY(-1px) scale(1.03)}}
+@keyframes reaction-cancel{0%,100%{transform:scale(1)}50%{transform:scale(.85)}}
 .room-enter{animation:app-enter 180ms ease-out backwards}
 @keyframes reaction-pop{0%,100%{transform:scale(1)}45%{transform:scale(1.18)}}
 @media(max-width:360px){.room-card.wd-card{--wot-card-title-padding:12px 11px 8px;--wot-card-content-padding:0 11px 12px}.room-reactions{gap:0}.reaction-symbol{margin-right:1px}}
@@ -98,6 +103,6 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .profile-panel{background:rgba(255,255,255,.8);border-color:rgba(255,255,255,.95)}
 @media(prefers-reduced-transparency:reduce){.glass-surface{background:#FAFBFF;-webkit-backdrop-filter:none;backdrop-filter:none}}
 @keyframes app-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.room-enter,.reaction-pulse,.wd-skeleton--animation-gradient::after,.wd-skeleton--animation-flashed{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
+@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.room-enter,.reaction-pulse,.reaction-cancel,.wd-skeleton--animation-gradient::after,.wd-skeleton--animation-flashed{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
 `;
 }

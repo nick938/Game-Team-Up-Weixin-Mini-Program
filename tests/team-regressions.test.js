@@ -1179,7 +1179,7 @@ test('reaction retries, switches and cancellations maintain one vote per actor, 
   assert.equal((await vote('')).reactions.counts.like, 1);
   const summary = await ctx.readReactionSummary('t', 'b');
   assert.equal(summary.mine, 'like');
-  assert.deepEqual(Object.keys(summary).sort(), ['counts', 'mine']);
+  assert.deepEqual(Object.keys(summary).sort(), ['counts', 'mine', 'selected']);
   assert.equal(JSON.stringify(summary).includes('openid'), false);
 });
 test('reaction rejects invalid values, missing teams, banned users and rate limits without changing counts', async () => {
@@ -1369,4 +1369,46 @@ test('daily API routes authenticate, moderate custom games, block banned writes 
   risky.require = id => id === './lib/daily-play' ? require('../cloudfunctions/team/lib/daily-play') : oldRequire(id);
   assert.equal((await risky.exports.main(input)).ok, false);
   assert.equal((await risky.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+});
+
+test('v2 reactions allow independent affection and schedule, enforce exclusivity, and retain legacy counts', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting' };
+  const ctx = backend({ teams: [team] });
+  const react = (reaction, enabled = true) => ctx.setReaction({ teamId: 't', reaction, enabled }, 'a');
+  await ctx.setReaction({ teamId: 't', reaction: 'watch' }, 'a');
+  await react('like');
+  await react('love');
+  await react('busy');
+  let result = await react('next');
+  assert.deepEqual(Array.from(result.reactions.selected).sort(), ['like', 'love', 'next', 'watch']);
+  assert.equal(result.reactions.counts.watch, 1);
+  assert.equal(result.reactions.counts.like, 1);
+  await react('dislike');
+  result = await react('next');
+  assert.deepEqual(Array.from(result.reactions.selected).sort(), ['dislike', 'love', 'next', 'watch']);
+  assert.equal(result.reactions.counts.like, 0);
+  assert.equal(result.reactions.counts.busy, 0);
+  await react('next');
+  assert.equal(team.reactionCounts.next, 1);
+  await react('next', false);
+  result = await react('next', false);
+  assert.equal(result.reactions.counts.next, 0);
+  assert.equal(result.reactions.counts.love, 1);
+  assert.equal((await react('watch')).ok, false);
+});
+test('real visitors count once per team across detail/share visits, with old watch votes untouched', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting', reactionCounts: { watch: 99 } };
+  const ctx = backend({ teams: [team] });
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'a');
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
+  assert.equal(team.viewCount, 1);
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'copy_room' }, 'b');
+  assert.equal(team.viewCount, 1);
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'b');
+  assert.equal(team.viewCount, 2);
+  assert.equal(team.reactionCounts.watch, 99);
+  const card = (await ctx.listTeams({}, 'visitor')).list[0];
+  assert.equal(card.viewCount, 2);
+  assert.equal(card.openid, undefined);
 });

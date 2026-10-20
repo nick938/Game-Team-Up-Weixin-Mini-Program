@@ -1,3 +1,4 @@
+import { cardShareFromEvent } from '../utils/card-share';
 import { ref } from 'vue';
 import {
   onLoad,
@@ -83,7 +84,7 @@ export function useGame() {
   onReachBottom(() => {
     if (!isSinglePage()) void search.loadMore();
   });
-  onShareAppMessage(() => shareToFriend(gameShare(game.value)));
+  onShareAppMessage((event) => cardShareFromEvent(event) || shareToFriend(gameShare(game.value)));
   onShareTimeline(() => shareToTimeline(gameShare(game.value)));
   Object.defineProperties(search.state, {
     game: { get: () => game.value },

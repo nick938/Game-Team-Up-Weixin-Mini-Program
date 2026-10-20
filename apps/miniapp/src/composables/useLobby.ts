@@ -1,3 +1,4 @@
+import { cardShareFromEvent } from '../utils/card-share';
 import { ref, computed } from 'vue';
 import {
   onShow,
@@ -109,7 +110,7 @@ export function useLobby() {
   onReachBottom(() => {
     if (!isSinglePage()) void search.loadMore();
   });
-  onShareAppMessage(() => shareToFriend(plazaShare(HOME_SHARE_TITLE)));
+  onShareAppMessage((event) => cardShareFromEvent(event) || shareToFriend(plazaShare(HOME_SHARE_TITLE)));
   onShareTimeline(() => shareToTimeline(plazaShare(HOME_SHARE_TITLE)));
   return {
     gameTabs,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { cardShareFromEvent } from '../../utils/card-share';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { useWeeklyPlay } from '../../composables/useWeeklyPlay';
 import { platform } from '../../platform/host';
@@ -8,7 +9,7 @@ import TeamResults from '../../components/team-results/index.vue';
 defineOptions({ name: 'FridayPlayPage' });
 const page = useWeeklyPlay(true);
 const share = { title: '每周五 21:00，来开黑星球一起玩', path: '/pages/friday/friday', query: '' };
-onShareAppMessage(() => shareToFriend(share));
+onShareAppMessage((event) => cardShareFromEvent(event) || shareToFriend(share));
 onShareTimeline(() => shareToTimeline(share));
 function open(input: { id?: string; gameName?: string }) {
   const url = teamDetailPath(input.id, input);
