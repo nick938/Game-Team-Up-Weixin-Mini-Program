@@ -1,8 +1,8 @@
 const { callTeam, showError } = require("../../utils/cloud");
 
 // 头像上传到云存储，只存 fileID；展示时由云函数换成临时链接。
-// 免费开发环境的存储权限锁定为「仅创建者可读写」，客户端直连读别人的图会 403，
-// 所以不能把本地临时路径或 base64 存库，必须走云存储 + 云函数换链接。
+// 公开读与私有读统一由服务端换链接，避免依赖套餐期限或永久公开权限。
+// 本地临时路径和展示链接都不能代替原始 fileID 入库。
 function isLocalAvatar(path) {
   return !!path && !path.startsWith("cloud://") && !path.startsWith("https://");
 }
@@ -111,14 +111,13 @@ Component({
       wx.showLoading({ title: "保存中", mask: true });
       try {
         // avatarUrl 可能是云函数换来的临时链接，不能回写数据库；优先用原始 fileID。
-        let avatarUrl = this.data.avatarFileID || this.data.avatarUrl || "";
+        const selectedAvatar = this.data.avatarUrl || "";
+        let avatarUrl = isLocalAvatar(selectedAvatar)
+          ? selectedAvatar
+          : this.data.avatarFileID || selectedAvatar;
         if (isLocalAvatar(avatarUrl)) {
-          try {
-            avatarUrl = await uploadAvatar(await compressAvatar(avatarUrl));
-          } catch (e) {
-            // 上传失败（如历史遗留的失效本地路径）不应阻塞昵称/资料保存。
-            avatarUrl = this.data.avatarFileID || "";
-          }
+          avatarUrl = await uploadAvatar(await compressAvatar(avatarUrl));
+          if (!avatarUrl) throw new Error("头像上传失败，请重试");
         }
         const res = await callTeam("saveProfile", {
           nickName,

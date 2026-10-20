@@ -760,6 +760,7 @@ test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
   const startAt = Date.now() + 60 * 1000;
   const tooLong = ctx.validateTeamInput({
     gameName: 'CS2',
+    roomNo: '123456',
     capacity: 5,
     startAt,
     endAt: startAt + 24 * 60 * 60 * 1000 + 1,
@@ -769,6 +770,7 @@ test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
   assert.equal(tooLong.error, '一局最长 24 小时');
   const ok = ctx.validateTeamInput({
     gameName: 'CS2',
+    roomNo: '123456',
     capacity: 5,
     startAt,
     endAt: startAt + 24 * 60 * 60 * 1000,
@@ -785,6 +787,7 @@ test('team note supports up to 500 characters and clamps beyond', () => {
   const longNote = 'A'.repeat(550);
   const validated = ctx.validateTeamInput({
     gameName: 'CS2',
+    roomNo: '123456',
     capacity: 5,
     startAt,
     endAt: startAt + 3600 * 1000,
@@ -939,7 +942,7 @@ function publishPage(searchUsers) {
                   capacity: 5,
                   platform: 'Steam',
                   voice: 'KOOK',
-                  roomNo: '',
+                  roomNo: '123456',
                   roomPwd: '',
                   server: '',
                   rankReq: '',
@@ -979,6 +982,7 @@ test('editing a team survives a second onShow and updates instead of creating', 
   await page.onShow();
   assert.equal(page.data.editingId, 'team-1');
   page.data.gameName = 'CS2';
+  page.data.roomNo = '123456';
   await page.onSubmit();
   assert.deepEqual(calls.map((item) => item[0]), ['getTeam', 'updateTeam']);
   assert.equal(calls[1][1].teamId, 'team-1');
@@ -988,6 +992,7 @@ test('editing a team survives a second onShow and updates instead of creating', 
 test('successful create clears the form so a second submit does not post again', async () => {
   const { page, calls } = publishPage();
   page.data.gameName = 'CS2';
+  page.data.roomNo = '123456';
   await page.onSubmit();
   assert.equal(calls[0][0], 'createTeam');
   assert.equal(page.data.gameName, '');
@@ -1344,6 +1349,19 @@ test('saving a cloud avatar clears the legacy inline base64', async () => {
   assert.equal(users[0].avatarBase64, '');
 });
 
+test('saving and reading an avatar returns display URL without persisting it over fileID', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', avatarUrl: 'cloud://env/old.png' }];
+  const ctx = backend({ users });
+  const saved = await ctx.saveProfile({ nickName: '玩家', avatarUrl: 'cloud://env/new.png' }, 'u');
+  assert.equal(saved.user.avatarFileID, 'cloud://env/new.png');
+  assert.equal(saved.user.avatarUrl, 'https://tmp.example/cloud://env/new.png');
+  const profile = await ctx.getProfile('u');
+  assert.equal(profile.user.avatarUrl, saved.user.avatarUrl);
+  assert.equal(profile.user.avatarFileID, 'cloud://env/new.png');
+  assert.equal(users[0].avatarUrl, 'cloud://env/new.png');
+  assert.equal(users[0].avatarFileID, undefined);
+});
+
 test('a risky avatar is rejected and the uploaded file is deleted', async () => {
   const users = [{ _id: 'u', nickName: '玩家' }];
   const ctx = backend({
@@ -1385,7 +1403,7 @@ test('risky team text is rejected before the team is created', async () => {
   });
   const res = await ctx.createTeam({
     team: {
-      gameName: '违规内容', capacity: 5,
+      gameName: '违规内容', roomNo: '123456', capacity: 5,
       startAt: Date.now() + 60000, endAt: Date.now() + 3600000,
     },
   }, 'u');
@@ -1398,7 +1416,7 @@ test('review-graded text is not treated as a violation', async () => {
   const users = [{ _id: 'v', nickName: '玩家2' }];
   const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'review' } }) });
   const ok = await ctx.createTeam({
-    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+    team: { gameName: 'CS2', roomNo: '123456', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
   }, 'v');
   assert.equal(ok.ok, true);
 });
@@ -1427,7 +1445,7 @@ test('a scanning outage does not block publishing', async () => {
     msgCheck: async () => { const e = new Error('timeout'); e.errCode = -1; throw e; },
   });
   const res = await ctx.createTeam({
-    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+    team: { gameName: 'CS2', roomNo: '123456', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
   }, 'u');
   assert.equal(res.ok, true);
 });
@@ -1445,7 +1463,7 @@ test('createTeam is rate limited after the configured burst', async () => {
   const teams = [];
   const ctx = backend({ users, teams });
   const payload = {
-    team: { gameName: 'CS2', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
+    team: { gameName: 'CS2', roomNo: '123456', capacity: 5, startAt: Date.now() + 60000, endAt: Date.now() + 3600000 },
   };
   const limit = 8; // RATE_LIMITS.createTeam.max
   for (let i = 0; i < limit; i += 1) {
@@ -1698,6 +1716,7 @@ test('myTeams never returns teams that merely share a partial identity', async (
 function teamPayload() {
   return {
     gameName: 'CS2',
+    roomNo: '123456',
     capacity: 5,
     startAt: Date.now() + 60000,
     endAt: Date.now() + 3600000,
@@ -1871,6 +1890,7 @@ test('publish form starts collapsed and time presets still submit startAt/endAt'
   assert.equal(toasts[0], '请选择游戏');
   assert.equal(calls.length, 0);
   page.data.gameName = 'CS2';
+  page.data.roomNo = '123456';
   await page.onSubmit();
   assert.equal(calls[0][0], 'createTeam');
   assert.deepEqual(Object.keys(calls[0][1].team).sort(), [
@@ -1921,10 +1941,46 @@ test('durationMinutes and durationLabel never enter the submit payload', async (
   const { page, calls } = publishPage();
   page.pickCustomDuration({ detail: { value: 2 } }); // 1小时
   page.data.gameName = 'CS2';
+  page.data.roomNo = '123456';
   await page.onSubmit();
   assert.equal(calls[0][0], 'createTeam');
   const keys = Object.keys(calls[0][1].team);
   assert.equal(keys.indexOf('durationMinutes'), -1);
   assert.equal(keys.indexOf('durationLabel'), -1);
   assert.equal(keys.indexOf('durationHours'), -1);
+});
+
+test('cloud requires a room / join method for creating and editing', () => {
+  const ctx = backend();
+  for (const isCreate of [true, false]) {
+    for (const roomNo of [undefined, '', '   ', '\t\n']) {
+      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写房间 / 加入方式');
+    }
+    const valid = ctx.validateTeamInput({ ...teamPayload(), roomNo: '  Steam 好友代码 123456  ' }, { isCreate });
+    assert.equal(valid.error, undefined);
+    assert.equal(valid.value.roomNo, 'Steam 好友代码 123456');
+    assert.equal(valid.value.roomPwd, '');
+  }
+});
+
+test('publish blocks empty room / join method before creating or updating', async () => {
+  for (const editing of [false, true]) {
+    const { page, app, calls, toasts } = publishPage();
+    if (editing) {
+      app.globalData.editingTeamId = 'team-1';
+      await page.onShow();
+      calls.length = 0;
+    }
+    page.setData({ gameName: 'CS2', roomNo: '   ' });
+    let anchor;
+    page.scrollToField = (id) => { anchor = id; };
+    await page.onSubmit();
+    assert.equal(calls.length, 0);
+    assert.equal(toasts[0], '请填写房间 / 加入方式');
+    assert.equal(anchor, 'field-room');
+    page.setData({ roomNo: '  123456  ' });
+    await page.onSubmit();
+    assert.equal(calls[0][0], editing ? 'updateTeam' : 'createTeam');
+    assert.equal(calls[0][1].team.roomNo, '123456');
+  }
 });

@@ -3,7 +3,7 @@
 <view class="page">
   <view class="me card" bindtap="editProfile">
     <view class="avatar-wrap">
-      <image class="avatar" src="{{user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : (user.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" />
+      <image class="avatar" src="{{user.avatarUrl || (user.avatarBase64 ? 'data:image/jpeg;base64,' + user.avatarBase64 : '/images/avatar.png')}}" mode="aspectFill" />
       <view class="avatar-edit">✎</view>
     </view>
     <view class="me-text">

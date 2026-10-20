@@ -38,7 +38,8 @@ test("more settings stay collapsed unless optional fields were filled", () => {
     moreSettingsHint({ voice: "KOOK", server: "欧服", rankReq: "娱乐局" }),
     "KOOK · 欧服 · 娱乐局"
   );
-  assert.equal(hasExtraSettings({ roomNo: "ABC" }), true);
+  assert.equal(hasExtraSettings({ roomNo: "ABC" }), false);
+  assert.equal(moreSettingsHint({ roomNo: "ABC" }), MORE_HINT);
 });
 
 test("now / tonight / duration presets map onto startAt and endAt", () => {
@@ -96,6 +97,7 @@ test("publish validation keeps required fields and the 24 hour cap", () => {
   const startAt = new Date(2026, 8, 18, 20, 0, 0).getTime();
   const base = {
     gameName: "CS2",
+    roomNo: "123456",
     platform: "Steam",
     startAt,
     endAt: startAt + 2 * HOUR_MS,
@@ -118,6 +120,7 @@ test("frontend validation mirrors cloud rules: 7-day start cap and end > now", (
   const startAt = now + 2 * HOUR_MS;
   const base = {
     gameName: "CS2",
+    roomNo: "123456",
     platform: "Steam",
     startAt,
     endAt: startAt + 2 * HOUR_MS,
@@ -229,4 +232,15 @@ test("editing an old team maps duration onto a preset or custom", () => {
   assert.equal(m240, 240);
   assert.equal(durationPresetHoursFromMinutes(m240), 0);
   assert.equal(formatDurationLabel(m240), "4小时");
+});
+
+test("room / join method rejects missing or blank values", () => {
+  const now = Date.now();
+  const base = { gameName: "CS2", platform: "Steam", startAt: now + HOUR_MS, endAt: now + 2 * HOUR_MS };
+  for (const roomNo of [undefined, "", "   ", "\t\n"]) {
+    assert.deepEqual(validatePublishTeam({ ...base, roomNo }, { now }), {
+      message: "请填写房间 / 加入方式", anchor: "field-room",
+    });
+  }
+  assert.equal(validatePublishTeam({ ...base, roomNo: "  Steam 好友代码 123456  " }, { now }), null);
 });

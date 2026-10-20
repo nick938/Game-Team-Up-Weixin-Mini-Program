@@ -58,7 +58,7 @@
     <view class="seats">
       <view class="seat" wx:for="{{seats}}" wx:key="key">
         <block wx:if="{{item.member}}">
-          <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarBase64 ? 'data:image/jpeg;base64,' + item.member.avatarBase64 : (item.member.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /></button>
+          <button size="mini" class="seat-profile" data-memberid="{{item.member._id}}" bindtap="onMemberProfile" aria-label="查看 {{item.member.nickName || '玩家'}} 的公开资料"><image class="seat-avatar" src="{{item.member.avatarUrl || (item.member.avatarBase64 ? 'data:image/jpeg;base64,' + item.member.avatarBase64 : '/images/avatar.png')}}" mode="aspectFill" /></button>
           <view class="seat-name">{{item.member.nickName || '玩家'}}</view>
           <text class="host-tag" wx:if="{{item.member.role === 'host'}}">车头</text>
         </block>
@@ -114,7 +114,7 @@
       <view wx:if="{{memberProfileLoading}}" class="profile-placeholder">正在加载队友资料…</view>
       <view wx:elif="{{memberProfileError}}" class="profile-placeholder"><view>{{memberProfileError}}</view><button class="profile-retry" bindtap="loadMemberProfile">重新加载</button></view>
       <view wx:elif="{{memberProfile}}">
-        <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarBase64 ? 'data:image/jpeg;base64,' + memberProfile.avatarBase64 : (memberProfile.avatarUrl || '/images/avatar.png')}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
+        <view class="public-identity"><image class="public-avatar" src="{{memberProfile.avatarUrl || (memberProfile.avatarBase64 ? 'data:image/jpeg;base64,' + memberProfile.avatarBase64 : '/images/avatar.png')}}" mode="aspectFill" /><view class="public-name">{{memberProfile.nickName}}</view></view>
         <view class="public-bio" wx:if="{{memberProfile.bio}}" selectable>{{memberProfile.bio}}</view>
         <view wx:else class="profile-placeholder">这位队友还没有填写签名</view>
       </view>
