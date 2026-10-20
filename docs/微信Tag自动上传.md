@@ -34,7 +34,7 @@ MINIAPP_UPLOAD_RUNNER=["self-hosted","linux","x64","miniapp-upload"]
 ## 发布一个版本
 
 1. 完成代码修改、真机验收；同步 `apps/miniapp/package.json` 和 `apps/miniapp/src/utils/changelog.ts` 最新记录的版本。
-2. 更新 `src/utils/updates.ts` 的公告内容，新增公告使用新 `id`；同步仓库 `CHANGELOG.md`。确认上传包包含预期的云环境和配置。
+2. 在小程序 `src/utils/changelog.ts` 顶部添加新版本记录（版本号、日期、标题、公告亮点与详细分组），同步仓库 `CHANGELOG.md`。确认上传包包含预期的云环境和配置。
 3. 提交并推送代码，然后针对该提交创建并推送版本 Tag。例如以下命令会触发真实上传，仅在准备发布时运行：
 
 ```sh
