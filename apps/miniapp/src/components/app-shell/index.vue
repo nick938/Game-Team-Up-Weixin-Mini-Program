@@ -2,13 +2,17 @@
 import { useAppTheme } from '../../composables/useAppTheme';
 import { wotThemeVars } from '../../design/wot-theme';
 import { appThemeStyle, component } from '../../design/tokens';
+import PrivacySheet from '../privacy-sheet/index.vue';
 defineOptions({ name: 'AppShell' });
-defineProps<{
-  active?: boolean;
-  title?: string;
-  subtitle?: string;
-  variant?: 'lobby' | 'form' | 'detail' | 'profile';
-}>();
+withDefaults(
+  defineProps<{
+    active?: boolean;
+    title?: string;
+    subtitle?: string;
+    variant?: 'lobby' | 'form' | 'detail' | 'profile';
+  }>(),
+  { active: true },
+);
 useAppTheme();
 </script>
 <template>
@@ -21,6 +25,7 @@ useAppTheme();
       <slot />
       <wd-toast :z-index="component.layer.toast" />
       <wd-dialog :z-index="component.layer.dialog" />
+      <privacy-sheet :active="active" />
     </view>
   </wd-config-provider>
 </template>

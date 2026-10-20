@@ -3,7 +3,7 @@ import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'WelcomeLetter' });
-import { reactive, toRefs, nextTick, onMounted } from 'vue';
+import { reactive, toRefs, nextTick, onMounted, watch } from 'vue';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { onShow } from '@dcloudio/uni-app';
 
@@ -11,6 +11,7 @@ import { platform as hostPlatform } from '../../platform/host';
 import { isSinglePage } from '../../utils/runtime';
 import { hasReadWelcome, markWelcomeRead } from '../../utils/welcome';
 const emit = defineEmits<{ ready: [] }>();
+const props = withDefaults(defineProps<{ enabled?: boolean }>(), { enabled: true });
 const state = reactive({
   show: false,
   closing: false,
@@ -32,7 +33,7 @@ function patchState(patch: Partial<typeof state>, done?: () => void) {
   if (done) void nextTick(done);
 }
 function syncVisibility() {
-  if (isSinglePage()) {
+  if (isSinglePage() || props.enabled === false) {
     patchState({ show: false });
     return;
   }
@@ -62,6 +63,7 @@ onMounted(() => {
 onShow(() => {
   syncVisibility();
 });
+watch(() => props.enabled, syncVisibility);
 </script>
 <template>
   <wd-popup

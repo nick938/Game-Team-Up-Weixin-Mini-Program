@@ -6,6 +6,7 @@ export default defineUniPages({
     {
       path: 'pages/index/index',
       style: {
+        navigationStyle: 'custom',
         navigationBarTitleText: '开黑星球｜游戏搭子',
         enablePullDownRefresh: true,
       },
