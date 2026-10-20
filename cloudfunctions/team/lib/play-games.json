@@ -1,0 +1,82 @@
+[
+  {
+    "id": "cs2",
+    "name": "CS2",
+    "platform": "Steam"
+  },
+  {
+    "id": "delta",
+    "name": "三角洲行动",
+    "platform": "Steam"
+  },
+  {
+    "id": "naraka",
+    "name": "永劫无间",
+    "platform": "Steam"
+  },
+  {
+    "id": "lol",
+    "name": "英雄联盟",
+    "platform": "端游"
+  },
+  {
+    "id": "valorant",
+    "name": "无畏契约",
+    "platform": "端游"
+  },
+  {
+    "id": "pubg",
+    "name": "和平精英",
+    "platform": "手游"
+  },
+  {
+    "id": "wangzhe",
+    "name": "王者荣耀",
+    "platform": "手游"
+  },
+  {
+    "id": "dota2",
+    "name": "DOTA2",
+    "platform": "Steam"
+  },
+  {
+    "id": "dst",
+    "name": "饥荒联机版",
+    "platform": "Steam"
+  },
+  {
+    "id": "overcooked2",
+    "name": "胡闹厨房2",
+    "platform": "Steam"
+  },
+  {
+    "id": "l4d2",
+    "name": "求生之路2",
+    "platform": "Steam"
+  },
+  {
+    "id": "drg",
+    "name": "深岩银河",
+    "platform": "Steam"
+  },
+  {
+    "id": "lethal-company",
+    "name": "致命公司",
+    "platform": "Steam"
+  },
+  {
+    "id": "party-animals",
+    "name": "猛兽派对",
+    "platform": "Steam"
+  },
+  {
+    "id": "it-takes-two",
+    "name": "双人成行",
+    "platform": "Steam"
+  },
+  {
+    "id": "human-fall-flat",
+    "name": "人类一败涂地",
+    "platform": "Steam"
+  }
+]

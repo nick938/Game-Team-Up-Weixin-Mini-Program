@@ -1,4 +1,43 @@
 import type { ReactionId, ReactionSummary } from '../utils/reactions';
+export interface DailyOption {
+  id: string;
+  gameName: string;
+  platform: string;
+  startAt: number;
+  endAt: number;
+  createdAt: number;
+  votes: number;
+  mine: boolean;
+  teamId: string;
+  memberCount: number;
+  joined: boolean;
+  status: string;
+  capacity: number;
+  expired: boolean;
+}
+export interface DailyBoard {
+  dayId: string;
+  serverNow: number;
+  options: DailyOption[];
+}
+export interface PlayGame {
+  id: string;
+  name: string;
+  platform: string;
+  votes: number;
+}
+export interface WeeklyActivity {
+  weekId: string;
+  startAt: number;
+  drawAt: number;
+  endAt: number;
+  serverNow: number;
+  votingClosed: boolean;
+  mine: string;
+  totalVotes: number;
+  selectedGame: Omit<PlayGame, 'votes'> | null;
+  games: PlayGame[];
+}
 /** Shared business payloads. Display fields are added by the view formatters. */
 export interface User {
   userId?: string;
@@ -11,6 +50,7 @@ export interface User {
 }
 export type TeamRole = 'host' | 'member';
 export interface Team {
+  weeklyId?: string;
   reactions?: ReactionSummary;
   _id: string;
   id?: string;
@@ -103,6 +143,7 @@ export interface AdminRow extends Partial<Team>, User {
   systemInfo?: string;
 }
 export interface TeamSearch {
+  weeklyId?: string;
   offset?: number;
   limit?: number;
   keyword?: string;
@@ -134,6 +175,12 @@ export interface AdminStats {
   platforms: { platform: string; count: number; pct?: number }[];
 }
 export interface TeamResults {
+  getDailyPlay: { board: DailyBoard };
+  createPlayOption: { board: DailyBoard | null };
+  votePlayOption: { board: DailyBoard | null; teamId: string };
+  launchPlayOption: { board: DailyBoard | null; teamId: string };
+  getWeeklyPlay: { activity: WeeklyActivity };
+  votePlay: { activity: WeeklyActivity };
   getProfile: { user?: User; isAdmin?: boolean; isOrganizer?: boolean };
   getTeam: { team: Team; members: Member[]; role: TeamRole | null; reactions?: ReactionSummary };
   getPublicProfile: { profile: User };
@@ -158,6 +205,7 @@ export interface TeamResults {
 }
 
 export interface TeamInput {
+  weeklyId?: string;
   gameName: string;
   startAt: number;
   endAt: number;
@@ -175,6 +223,12 @@ export interface VersionInput {
   envVersion: string;
 }
 export interface TeamRequests {
+  getDailyPlay: undefined;
+  createPlayOption: { gameName: string; platform: string; startAt: number; endAt: number; requestId: string };
+  votePlayOption: { optionId: string; want: boolean };
+  launchPlayOption: { optionId: string };
+  getWeeklyPlay: undefined;
+  votePlay: { weekId: string; gameId: string };
   getProfile: undefined;
   getTeam: { teamId: string };
   setReaction: { teamId: string; reaction: ReactionId | '' };

@@ -46,7 +46,10 @@ function onTap() {
             <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
           </view>
           <view class="shrink-0 text-right">
-            <view class="text-base font-semibold leading-6"
+            <view v-if="view.recruitment === 'open'" class="text-base font-semibold text-brand"
+              >还缺 {{ view.needCount }} 人</view
+            >
+            <view class="text-xs text-secondary leading-6"
               >{{ team.memberCount || 0
               }}<text class="text-xs text-secondary font-normal"> / {{ team.capacity || 0 }} 人</text></view
             >
@@ -59,7 +62,13 @@ function onTap() {
                     ? 'bg-brand-light text-brand'
                     : 'bg-surface-muted text-secondary'
               "
-              >{{ view.statusLabel }}</text
+              >{{
+                view.recruitment === 'open'
+                  ? view.lifecycle === 'active'
+                    ? '可中途加入'
+                    : '招募中'
+                  : view.statusLabel
+              }}</text
             >
           </view>
         </view>

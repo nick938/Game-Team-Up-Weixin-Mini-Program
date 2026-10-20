@@ -57,6 +57,9 @@ export function usePublish() {
     });
     return {
       editingId: '',
+      weeklyId: '',
+      weeklyStartAt: 0,
+      weeklyGameName: '',
       minimumCapacity: 2,
       editLoadError: '',
       platforms: sortPlatforms('Steam', PLATFORMS),
@@ -529,6 +532,11 @@ export function usePublish() {
   }
   function buildTeam() {
     return {
+      ...(state.weeklyId &&
+      state.weeklyGameName === state.gameName.trim() &&
+      state.weeklyStartAt === combineDateTime(state.startDate, state.startTime)
+        ? { weeklyId: state.weeklyId }
+        : {}),
       gameName: (state.gameName || '').trim(),
       startAt: combineDateTime(state.startDate, state.startTime),
       endAt: combineDateTime(state.endDate, state.endTime),
@@ -682,11 +690,25 @@ export function usePublish() {
       app.prefillGame = null;
       patchState(emptyForm());
       const patch: Partial<typeof state> = { gameName: prefill.name || '' };
+      if (prefill.startAt && prefill.weeklyId) {
+        const start = dateParts(prefill.startAt);
+        const end = dateParts(prefill.startAt + 2 * 3600000);
+        Object.assign(patch, {
+          weeklyId: prefill.weeklyId,
+          weeklyStartAt: prefill.startAt,
+          weeklyGameName: prefill.name,
+          startDate: start.date,
+          startTime: start.time,
+          endDate: end.date,
+          endTime: end.time,
+          startPreset: 'custom',
+        });
+      }
       if (prefill.platform && PLATFORMS.indexOf(prefill.platform) >= 0) {
         patch.platform = prefill.platform;
         patch.platforms = sortPlatforms(prefill.platform, PLATFORMS);
       }
-      patchState(patch);
+      patchState(withTimeSummary(patch));
     }
     await loadProxyAccess();
   });

@@ -23,6 +23,7 @@ import { requestTeamNotify } from '../utils/subscribe';
 import { resolveTeamId, teamShareQuery, usableTeamId } from '../utils/team-entry';
 import { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { renderTeamCover } from '../utils/team-cover';
+import { recruitmentText } from '../utils/recruitment';
 export function useTeamDetail() {
   const { toast, dialog, showError } = usePageFeedback();
   function queryCanvasNode() {
@@ -511,6 +512,17 @@ export function useTeamDetail() {
   function goPlaza() {
     hostPlatform.switchTab({ url: '/pages/index/index' });
   }
+  function copyRecruitment() {
+    if (!state.team || state.role !== 'host' || !presentTeam(state.team, state.role).ongoing) return;
+    hostPlatform.setClipboardData({
+      data: recruitmentText(state.team),
+      success: () => toast.success('已复制，请配合队伍卡片发到群里'),
+    });
+  }
+  function browseSameGame() {
+    if (state.team)
+      hostPlatform.navigateTo({ url: `/pages/game/game?game=${encodeURIComponent(state.team.gameName)}` });
+  }
   function onReport() {
     const team = state.team;
     if (!team) return;
@@ -626,6 +638,8 @@ export function useTeamDetail() {
     onRepublish,
     onCancel,
     goPlaza,
+    copyRecruitment,
+    browseSameGame,
     onReport,
     onProfileClose,
     onProfileDone,

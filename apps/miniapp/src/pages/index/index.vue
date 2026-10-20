@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/index/index');
-import { reactive, ref, watch } from 'vue';
+import { reactive, ref } from 'vue';
 import { onShow, onPageScroll, onResize } from '@dcloudio/uni-app';
 import { homeNavigationMetrics, type CapsuleRect } from '../../utils/home-navigation';
 import { privacyConsent } from '../../utils/privacy';
+import { platform } from '../../platform/host';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { useLobby } from '../../composables/useLobby';
 import TeamFilters from '../../components/team-filters/index.vue';
 import TeamResults from '../../components/team-results/index.vue';
 import NextTeam from '../../components/next-team/index.vue';
-import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
+import type { TeamSearch } from '../../types/domain';
 defineOptions({ name: 'IndexIndexPage' });
 useAppTheme();
 const page = reactive(useLobby());
-const showGames = ref(false);
-const showSearch = ref(false);
+function applyFilters(patch: Partial<TeamSearch>) {
+  const { gameName, ...filters } = patch;
+  if (gameName !== undefined) page.gameFilter = gameName || '全部';
+  page.setFilters(filters);
+}
 const scrolled = ref(false);
 const navigation = ref(homeNavigationMetrics());
 function updateNavigation() {
@@ -33,10 +37,6 @@ onShow(() => {
 onResize(updateNavigation);
 onPageScroll(({ scrollTop }) => {
   scrolled.value = scrollTop > 24;
-});
-useTabBarOverlay(showGames);
-watch(pageActive, (active) => {
-  if (!active) showGames.value = false;
 });
 </script>
 <template>
@@ -59,69 +59,75 @@ watch(pageActive, (active) => {
     <timeline-preview v-if="page.singlePage" />
     <app-shell :active="pageActive" v-else variant="lobby">
       <lobby-hero />
-      <view class="mt-3 mb-2 flex items-center gap-2"
-        ><scroll-view
-          scroll-x
-          class="flex-1 min-w-0"
-          :scroll-into-view="'quick-game-' + page.gameTabs.indexOf(page.gameFilter)"
-        >
-          <view class="game-quick-row">
-            <view
-              v-for="(name, index) in page.gameTabs"
-              :id="'quick-game-' + index"
-              :key="name"
-              class="shrink-0"
-            >
-              <wd-button
-                size="small"
-                variant="text"
-                custom-class="game-quick-tab"
-                :aria-pressed="page.gameFilter === name"
-                @click="page.pickGame(name)"
-              >
-                <text class="game-quick-label" :class="page.gameFilter === name ? 'game-quick-active' : ''">{{
-                  name
-                }}</text>
-              </wd-button>
-            </view>
-          </view>
-        </scroll-view>
-        <wd-button size="small" variant="text" custom-class="!px-1 shrink-0" @click="showGames = true"
-          >更多 <wd-icon name="arrow-down" size="12px" /></wd-button
-      ></view>
       <next-team
         v-if="page.nextTeam"
         :team="page.nextTeam"
         @open="page.onOpen"
         @refresh="page.loadUpcoming"
       />
-      <team-filters :active="pageActive" :query="page.query()" @change="page.setFilters">
-        <template #actions>
-          <wd-button
-            size="small"
-            variant="text"
-            custom-class="toolbar-search"
-            :aria-expanded="showSearch"
-            :aria-label="page.keyword ? '搜索：' + page.keyword : '搜索队伍'"
-            @click="showSearch = !showSearch"
-          >
-            <wd-icon name="search-line" size="18px" />
-            <text v-if="page.keyword" class="search-indicator" />
-          </wd-button>
+      <next-team
+        v-if="page.recruitingTeam"
+        :team="page.recruitingTeam"
+        @open="page.onOpen"
+        @refresh="page.loadUpcoming"
+      />
+      <view class="home-play-entries">
+        <view role="button" class="home-play-entry" @click="platform.navigateTo({ url: '/pages/play/play' })"
+          ><image class="entry-art" src="/static/images/play-today.png" mode="aspectFill" /><view
+            class="entry-kicker"
+            >TODAY</view
+          ><view class="entry-title">今天玩啥</view
+          ><view class="entry-copy">选游戏 · 约时间 · 满 2 人发车</view
+          ><view class="entry-link">找个搭子 →</view></view
+        >
+        <view
+          role="button"
+          class="home-play-entry home-friday-entry"
+          @click="platform.navigateTo({ url: '/pages/friday/friday' })"
+          ><image class="entry-art" src="/static/images/play-friday.png" mode="aspectFill" /><view
+            class="entry-kicker"
+            >FRIDAY NIGHT</view
+          ><view class="entry-title">周五一起开黑</view
+          ><view class="entry-copy">每周五 21:00 · 随机联机游戏</view
+          ><view class="entry-link">看看本周玩啥 →</view></view
+        >
+      </view>
+      <team-filters
+        :active="pageActive"
+        :query="page.query()"
+        :game-options="
+          page.gameOptions.map((item) => ({
+            label: item.value === '全部' ? '全部游戏' : item.label,
+            value: item.value === '全部' ? '' : item.value,
+          }))
+        "
+        @change="applyFilters"
+      >
+        <template #toolbar="{ open, count }">
+          <view class="home-filter-toolbar">
+            <wd-search
+              custom-class="lobby-search home-inline-search"
+              :model-value="page.keyword"
+              placeholder="搜索游戏、区服、玩法"
+              placeholder-left
+              hide-cancel
+              @update:model-value="page.onSearch(String($event))"
+              @clear="page.clearSearch"
+            />
+            <wd-button
+              size="small"
+              variant="soft"
+              custom-class="home-filter-button"
+              :aria-label="count ? '筛选，已选 ' + count + ' 项' : '筛选'"
+              @click="open"
+            >
+              <wd-icon name="filter" size="17px" /> 筛选<text v-if="count" class="home-filter-dot" />
+            </wd-button>
+          </view>
         </template>
       </team-filters>
-      <wd-search
-        v-if="showSearch"
-        custom-class="lobby-search"
-        :model-value="page.keyword"
-        placeholder="搜索游戏、区服、玩法"
-        placeholder-left
-        focus
-        @update:model-value="page.onSearch(String($event))"
-        @clear="page.clearSearch"
-        @cancel="showSearch = false"
-      />
       <team-results
+        :query="page.query()"
         :teams="page.filtered"
         :total="page.total"
         :loading="page.loading"
@@ -132,26 +138,147 @@ watch(pageActive, (active) => {
         @retry="page.loadList()"
         @more="page.loadMore"
         @clear="page.clearFilters"
+        @clear-time="page.setFilters({ time: '' })"
+        @relax="page.setFilters({ keyword: '', platform: '', server: '', voice: '', availableOnly: true })"
         @publish="page.goPublish"
-      />
+      >
+        <template #heading
+          ><view class="home-results-heading"
+            ><text>正在组队</text><text class="hint home-results-count">{{ page.total }} 个队伍</text></view
+          ></template
+        >
+        <template #header-actions>
+          <view class="home-sort-switch">
+            <wd-button
+              v-for="item in [
+                { label: '最新', value: 'latest' },
+                { label: '最热', value: 'hot' },
+              ]"
+              :key="item.value"
+              size="small"
+              :variant="page.sortMode === item.value ? 'soft' : 'text'"
+              custom-class="home-sort-button"
+              :aria-pressed="page.sortMode === item.value"
+              @click="page.pickSort(item.value)"
+              >{{ item.label }}</wd-button
+            >
+          </view>
+        </template>
+      </team-results>
       <entry-notices />
-      <wd-select-picker
-        v-model:visible="showGames"
-        :model-value="page.gameFilter"
-        :columns="page.gameOptions"
-        title="选择游戏"
-        type="radio"
-        :show-confirm="false"
-        filterable
-        filter-placeholder="搜索游戏"
-        root-portal
-        :z-index="1200"
-        @confirm="page.pickGame(String($event.value))"
-      />
     </app-shell>
   </view>
 </template>
 <style scoped>
+.home-play-entries {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.home-play-entry {
+  position: relative;
+  overflow: hidden;
+  min-height: 156px;
+  padding: 18px 12px 12px;
+  border-radius: 20px;
+  background: #eae2ff;
+  color: #3e2878;
+  box-shadow: 0 5px 16px #6255e712;
+}
+.entry-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.entry-kicker,
+.entry-title,
+.entry-copy,
+.entry-link {
+  position: relative;
+}
+.entry-kicker {
+  font-size: 10px;
+  letter-spacing: 2px;
+  opacity: 0.8;
+}
+.entry-title {
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.entry-copy {
+  max-width: 120px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.entry-link {
+  margin-top: 30px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.home-friday-entry {
+  background: #252051;
+  color: #fff;
+}
+.home-friday-entry .entry-copy {
+  color: #e1d7ff;
+}
+
+.home-filter-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  margin: 4px 0 12px;
+}
+.home-filter-toolbar :deep(.home-inline-search) {
+  flex: 1;
+  min-width: 0;
+  --wot-search-padding: 4px 0;
+}
+.home-filter-toolbar :deep(.home-filter-button.wd-button) {
+  position: relative;
+  flex: 0 0 72px;
+  min-width: 72px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.home-filter-dot {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6255e7;
+}
+.home-results-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+.home-results-count {
+  font-size: 11px;
+  font-weight: 400;
+}
+.home-sort-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.home-sort-switch :deep(.home-sort-button.wd-button) {
+  padding: 0 12px;
+  min-width: 48px;
+  font-size: 12px;
+}
+
 .lobby-home {
   position: relative;
   min-height: 100vh;

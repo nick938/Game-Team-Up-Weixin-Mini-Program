@@ -4,6 +4,14 @@ import { defineUniPages } from '@uni-helper/vite-plugin-uni-pages';
 export default defineUniPages({
   pages: [
     {
+      path: 'pages/play/play',
+      style: { navigationBarTitleText: '今天玩啥', enablePullDownRefresh: true },
+    },
+    {
+      path: 'pages/friday/friday',
+      style: { navigationBarTitleText: '周五一起开黑', enablePullDownRefresh: true },
+    },
+    {
       path: 'pages/index/index',
       style: {
         navigationStyle: 'custom',

@@ -165,6 +165,21 @@ function goRoom() {
         ><view v-if="page.notifyHint" class="hint mt-2">{{ page.notifyHint }}</view>
       </view>
       <view class="flex flex-wrap gap-2 mt-5">
+        <view v-if="view.ongoing && page.role === 'host' && view.recruitment === 'open'" class="panel w-full">
+          <view class="text-base font-semibold">{{
+            page.team.memberCount === 1 ? '队伍已创建，邀请朋友一起玩' : '还缺 ' + view.needCount + ' 位搭子'
+          }}</view>
+          <view class="text-sm text-secondary mt-2">{{
+            page.team.memberCount === 1
+              ? '暂时还没有其他成员加入。可以分享到常玩的群，也可以调整时间，或看看同游戏的其他队伍。'
+              : '把队伍卡片发到常玩的群，朋友可以直接查看并加入。'
+          }}</view>
+          <view class="flex flex-wrap gap-2 mt-3">
+            <wd-button size="small" variant="soft" @click="page.copyRecruitment">复制招募文案</wd-button>
+            <wd-button size="small" variant="text" @click="page.onEdit">调整时间</wd-button>
+            <wd-button size="small" variant="text" @click="page.browseSameGame">看看同游戏队伍</wd-button>
+          </view>
+        </view>
         <wd-button
           v-if="view.ongoing && page.role === 'host'"
           variant="soft"
@@ -200,7 +215,7 @@ function goRoom() {
           {{ view.needCount }} 人</wd-button
         >
         <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
-          >邀请好友，一起开黑</wd-button
+          >分享招人 · 还缺 {{ view.needCount }} 人</wd-button
         >
         <wd-button
           v-else-if="view.primaryAction === 'room'"

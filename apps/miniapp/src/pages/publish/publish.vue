@@ -63,6 +63,9 @@ function duration(value: string | number) {
       ><wd-button size="small" variant="text" @click="page.startNew">改为新建</wd-button></view
     >
     <view v-if="page.fromLast" class="form-note">已沿用上一局配置，请核对房间号与密码。</view>
+    <view v-if="page.state.weeklyId" class="form-note"
+      >已带入周五 21:00 的活动游戏和时间。修改游戏或开局时间后，将作为普通队伍发布。</view
+    >
     <wd-form ref="form" :model="page.state" :schema="schema" title-width="84px" center border>
       <view class="section-label">游戏与平台</view>
       <view class="form-section">

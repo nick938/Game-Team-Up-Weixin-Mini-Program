@@ -40,6 +40,10 @@ const REPORT_REASONS = [
 const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
 // 防刷：按 (动作 + 用户) 记录时间窗内的调用次数，超限直接拒绝。写库失败不影响主流程。
 const RATE_LIMITS = {
+  createPlayOption: { windowMs: 30 * 60 * 1000, max: 15, message: "添加得太快了，稍后再试" },
+  votePlayOption: { windowMs: 60 * 1000, max: 30, message: "投票太频繁，请稍后再试" },
+  launchPlayOption: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
+  votePlay: { windowMs: 60 * 1000, max: 20, message: "投票太频繁，请稍后再试" },
   trackTeamEvent: { windowMs: 60 * 1000, max: 60, message: "操作太频繁，请稍后再试" },
   setReaction: { windowMs: 60 * 1000, max: 30, message: "表情操作太频繁，请稍后再试" },
   createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
@@ -472,6 +476,10 @@ async function ensureCollections() {
     "members",
     "team_reactions",
     "team_events",
+    "daily_play",
+    "play_options",
+    "weekly_play",
+    "play_votes",
     "feedback",
     "reports",
     "rate_limits",
@@ -895,6 +903,16 @@ async function createTeam(event, openid) {
 
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
+  let weeklyId = "";
+  if (event.team && event.team.weeklyId) {
+    const activity = await require("./lib/weekly-play").createWeeklyPlay(db).get(openid);
+    if (activity.serverNow >= activity.endAt) return fail("本期活动已结束，请等待下一期");
+    if (event.team.weeklyId !== activity.weekId || !activity.selectedGame ||
+        activity.selectedGame.name !== checked.value.gameName || checked.value.startAt !== activity.startAt) {
+      return fail("周五活动已变化，请返回活动页重新发起");
+    }
+    weeklyId = activity.weekId;
+  }
   const textError = await textSafeError(
     openid,
     teamVisibleTexts(checked.value),
@@ -904,6 +922,7 @@ async function createTeam(event, openid) {
 
   const teamData = {
     ...checked.value,
+    ...(weeklyId ? { weeklyId } : {}),
     openid: hostId,
     memberCount: 1,
     status: "recruiting",
@@ -969,6 +988,9 @@ async function updateTeam(event, openid) {
       const latest = (await transaction.collection("teams").doc(teamId).get()).data;
       if (!teamExists(latest) || !isOngoing(latest, nowMs())) throw new Error("队伍已结束，不能再改");
       if (checked.value.capacity < latest.memberCount) throw new Error("人数不能少于当前已加入人数，请刷新后重试");
+      if (latest.dailyOptionId && ["gameName", "platform", "startAt", "endAt"].some(key => latest[key] !== checked.value[key])) {
+        throw new Error("今天玩啥的游戏和时间已由大家确认，请保留；更换游戏或时间可另建想玩选项");
+      }
       // Detect conflicting edits while content moderation was in flight.
       if (Number(latest.updatedAt || 0) !== Number(team.updatedAt || 0)) throw new Error("队伍信息已更新，请刷新后重试");
       const changedFields = ["startAt", "endAt", "platform", "server", "roomNo", "roomPwd"]
@@ -976,6 +998,7 @@ async function updateTeam(event, openid) {
       await transaction.collection("teams").doc(teamId).update({
         data: {
           ...checked.value,
+          ...(latest.weeklyId && (latest.gameName !== checked.value.gameName || latest.startAt !== checked.value.startAt) ? { weeklyId: "" } : {}),
           status: checked.value.capacity <= latest.memberCount ? "full" : "recruiting",
           updatedAt: nowMs(),
           ...(changedFields.length ? { changedFields, detailsChangedAt: nowMs() } : {}),
@@ -1538,6 +1561,7 @@ function searchText(value) {
   return String(value || "").normalize("NFKC").trim().toLowerCase();
 }
 function matchTeamSearch(team, query, now) {
+  if (query.weeklyId && team.weeklyId !== query.weeklyId) return false;
   const keyword = searchText(query.keyword);
   if (keyword && ![team.gameName, team.server, team.rankReq, team.note]
     .some((value) => searchText(value).includes(keyword))) return false;
@@ -2103,6 +2127,38 @@ exports.main = async (event) => {
         return await trackTeamEvent(event, openid);
       case "myTeams":
         return await myTeams(openid);
+      case "getDailyPlay":
+        return ok({ board: await require("./lib/daily-play").createDailyPlay(db).get(openid) });
+      case "createPlayOption":
+      case "votePlayOption":
+      case "launchPlayOption": {
+        const user = await requireProfile(openid);
+        const limited = await rateLimitExceeded(openid, event.type);
+        if (limited) return fail(limited);
+        const daily = require("./lib/daily-play").createDailyPlay(db);
+        let result;
+        if (event.type === "createPlayOption") {
+          const gameName = trim(event.gameName, 40);
+          if (BAD.test(gameName)) return fail("内容包含不允许发布的信息");
+          const textError = await textSafeError(openid, [gameName], "内容包含不允许发布的信息");
+          if (textError) return fail(textError);
+          result = { board: await daily.create(openid, user, { ...event, gameName }) };
+        } else if (event.type === "launchPlayOption") {
+          result = await daily.launch(openid, user, event);
+        } else result = await daily.vote(openid, user, event);
+        await recordAction(openid, event.type);
+        return ok(result);
+      }
+      case "getWeeklyPlay":
+        return ok({ activity: await require("./lib/weekly-play").createWeeklyPlay(db).get(openid) });
+      case "votePlay": {
+        await requireNotBanned(openid);
+        const limited = await rateLimitExceeded(openid, "votePlay");
+        if (limited) return fail(limited);
+        const activity = await require("./lib/weekly-play").createWeeklyPlay(db).vote(openid, event);
+        await recordAction(openid, "votePlay");
+        return ok({ activity });
+      }
       case "submitFeedback":
         return await submitFeedback(event, openid);
       case "submitBug":

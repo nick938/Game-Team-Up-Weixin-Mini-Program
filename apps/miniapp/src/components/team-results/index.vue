@@ -1,15 +1,22 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamResults' });
-import type { Team } from '../../types/domain';
+import type { Team, TeamSearch } from '../../types/domain';
 import { ref, watch, onUnmounted } from 'vue';
-const props = defineProps<{
-  teams: Team[];
-  total: number;
-  loading: boolean;
-  loadingMore: boolean;
-  hasMore: boolean;
-  error: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    query?: TeamSearch;
+    allowPublish?: boolean;
+    publishLabel?: string;
+    hideClear?: boolean;
+    teams: Team[];
+    total: number;
+    loading: boolean;
+    loadingMore: boolean;
+    hasMore: boolean;
+    error: string;
+  }>(),
+  { allowPublish: true, publishLabel: '发起一局，邀请朋友', hideClear: false },
+);
 const introIds = ref<string[]>([]);
 let introPlayed = false;
 let introTimer: ReturnType<typeof setTimeout> | undefined;
@@ -32,12 +39,16 @@ const emit = defineEmits<{
   more: [];
   clear: [];
   publish: [];
+  clearTime: [];
+  relax: [];
 }>();
 </script>
 <template>
   <view class="flex justify-between items-center mt-5 mb-3"
-    ><view class="text-base font-semibold">正在组队</view
-    ><text class="hint">{{ loading && teams.length ? '更新中 · ' : '' }}{{ total }} 个队伍</text></view
+    ><view class="text-base font-semibold"><slot name="heading">正在组队</slot></view
+    ><slot name="header-actions"
+      ><text class="hint">{{ loading && teams.length ? '更新中 · ' : '' }}{{ total }} 个队伍</text></slot
+    ></view
   >
   <view v-if="error && teams.length" class="form-note"
     ><text>{{ error }}，当前显示上次加载的队伍。</text
@@ -67,8 +78,22 @@ const emit = defineEmits<{
     <view v-if="!teams.length" class="empty-state"
       ><wd-empty icon="search" :icon-size="58" tip="暂时没有符合条件的队伍" /><view
         class="flex flex-wrap justify-center gap-2"
-        ><wd-button variant="text" @click="emit('clear')">清空筛选</wd-button
-        ><wd-button variant="text" @click="emit('publish')">发布一局</wd-button></view
+        ><wd-button v-if="query?.time" variant="text" @click="emit('clearTime')">查看其他时间</wd-button>
+        <wd-button
+          v-if="
+            query &&
+            (query.keyword || query.platform || query.server || query.voice || query.availableOnly === false)
+          "
+          variant="text"
+          @click="emit('relax')"
+          >放宽筛选</wd-button
+        >
+        <wd-button v-if="!hideClear" variant="text" @click="emit('clear')">{{
+          query?.gameName ? '查看全部游戏' : '清空筛选'
+        }}</wd-button>
+        <wd-button v-if="allowPublish" variant="soft" @click="emit('publish')">{{
+          publishLabel
+        }}</wd-button></view
       ></view
     >
   </template>

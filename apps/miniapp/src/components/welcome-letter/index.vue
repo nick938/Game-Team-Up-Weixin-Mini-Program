@@ -79,7 +79,7 @@ watch(() => props.enabled, syncVisibility);
       ><view class="flex items-center justify-between gap-4 mb-5"
         ><view
           ><view class="brand-kicker">开黑星球｜游戏搭子</view
-          ><view class="text-2xl font-bold mt-2">一起玩，好好玩</view></view
+          ><view class="text-2xl font-bold mt-2">找一些朋友，玩一些游戏。</view></view
         ><wd-img
           custom-class="w-14 h-14 rounded-2xl surface-shadow"
           src="/static/images/brand/avatar-v1.jpg"

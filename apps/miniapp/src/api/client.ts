@@ -20,6 +20,8 @@ export interface Session {
 }
 export type SessionState = { session: Session | null };
 const READS = new Set([
+  'getDailyPlay',
+  'getWeeklyPlay',
   'getProfile',
   'getPublicProfile',
   'getTeam',

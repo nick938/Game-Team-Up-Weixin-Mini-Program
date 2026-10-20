@@ -25,6 +25,12 @@ export function useLobby() {
   const app = useAppStore();
   const singlePage = ref(false);
   const personalTeams = ref<Team[]>([]);
+  const recruitingTeam = computed(() =>
+    scheduledTeams(personalTeams.value).find(
+      (team) =>
+        team.mark === '我发起的' && team.memberCount < team.capacity && team._id !== nextTeam.value?._id,
+    ),
+  );
   const recent = ref<string[]>([]);
   const nextTeam = computed(() => scheduledTeams(personalTeams.value)[0]);
   const featured = FEATURED_GAMES;
@@ -73,7 +79,10 @@ export function useLobby() {
     if (isSinglePage()) return;
     try {
       const res = await callTeam('myTeams');
-      personalTeams.value = [...res.hosted, ...res.joined].map(decorateTeam);
+      personalTeams.value = [
+        ...res.hosted.map((team) => ({ ...team, mark: '我发起的' })),
+        ...res.joined.map((team) => ({ ...team, mark: '已加入' })),
+      ].map(decorateTeam);
     } catch {
       personalTeams.value = [];
     }
@@ -110,6 +119,7 @@ export function useLobby() {
     featured,
     recent,
     nextTeam,
+    recruitingTeam,
     loadUpcoming,
     HOME_SHARE_TITLE,
     onOpen,

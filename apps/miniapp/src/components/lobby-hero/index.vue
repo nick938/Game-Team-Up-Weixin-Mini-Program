@@ -3,10 +3,7 @@ defineOptions({ name: 'LobbyHero' });
 </script>
 <template>
   <view class="lobby-hero">
-    <view class="min-w-0"
-      ><view class="text-xs text-muted mb-2">一起玩，好好玩</view
-      ><view class="content-heading">下一局，和谁一起？</view></view
-    >
+    <view class="text-sm text-secondary">找一些朋友，玩一些游戏。</view>
     <wd-img
       custom-class="hero-mascot"
       src="/static/images/brand/avatar-v1.jpg"
@@ -18,3 +15,14 @@ defineOptions({ name: 'LobbyHero' });
     />
   </view>
 </template>
+<style scoped>
+.lobby-hero {
+  min-height: 48px;
+  padding: 0 0 16px;
+}
+.lobby-hero :deep(.hero-mascot) {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+</style>

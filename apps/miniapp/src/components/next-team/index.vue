@@ -15,7 +15,14 @@ const view = useTeamPresentation(
     <view class="flex items-center justify-between gap-2">
       <view class="min-w-0 flex-1"
         ><view class="text-sm font-semibold text-ink truncate"
-          >{{ view.lifecycle === 'active' ? '正在开局' : '下一局' }} · {{ team.gameName }}</view
+          >{{
+            team.mark === '我发起的' && view.recruitment === 'open'
+              ? '我正在招人'
+              : view.lifecycle === 'active'
+                ? '正在开局'
+                : '下一局'
+          }}
+          · {{ team.gameName }}</view
         ><view class="hint mt-1 truncate"
           >{{ team.timeText }} · {{ team.memberCount }}/{{ team.capacity }} 人</view
         ></view

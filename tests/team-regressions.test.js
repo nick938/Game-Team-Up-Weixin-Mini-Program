@@ -1287,3 +1287,86 @@ test('team lists return each viewer reaction without leaking identity', async ()
   assert.equal((await ctx.listTeams({}, 'host')).list[0].reactions.mine, '');
   assert.equal((await ctx.myTeams('host')).hosted[0].reactions.counts.fire, 1);
 });
+
+test('weekly publication validates authoritative game/time and filters unrelated teams', async () => {
+  const teams = [], members = [];
+  const ctx = backend({teams,members,users:[{_id:'u',nickName:'玩家'}]});
+  const payload = {...teamPayload(),weeklyId:'2026-10-23'};
+  const previousRequire = ctx.require;
+  ctx.require = id => id === './lib/weekly-play' ? {createWeeklyPlay:()=>({get:async()=>({weekId:'2026-10-23',selectedGame:{name:'CS2'},startAt:payload.startAt})})} : previousRequire(id);
+  assert.equal((await ctx.createTeam({team:payload},'u')).ok,true);
+  assert.equal(teams[0].weeklyId,'2026-10-23');
+  assert.equal((await ctx.createTeam({team:{...payload,weeklyId:'2026-10-16'}},'u')).ok,false);
+  assert.equal((await ctx.createTeam({team:{...payload,gameName:'DOTA2'}},'u')).ok,false);
+  assert.equal((await ctx.createTeam({team:{...payload,startAt:payload.startAt+60000}},'u')).ok,false);
+  assert.equal(teams.length,1);
+  assert.equal(members.length,1);
+  assert.equal(ctx.matchTeamSearch(teams[0],{weeklyId:'2026-10-23'},Date.now()),true);
+  assert.equal(ctx.matchTeamSearch({...teams[0],weeklyId:''},{weeklyId:'2026-10-23'},Date.now()),false);
+});
+
+test('editing weekly game or start time detaches the team from the activity without cancelling it', async () => {
+  const teams=[{_id:'w',...teamPayload(),weeklyId:'2026-10-23',openid:'u',memberCount:1,status:'recruiting'}];
+  const ctx=backend({teams,users:[{_id:'u',nickName:'玩家'}]});
+  assert.equal((await ctx.updateTeam({teamId:'w',team:{gameName:'DOTA2'}},'u')).ok,true);
+  assert.equal(teams[0].weeklyId,'');
+  assert.equal(teams[0].status,'recruiting');
+});
+
+test('expired weekly activities reject new teams without writing a host or team', async () => {
+  const teams=[],members=[];
+  const ctx=backend({teams,members,users:[{_id:'u',nickName:'玩家'}]});
+  const payload={...teamPayload(),weeklyId:'2026-10-23'};
+  const previous=ctx.require;
+  ctx.require=id=>id==='./lib/weekly-play'?{createWeeklyPlay:()=>({get:async()=>({weekId:payload.weeklyId,selectedGame:{name:'CS2'},startAt:payload.startAt,serverNow:Date.now(),endAt:Date.now()-1})})}:previous(id);
+  assert.equal((await ctx.createTeam({team:payload},'u')).ok,false);
+  assert.equal(teams.length,0);
+  assert.equal(members.length,0);
+});
+
+test('daily cars remain visible in the lobby and personal teams; room info can change while the agreed game/time stays fixed', async () => {
+  const teams = [{ _id: 'daily', ...teamPayload(), platform: 'Steam', dailyOptionId: 'choice', openid: 'host', memberCount: 2, status: 'recruiting' }];
+  const members = [{ _id: 'host-member', teamId: 'daily', openid: 'host', role: 'host' }, { _id: 'member', teamId: 'daily', openid: 'voter', role: 'member' }];
+  const ctx = backend({ teams, members, users: [{ _id: 'host', nickName: '车头' }] });
+  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, 'daily');
+  assert.equal((await ctx.myTeams('voter')).joined[0]._id, 'daily');
+  assert.equal((await ctx.updateTeam({ teamId: 'daily', team: { roomNo: 'Steam 好友加入' } }, 'host')).ok, true);
+  assert.equal(teams[0].roomNo, 'Steam 好友加入');
+  for (const patch of [{ gameName: '双人成行' }, { startAt: teams[0].startAt + 60000 }, { endAt: teams[0].endAt + 60000 }, { platform: '手游' }]) {
+    assert.equal((await ctx.updateTeam({ teamId: 'daily', team: patch }, 'host')).ok, false);
+  }
+});
+
+test('daily API routes authenticate, moderate custom games, block banned writes and create a real visible car', async () => {
+  const teams = [], members = [];
+  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }, { _id: 'blocked', nickName: '封禁', banned: true }] });
+  let actor = 'a';
+  ctx.getOpenid = async () => actor;
+  const previous = ctx.require;
+  ctx.require = id => id === './lib/daily-play' ? require('../cloudfunctions/team/lib/daily-play') : previous(id);
+  const input = { type: 'createPlayOption', gameName: '饥荒联机版', platform: 'Steam', startAt: Date.now(), endAt: Date.now() + 7200000, requestId: 'integration-key' };
+  const created = await ctx.exports.main(input);
+  assert.equal(created.ok, true);
+  const optionId = created.board.options[0].id;
+  actor = 'blocked';
+  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true })).ok, false);
+  actor = 'b';
+  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true, openid: 'forged-user' })).ok, true);
+  const launched = await ctx.exports.main({ type: 'launchPlayOption', optionId });
+  assert.equal(launched.ok, true);
+  assert.equal(teams.length, 1);
+  assert.equal(teams[0].openid, 'b');
+  assert.equal(teams[0].memberCount, 2);
+  assert.deepEqual(members.map(m => m.openid).sort(), ['a', 'b']);
+  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, launched.teamId);
+  assert.equal((await ctx.myTeams('a')).joined[0]._id, launched.teamId);
+  actor = 'a';
+  assert.equal((await ctx.exports.main({ type: 'getDailyPlay' })).board.options[0].joined, true);
+
+  const risky = backend({ users: [{ _id: 'a', nickName: 'A' }], msgCheck: async () => ({ errCode: 0, result: { suggest: 'risky' } }) });
+  risky.getOpenid = async () => 'a';
+  const oldRequire = risky.require;
+  risky.require = id => id === './lib/daily-play' ? require('../cloudfunctions/team/lib/daily-play') : oldRequire(id);
+  assert.equal((await risky.exports.main(input)).ok, false);
+  assert.equal((await risky.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+});
