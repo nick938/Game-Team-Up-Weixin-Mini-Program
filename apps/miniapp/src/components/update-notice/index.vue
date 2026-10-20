@@ -6,7 +6,7 @@ import { useAppTheme } from '../../composables/useAppTheme';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { platform } from '../../platform/host';
 import { isSinglePage } from '../../utils/runtime';
-import { LATEST_RELEASE, hasReadUpdate, markUpdateRead } from '../../utils/update-notice';
+import { LATEST_UPDATE, hasReadUpdate, markUpdateRead } from '../../utils/updates';
 defineOptions({ name: 'UpdateNotice' });
 const props = defineProps<{ enabled: boolean }>();
 useAppTheme();
@@ -15,10 +15,10 @@ const { show } = toRefs(state);
 const { afterLeave: releaseOverlay } = useTabBarOverlay(show, { waitForAfterLeave: true });
 let pendingNavigation = '';
 function syncVisibility() {
-  state.show = props.enabled && !isSinglePage() && !hasReadUpdate(LATEST_RELEASE.version);
+  state.show = props.enabled && !isSinglePage() && !hasReadUpdate(LATEST_UPDATE.id);
 }
 function dismiss() {
-  markUpdateRead(LATEST_RELEASE.version);
+  markUpdateRead(LATEST_UPDATE.id);
   state.show = false;
 }
 function afterLeave() {
@@ -29,8 +29,8 @@ function afterLeave() {
     platform.navigateTo({ url });
   }
 }
-function openChangelog() {
-  pendingNavigation = '/pages/changelog/changelog';
+function openUpdates() {
+  pendingNavigation = '/pages/updates/updates';
   dismiss();
 }
 onMounted(syncVisibility);
@@ -55,17 +55,17 @@ watch(() => props.enabled, syncVisibility);
       <view class="p-6 box-border bg-surface">
         <view class="brand-kicker mb-2">开黑星球｜游戏搭子</view>
         <view class="text-2xl font-bold mb-2">更新公告</view>
-        <view class="hint mb-4">{{ LATEST_RELEASE.date }}</view>
-        <view class="section-title mb-4">{{ LATEST_RELEASE.title }}</view>
+        <view class="hint mb-4">{{ LATEST_UPDATE.date }}</view>
+        <view class="section-title mb-4">{{ LATEST_UPDATE.title }}</view>
         <view class="rounded-2xl bg-surface-muted p-4 mb-5 text-sm leading-6">
-          <view v-for="item in LATEST_RELEASE.highlights" :key="item.title" class="mb-4 last:mb-0">
+          <view v-for="item in LATEST_UPDATE.items" :key="item.title" class="mb-4 last:mb-0">
             <view class="font-semibold mb-1">{{ item.title }}</view>
             <view class="text-secondary">{{ item.description }}</view>
           </view>
         </view>
         <wd-button block @click="dismiss">知道了</wd-button>
         <view class="text-center mt-3"
-          ><wd-button variant="text" size="small" @click="openChangelog">查看完整更新日志</wd-button></view
+          ><wd-button variant="text" size="small" @click="openUpdates">查看全部公告</wd-button></view
         >
       </view>
     </scroll-view>

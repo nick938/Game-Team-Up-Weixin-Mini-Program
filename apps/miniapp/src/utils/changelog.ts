@@ -1,43 +1,8 @@
-// 小程序内更新日志：新版本放在首位，保留历史记录。
-// title 与 highlights 是更新公告弹窗的文案；sections 是「更新日志」页按类型分组的详细记录。
-// 公告弹窗与更新日志页共用这一份数据，发版时只改这里和仓库 CHANGELOG.md。
-export interface ChangelogHighlight {
-  title: string;
-  description: string;
-}
-
-export interface ChangelogSection {
-  title: string;
-  items: string[];
-}
-
-export interface ChangelogRelease {
-  version: string;
-  date: string;
-  title: string;
-  highlights: ChangelogHighlight[];
-  sections: ChangelogSection[];
-}
-
-export const CHANGELOG: ChangelogRelease[] = [
+// New versions go first. Keep published records when adding the next version.
+export const CHANGELOG = [
   {
     version: '1.8.4',
     date: '2026-10-19',
-    title: '大厅更清爽，卡片互动更方便',
-    highlights: [
-      {
-        title: '卡片更紧凑，找队伍更方便',
-        description: '合并人数、时间和车头信息，减少卡片高度；常用游戏直接筛选，其他游戏在「更多」中搜索。',
-      },
-      {
-        title: '在队伍卡片上直接互动',
-        description: '大厅、游戏专区和「我的」都能直接点图标互动。每人每队一个，再点取消，也可以换一个。',
-      },
-      {
-        title: '发车和查看队伍更顺畅',
-        description: '修复部分情况下发车成功后仍报错、队伍详情无法正常展示的问题。',
-      },
-    ],
     sections: [
       {
         title: '优化',
@@ -52,8 +17,8 @@ export const CHANGELOG: ChangelogRelease[] = [
         title: '新增',
         items: [
           '大厅、游戏专区和「我的」队伍卡片支持直接点击图标互动，可切换或再次点击取消。',
-          '新版本首次进入时弹出更新公告，按发布版本记录本机已读状态，确认后不重复；「我的」和「帮助与反馈」提供统一的更新日志入口。',
-          '更新日志按版本记录功能变化与问题修复，公告与日志共用同一份版本数据。',
+          '更新公告独立于首次欢迎提示，更新后通知一次，也可在「我的」和「帮助与反馈」中查看。',
+          '新增更新日志，按版本保留功能变化和问题修复记录。',
         ],
       },
       {
@@ -66,4 +31,4 @@ export const CHANGELOG: ChangelogRelease[] = [
       },
     ],
   },
-];
+] as const;

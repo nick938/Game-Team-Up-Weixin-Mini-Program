@@ -234,6 +234,7 @@ export function useMine() {
     hostPlatform.navigateTo({ url: '/pages/help/help' });
   }
   return {
+    openUpdates: () => hostPlatform.navigateTo({ url: '/pages/updates/updates' }),
     openChangelog: () => hostPlatform.navigateTo({ url: '/pages/changelog/changelog' }),
     nextTeam,
     openHelp,

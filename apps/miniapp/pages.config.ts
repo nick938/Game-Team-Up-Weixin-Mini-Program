@@ -38,6 +38,7 @@ export default defineUniPages({
       },
     },
     { path: 'pages/help/help', style: { navigationBarTitleText: '帮助与反馈' } },
+    { path: 'pages/updates/updates', style: { navigationBarTitleText: '更新公告' } },
     { path: 'pages/changelog/changelog', style: { navigationBarTitleText: '更新日志' } },
     {
       path: 'pages/legal/legal',
