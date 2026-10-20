@@ -127,11 +127,13 @@ function changeDate(value: number) {
         type="date"
         label="日期选择"
         :model-value="new Date(date).getTime()"
-        @confirm="changeDate(Number($event.value))" /><image
+        @confirm="changeDate(Number($event.value))" /><wd-img
         v-if="selectedImage"
         :src="selectedImage"
-        class="w-24 h-24 mt-4"
+        custom-class="w-24 h-24 mt-4"
         mode="aspectFit"
+        :show-loading="false"
+        :show-error="false"
     /></wd-card>
     <wd-card title="宿主能力" custom-class="!mx-0 !mb-4"
       ><view class="hint mb-4">编译目标：{{ target }}；目标名称不能代替实际宿主身份。</view

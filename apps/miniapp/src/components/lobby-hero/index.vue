@@ -7,10 +7,13 @@ defineOptions({ name: 'LobbyHero' });
       ><view class="text-xs text-muted mb-2">一起玩，好好玩</view
       ><view class="content-heading">下一局，和谁一起？</view></view
     >
-    <image
-      class="hero-mascot"
+    <wd-img
+      custom-class="hero-mascot"
       src="/static/images/brand/avatar-v1.jpg"
       mode="aspectFill"
+      :radius="20"
+      :show-loading="false"
+      :show-error="false"
       aria-hidden="true"
     />
   </view>

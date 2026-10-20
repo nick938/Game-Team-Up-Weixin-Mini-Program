@@ -40,11 +40,6 @@ const page = reactive(useGame());
       @clear="page.clearFilters"
       @publish="page.goPublish"
     />
-    <app-action-dock :active="pageActive"
-      ><wd-button block @click="page.goPublish">{{
-        page.game ? '发布 ' + page.game.name + ' 队伍' : '发布队伍'
-      }}</wd-button></app-action-dock
-    >
     <view class="section-title mb-3">看看其他游戏</view
     ><wd-cell-group
       ><wd-cell
@@ -54,7 +49,11 @@ const page = reactive(useGame());
         is-link
         @click="page.goGame(game.seoKey || game.slug)"
     /></wd-cell-group>
-    <view class="h-24" aria-hidden="true" />
+    <app-action-dock :active="pageActive"
+      ><wd-button block @click="page.goPublish">{{
+        page.game ? '发布 ' + page.game.name + ' 队伍' : '发布队伍'
+      }}</wd-button></app-action-dock
+    >
     <entry-notices />
   </app-shell>
 </template>

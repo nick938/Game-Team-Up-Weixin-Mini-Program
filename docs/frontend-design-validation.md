@@ -79,5 +79,11 @@ P2 收尾验证：67 项前端回归、类型检查与微信构建通过；新�
 
 部署时先上传 `cloudfunctions/team` 并在云端安装依赖，再更新小程序。云函数会创建 `team_reactions`；该集合仅管理端读写，客户端通过云函数操作。上线前用两个账号检查首次头像、表情切换/取消/刷新恢复及同时操作后的计数；QQ 仍需其 HTTPS 后端适配 `setReaction`。
 
-
 群组标识功能已暂缓，当前实现不提供群组入口、标识和筛选。
+
+## Wot UI 组件收敛（2026-10-20）
+
+- 头像不再有自定义组件：5 个调用点直接使用 Wot UI `wd-avatar`（尺寸 24 / 48 / 56 / 80px，方形 12px 圆角），不再向组件传 fileID、base64 或 identity；没有头像时传默认头像图，加载失败由 `wd-avatar` 自带错误态处理。上一节“稳定图片节点、加载完成后切换”的描述由本节取代。
+- 骨架屏、品牌插画与图片改用 `wd-skeleton` / `wd-img`；成员公开资料头像点击接入 `useImagePreview` 预览；头像选择接入 `useUpload.chooseFile`（微信头像仍走原生 `open-type="chooseAvatar"`，`useCountDown` / `useVideoPreview` 当前无对应场景，未接入）。
+- 底部操作区取消悬浮：`app-action-dock` 不再使用 fixed 定位与根 Portal，随页面内容排在末尾；大厅队伍卡片与「下一局」提示卡均使用 `wd-card`。
+- 本地验证：`check:matrix` 全部 PASS（lint、格式、前端回归、类型检查、微信 / QQ / H5 构建），根目录服务端测试通过；`wot usage` 已识别 `wd-avatar`、`wd-skeleton`、`wd-img`、`wd-image-preview`。头像实际观感、失败态与真机首屏仍需在微信开发者工具/真机确认。

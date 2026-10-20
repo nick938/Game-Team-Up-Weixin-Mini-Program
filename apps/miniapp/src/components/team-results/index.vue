@@ -44,7 +44,12 @@ const emit = defineEmits<{
     ><wd-button size="small" variant="text" @click="emit('retry')">重试</wd-button></view
   >
   <view v-if="loading && !teams.length" class="panel" aria-label="正在加载队伍"
-    ><view class="skeleton-shape h-6 w-40 mb-4" /><view class="skeleton-shape h-4 w-full"
+    ><wd-skeleton
+      animation="gradient"
+      :row-col="[
+        { width: '160px', height: '24px' },
+        { width: '100%', height: '16px' },
+      ]"
   /></view>
   <view v-else-if="error && !teams.length" class="panel"
     ><view class="text-sm mb-3">{{ error }}</view

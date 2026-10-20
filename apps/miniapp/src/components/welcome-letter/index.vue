@@ -78,10 +78,13 @@ onShow(() => {
         ><view
           ><view class="brand-kicker">开黑星球｜游戏搭子</view
           ><view class="text-2xl font-bold mt-2">一起玩，好好玩</view></view
-        ><image
-          class="w-14 h-14 rounded-2xl surface-shadow"
+        ><wd-img
+          custom-class="w-14 h-14 rounded-2xl surface-shadow"
           src="/static/images/brand/avatar-v1.jpg"
           mode="aspectFill"
+          :radius="16"
+          :show-loading="false"
+          :show-error="false"
       /></view>
       <view class="text-sm leading-7"
         >嘿，欢迎上车。这里是给游戏好友发车组队用的。车上都是真人，请友好相处。</view

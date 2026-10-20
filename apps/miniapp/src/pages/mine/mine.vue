@@ -22,13 +22,12 @@ const page = reactive(useMine());
           is-link
           @click="page.editProfile"
           ><template #prefix
-            ><app-avatar
-              size="profile"
-              :src="page.user.avatarUrl"
-              :file-id="page.user.avatarFileID"
-              identity="self"
-              :base64="page.user.avatarBase64"
-              class="mr-3" /></template></wd-cell
+            ><wd-avatar
+              size="large"
+              shape="square"
+              mode="aspectFill"
+              :src="page.user.avatarUrl || '/static/images/avatar.png'"
+              custom-class="mr-3" /></template></wd-cell
       ></wd-cell-group>
     </view>
     <view v-if="page.state.profileError" class="panel flex items-center justify-between gap-3"
@@ -58,8 +57,13 @@ const page = reactive(useMine());
         >重新加载</wd-button
       ></view
     >
-    <view v-if="page.state.loading && !page.visibleTeams.length" class="panel"
-      ><view class="skeleton-shape h-6 w-40 mb-4" /><view class="skeleton-shape h-4 w-full"
+    <view v-if="page.state.loading && !page.visibleTeams.length" class="panel" aria-label="正在加载队伍"
+      ><wd-skeleton
+        animation="gradient"
+        :row-col="[
+          { width: '160px', height: '24px' },
+          { width: '100%', height: '16px' },
+        ]"
     /></view>
     <team-card
       v-for="team in page.visibleTeams"

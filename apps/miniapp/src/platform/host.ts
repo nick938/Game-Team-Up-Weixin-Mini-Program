@@ -1,3 +1,6 @@
+// Wot UI's useUpload composable owns the native image picker call, so H5/QQ/WeChat
+// differences (chooseImage vs chooseMedia) live in one place.
+import { useUpload } from '@wot-ui/ui/composables/useUpload';
 // Explicit references are required by uni-app H5 API tree shaking. Aliasing the
 // whole uni namespace silently drops methods used only by migrated page handlers.
 export const platform = {
@@ -54,19 +57,13 @@ export function loginCode(): Promise<string> {
   );
 }
 
-export function chooseAvatar(): Promise<string> {
-  return new Promise((resolve, reject) =>
-    uni.chooseImage({
-      count: 1,
-      sizeType: ['compressed'],
-      success(result) {
-        const file = result.tempFilePaths[0];
-        if (file) resolve(file);
-        else reject(new Error('未选择图片'));
-      },
-      fail() {
-        reject(new Error('未选择图片'));
-      },
-    }),
-  );
+export async function chooseAvatar(): Promise<string> {
+  const { chooseFile } = useUpload();
+  try {
+    const [file] = await chooseFile({ accept: 'image', multiple: false, sizeType: ['compressed'] });
+    if (!file || !file.path) throw new Error('未选择图片');
+    return file.path;
+  } catch {
+    throw new Error('未选择图片');
+  }
 }

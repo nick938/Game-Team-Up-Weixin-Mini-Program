@@ -48,6 +48,8 @@ export const wotThemeVars = {
   cardContentColor: c.ink,
   cardContentFontSize: semantic.typography.secondary,
   cardContentLineHeight: semantic.lineHeight.secondary,
+  avatarBg: c['surface-muted'],
+  avatarBorderRadius: component.avatar.radius,
   popupRadius: component.sheet.radius,
   pickerRadius: component.sheet.radius,
   datetimePickerPopupRadius: `${component.sheet.radius} ${component.sheet.radius} 0px 0px`,

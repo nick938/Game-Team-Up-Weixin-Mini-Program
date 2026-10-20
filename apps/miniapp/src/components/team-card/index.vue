@@ -72,11 +72,12 @@ function onTap() {
         <text v-if="team.platform" class="room-tag shrink-0">{{ team.platform }}</text>
       </view>
       <view v-if="team.hostNickName || conditions" class="flex items-center gap-2 mb-2 min-w-0">
-        <app-avatar
+        <wd-avatar
           v-if="team.hostNickName"
-          size="compact"
-          :src="team.hostAvatarUrl"
-          :identity="'host:' + (team.id || team._id)"
+          size="small"
+          shape="square"
+          mode="aspectFill"
+          :src="team.hostAvatarUrl || '/static/images/avatar.png'"
         />
         <text
           v-if="team.hostNickName"

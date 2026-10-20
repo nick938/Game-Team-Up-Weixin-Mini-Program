@@ -237,7 +237,7 @@ function duration(value: string | number) {
       ><view class="field-error">{{ page.state.editLoadError }}</view
       ><wd-button variant="text" @click="page.loadEdit(page.editingId)">重新加载</wd-button></view
     >
-    <app-action-dock :active="pageActive" tabbed
+    <app-action-dock :active="pageActive"
       ><wd-button
         block
         :loading="page.submitting"

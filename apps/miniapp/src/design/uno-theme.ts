@@ -52,6 +52,7 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .lobby-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 24px;min-height:92px;box-sizing:border-box}
 .hero-mascot{width:60px;height:60px;border-radius:20px;box-shadow:0 8px 24px rgba(98,85,231,.13)}
 .room-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-title-padding:12px 12px 8px;--wot-card-content-padding:0 12px 12px}
+.next-team-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-content-padding:12px;--wot-card-bg:rgba(250,251,255,.96);box-shadow:0 2px 12px rgba(38,43,72,.04)}
 .room-status-compact{display:inline-block;padding:2px 6px;font-size:11px;line-height:16px}
 .room-reactions{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-top:1px solid ${c.border};padding-top:8px}
 .room-reactions .room-reaction.wd-button{width:100%;min-width:0;min-height:44px;padding:0 2px;font-size:12px;line-height:18px;white-space:nowrap;border-radius:10px;--wot-button-primary-color:${c.muted};--wot-button-primary-color-active:${c.muted};background:transparent}
@@ -65,13 +66,13 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .room-progress .wd-progress__bar{border-radius:99px}
 
 /* Content is quiet; translucent material is reserved for navigation and controls. */
-.app-page{padding-bottom:calc(110px + env(safe-area-inset-bottom));background:radial-gradient(ellipse 360px 240px at 100% 0,rgba(210,220,251,.35),transparent 100%),radial-gradient(ellipse 300px 250px at 0 80px,rgba(228,219,249,.25),transparent 100%)}
-.page-form{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+.app-page{padding-bottom:calc(24px + env(safe-area-inset-bottom));background:radial-gradient(ellipse 360px 240px at 100% 0,rgba(210,220,251,.35),transparent 100%),radial-gradient(ellipse 300px 250px at 0 80px,rgba(228,219,249,.25),transparent 100%)}
+.page-form{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 .glass-surface{background:rgba(250,251,255,.96);border:1px solid ${component.glass.edge};box-shadow:${component.glass.shadow};box-sizing:border-box}
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass-surface{background:${component.glass.surface};-webkit-backdrop-filter:blur(${component.glass.blur}) saturate(160%);backdrop-filter:blur(${component.glass.blur}) saturate(160%)}}
 .glass-segment .wd-segmented__slider{box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 6px rgba(38,43,72,.06)}
-.app-dock{position:fixed;z-index:940;left:16px;right:16px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:528px;margin:0 auto;padding:8px;border-radius:24px}
-.app-dock--tabbed{bottom:calc(12px + var(--window-bottom, 0px))}
+/* Bottom actions stay in the page flow instead of floating over the content. */
+.app-dock{margin-top:12px;padding:8px;border-radius:24px}
 .app-dock .wd-button{border-radius:18px;min-height:46px}
 .glass-segment{border-radius:16px;border:1px solid rgba(255,255,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
 .game-quick-row{display:flex;white-space:nowrap}
@@ -96,9 +97,7 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .empty-state{text-align:center;padding:38px 12px 28px}
 .profile-panel{background:rgba(255,255,255,.8);border-color:rgba(255,255,255,.95)}
 @media(prefers-reduced-transparency:reduce){.glass-surface{background:#FAFBFF;-webkit-backdrop-filter:none;backdrop-filter:none}}
-.skeleton-shape{background:${c['surface-muted']};border-radius:8px;animation:skeleton-breathe 1.4s ease-in-out infinite}
-@keyframes skeleton-breathe{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes app-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.room-enter,.reaction-pulse,.skeleton-shape{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
+@media(prefers-reduced-motion:reduce){.motion-enter,.motion-card,.room-enter,.reaction-pulse,.wd-skeleton--animation-gradient::after,.wd-skeleton--animation-flashed{animation:none!important}.tap-feedback,.wd-button{transition:none!important}.tap-feedback:active,.wd-button:active{transform:none!important}}
 `;
 }

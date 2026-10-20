@@ -18,7 +18,6 @@ const { afterLeave } = useTabBarOverlay(() => props.show, { waitForAfterLeave: t
 const store = useAppStore();
 const avatarUrl = ref(''),
   avatarFileID = ref(''),
-  avatarBase64 = ref(''),
   nickName = ref(''),
   bio = ref('');
 const saving = ref(false),
@@ -30,7 +29,6 @@ watch(
     const user = store.user || {};
     avatarUrl.value = user.avatarUrl || '';
     avatarFileID.value = user.avatarFileID || '';
-    avatarBase64.value = user.avatarBase64 || '';
     nickName.value = user.nickName || '';
     bio.value = user.bio || '';
     selectedPath.value = '';
@@ -41,7 +39,6 @@ function selectPath(path: string) {
   if (!path || saving.value) return;
   selectedPath.value = path;
   avatarUrl.value = path;
-  avatarBase64.value = '';
 }
 async function selectAvatar() {
   try {
@@ -122,24 +119,22 @@ async function save() {
             :disabled="saving"
             custom-class="!h-auto !p-0"
             @chooseavatar="selectPath($event.detail.avatarUrl)"
-            ><image
-              class="w-20 h-20 rounded-3xl"
-              :src="
-                avatarUrl ||
-                (avatarBase64 ? 'data:image/jpeg;base64,' + avatarBase64 : '/static/images/avatar.png')
-              "
+            ><wd-avatar
+              size="80px"
+              shape="square"
               mode="aspectFill"
+              :src="avatarUrl || '/static/images/avatar.png'"
+              custom-style="--wot-avatar-border-radius:24px"
           /></wd-button>
           <!-- #endif -->
           <!-- #ifndef MP-WEIXIN -->
           <wd-button variant="text" :disabled="saving" custom-class="!h-auto !p-0" @click="selectAvatar"
-            ><image
-              class="w-20 h-20 rounded-3xl"
-              :src="
-                avatarUrl ||
-                (avatarBase64 ? 'data:image/jpeg;base64,' + avatarBase64 : '/static/images/avatar.png')
-              "
+            ><wd-avatar
+              size="80px"
+              shape="square"
               mode="aspectFill"
+              :src="avatarUrl || '/static/images/avatar.png'"
+              custom-style="--wot-avatar-border-radius:24px"
           /></wd-button>
           <!-- #endif -->
           <view class="hint mt-2">点击更换头像</view>

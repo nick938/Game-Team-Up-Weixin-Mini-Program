@@ -54,42 +54,6 @@ test('profile saved during startup wins over a late response; failed requests ca
   await assert.rejects(load());
   assert.equal((await load()).user.nickName, '重试');
 });
-test('avatar keeps its bitmap during replacement, ignores stale loads and retains old image on error', async () => {
-  const avatar = harness().page('components/app-avatar/index', {
-    identity: 'self',
-    src: 'first',
-    fileId: 'a',
-  });
-  const props = avatar.bindings.props;
-  const first = avatar.view.layers[0].token;
-  avatar.loaded(first);
-  props.src = 'new-signed-url';
-  await nextTick();
-  assert.equal(avatar.view.layers.length, 1, 'same cloud file does not trigger another image load');
-  props.fileId = 'b';
-  props.src = 'second';
-  await nextTick();
-  const second = avatar.view.layers[1].token;
-  assert.equal(avatar.view.activeToken, first);
-  props.fileId = 'c';
-  props.src = 'third';
-  await nextTick();
-  const third = avatar.view.layers[1].token;
-  avatar.loaded(second);
-  assert.equal(avatar.view.activeToken, first);
-  avatar.failed(third);
-  assert.equal(avatar.view.activeToken, first);
-  props.fileId = 'd';
-  props.src = 'fourth';
-  await nextTick();
-  avatar.loaded(avatar.view.layers[1].token);
-  assert.notEqual(avatar.view.activeToken, first);
-  props.identity = 'other-user';
-  props.src = 'other';
-  await nextTick();
-  assert.equal(avatar.view.activeToken, 0, 'never display the prior user while a new owner loads');
-  assert.equal(avatar.view.layers.length, 1);
-});
 test('team publishing no longer assigns user group membership to a team', () => {
   const h = harness();
   const page = h.page('pages/publish/publish');

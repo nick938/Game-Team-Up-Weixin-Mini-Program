@@ -74,49 +74,6 @@ function goRoom() {
         }}</view
         ><view class="hint">复制下方房间号或好友码，打开游戏加入队友。这里占位不会自动进入游戏。</view></view
       >
-      <app-action-dock :active="pageActive">
-        <wd-button
-          v-if="view.primaryAction === 'join'"
-          block
-          :loading="page.state.joining"
-          :disabled="page.state.joining"
-          @click="page.onJoin"
-          >{{ view.lifecycle === 'active' ? '中途加入' : '加入队伍' }} · 还差
-          {{ view.needCount }} 人</wd-button
-        >
-        <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
-          >邀请好友，一起开黑</wd-button
-        >
-        <wd-button
-          v-else-if="view.primaryAction === 'room'"
-          block
-          @click="page.team.roomNo ? page.copyRoom() : goRoom()"
-          >{{ page.team.roomNo ? '复制加入方式，进入游戏' : '查看进房信息' }}</wd-button
-        >
-        <wd-button v-else block @click="page.goPlaza">{{
-          view.recruitment === 'full'
-            ? '这趟已满员，去大厅看看'
-            : view.confirmed
-              ? '去大厅看看其他队伍'
-              : '状态待确认，去大厅看看'
-        }}</wd-button>
-        <view class="flex flex-wrap gap-2 mt-2">
-          <wd-button
-            v-if="view.ongoing && view.primaryAction !== 'share'"
-            variant="soft"
-            block
-            open-type="share"
-            >分享给好友</wd-button
-          >
-          <wd-button
-            v-if="!view.ongoing && page.role === 'host' && view.confirmed"
-            block
-            variant="soft"
-            @click="page.onRepublish"
-            >再发一趟</wd-button
-          >
-        </view>
-      </app-action-dock>
       <view id="room-info" class="panel">
         <view class="section-title mb-3">怎么加入游戏</view>
         <view class="flex items-start justify-between gap-3">
@@ -169,11 +126,11 @@ function goRoom() {
                 custom-class="!p-0 !h-auto"
                 :aria-label="'查看' + seat.member.nickName + '的资料'"
                 @click="page.onMemberProfile(seat.member._id)"
-                ><app-avatar
-                  :src="seat.member.avatarUrl"
-                  :file-id="seat.member.avatarFileID"
-                  :identity="seat.member._id"
-                  :base64="seat.member.avatarBase64"
+                ><wd-avatar
+                  size="medium"
+                  shape="square"
+                  mode="aspectFill"
+                  :src="seat.member.avatarUrl || '/static/images/avatar.png'"
               /></wd-button>
               <view class="text-xs truncate mt-2">{{ seat.member.nickName || '玩家' }}</view
               ><view v-if="seat.member.role === 'host'" class="text-xs text-brand mt-1">车头</view>
@@ -232,10 +189,58 @@ function goRoom() {
           >举报这趟车</wd-button
         >
       </view>
+      <app-action-dock :active="pageActive">
+        <wd-button
+          v-if="view.primaryAction === 'join'"
+          block
+          :loading="page.state.joining"
+          :disabled="page.state.joining"
+          @click="page.onJoin"
+          >{{ view.lifecycle === 'active' ? '中途加入' : '加入队伍' }} · 还差
+          {{ view.needCount }} 人</wd-button
+        >
+        <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
+          >邀请好友，一起开黑</wd-button
+        >
+        <wd-button
+          v-else-if="view.primaryAction === 'room'"
+          block
+          @click="page.team.roomNo ? page.copyRoom() : goRoom()"
+          >{{ page.team.roomNo ? '复制加入方式，进入游戏' : '查看进房信息' }}</wd-button
+        >
+        <wd-button v-else block @click="page.goPlaza">{{
+          view.recruitment === 'full'
+            ? '这趟已满员，去大厅看看'
+            : view.confirmed
+              ? '去大厅看看其他队伍'
+              : '状态待确认，去大厅看看'
+        }}</wd-button>
+        <view class="flex flex-wrap gap-2 mt-2">
+          <wd-button
+            v-if="view.ongoing && view.primaryAction !== 'share'"
+            variant="soft"
+            block
+            open-type="share"
+            >分享给好友</wd-button
+          >
+          <wd-button
+            v-if="!view.ongoing && page.role === 'host' && view.confirmed"
+            block
+            variant="soft"
+            @click="page.onRepublish"
+            >再发一趟</wd-button
+          >
+        </view>
+      </app-action-dock>
     </template>
     <view v-else-if="page.loading" class="panel" aria-label="正在加载队伍"
-      ><view class="skeleton-shape h-6 w-40 mb-4" /><view class="skeleton-shape h-4 w-full mb-4" /><view
-        class="skeleton-shape h-12 w-full"
+      ><wd-skeleton
+        animation="gradient"
+        :row-col="[
+          { width: '160px', height: '24px' },
+          { width: '100%', height: '16px' },
+          { width: '100%', height: '48px' },
+        ]"
     /></view>
     <view v-else class="panel text-center">
       <wd-empty
@@ -260,7 +265,6 @@ function goRoom() {
       >
       <wd-button block @click="page.goPlaza">去大厅看看</wd-button>
     </view>
-    <view class="h-32" aria-hidden="true" />
     <team-manage-sheet
       v-if="page.role === 'host'"
       :show="page.showManage"

@@ -46,7 +46,7 @@ pnpm build:weixin
 
 ## 头像维护
 
-- 数据库存储原始 `cloud://` fileID，`team` 云函数返回可展示的 HTTPS `avatarUrl`；历史 base64 仅作无链接时的兼容。链接到期后重新进入页面或下拉刷新。
+- 数据库存储原始 `cloud://` fileID，`team` 云函数返回可展示的 HTTPS `avatarUrl`。前端头像直接用 Wot UI `wd-avatar` 展示，不传 fileID，也不再读取历史 base64；旧账号若只有 base64 而没有可用链接，会显示默认头像。链接到期后重新进入页面或下拉刷新。
 - 更换头像时先上传新图片，上传失败不提示保存成功；只改昵称时复用原 fileID。头像相关改动需同步部署微信前端与 `team` 云函数，验收两个账号互看、更换头像、只改昵称及上传失败。
 - 云存储权限、套餐续费和文件是否存在由云端配置决定，不根据固定日期推断权限会自动变化。参考 [CloudBase 云存储 SDK](https://docs.cloudbase.net/storage/sdk)。
 
