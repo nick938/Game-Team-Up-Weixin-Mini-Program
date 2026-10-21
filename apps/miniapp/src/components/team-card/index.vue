@@ -95,35 +95,37 @@ function onTap() {
             :aria-pressed="reactions.state.summary.selected?.includes(item.id)"
             @click="reactions.react(item.id)"
           >
-            <view
-              :key="reactions.state.effectId"
-              class="reaction-symbol"
-              :class="
-                reactions.state.cancelPulse === item.id
-                  ? 'reaction-cancel'
-                  : reactions.state.pulse === item.id
-                    ? 'reaction-pulse reaction-pulse-' + item.id
-                    : ''
-              "
-            >
-              <image
-                v-if="item.id === 'next'"
-                class="reaction-pigeon-icon"
-                src="/static/images/reactions/pigeon.png"
-                mode="aspectFit"
-              />
-              <wd-icon
-                v-else
-                :name="reactions.state.summary.selected?.includes(item.id) ? item.activeIcon : item.icon"
-                size="16px"
-              />
+            <view class="reaction-button-content">
+              <view
+                :key="reactions.state.effectId"
+                class="reaction-symbol"
+                :class="
+                  reactions.state.cancelPulse === item.id
+                    ? 'reaction-cancel'
+                    : reactions.state.pulse === item.id
+                      ? 'reaction-pulse reaction-pulse-' + item.id
+                      : ''
+                "
+              >
+                <image
+                  v-if="item.id === 'next'"
+                  class="reaction-pigeon-icon"
+                  src="/static/images/reactions/pigeon.png"
+                  mode="aspectFit"
+                />
+                <wd-icon
+                  v-else
+                  :name="reactions.state.summary.selected?.includes(item.id) ? item.activeIcon : item.icon"
+                  size="16px"
+                />
+              </view>
+              <text v-if="item.id === 'next'">{{ item.label }}</text>
+              <text v-if="reactions.state.summary.counts[item.id]" class="reaction-count">{{
+                (reactions.state.summary.counts[item.id] || 0) > 99
+                  ? '99+'
+                  : reactions.state.summary.counts[item.id]
+              }}</text>
             </view>
-            <text v-if="item.id === 'next'">{{ item.label }}</text>
-            <text v-if="reactions.state.summary.counts[item.id]" class="reaction-count">{{
-              (reactions.state.summary.counts[item.id] || 0) > 99
-                ? '99+'
-                : reactions.state.summary.counts[item.id]
-            }}</text>
           </wd-button>
           <reaction-effect
             v-if="reactions.state.pulse === item.id"
@@ -141,7 +143,9 @@ function onTap() {
           :button-id="'team-forward-' + (teamId || team.id || team._id)"
           custom-class="room-forward"
           @click="prepareCardShare(team, teamId)"
-          ><wd-icon name="share-external" size="15px" /> 转发</wd-button
+          ><view class="reaction-button-content"
+            ><wd-icon name="share-external" size="15px" /><text>转发</text></view
+          ></wd-button
         >
       </view>
     </wd-card>
@@ -210,7 +214,7 @@ function onTap() {
   white-space: nowrap;
 }
 .reaction-count {
-  margin-left: 2px;
+  flex-shrink: 0;
   font-size: 10px;
 }
 .reaction-slot {
@@ -232,11 +236,13 @@ function onTap() {
   line-height: 18px;
   font-size: 11px;
 }
-.room-reactions :deep(.wd-button__content),
-.room-reactions :deep(.wd-button__text) {
+.reaction-button-content {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 3px;
+  height: 44px;
   min-width: 0;
   white-space: nowrap;
   line-height: 18px;
@@ -250,6 +256,7 @@ function onTap() {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  margin-right: 0;
   width: 18px;
   height: 18px;
   line-height: 1;

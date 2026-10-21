@@ -20,13 +20,20 @@ const attrs = useAttrs();
     :required="required"
     :layout="layout || 'vertical'"
     :title-width="titleWidth"
-    :center="layout === 'horizontal'"
+    :center="false"
+    :custom-style="layout === 'horizontal' ? '--wot-cell-title-line-height:24px' : undefined"
     value-align="left"
     custom-class="app-field"
   >
     <wd-textarea
       v-bind="attrs"
       compact
+      :custom-style="
+        layout === 'horizontal'
+          ? 'min-height:0;--wot-textarea-inner-min-height:24px;--wot-textarea-inner-line-height:24px'
+          : undefined
+      "
+      :disable-default-padding="true"
       :model-value="modelValue"
       @update:model-value="emit('update:modelValue', String($event))"
     />
