@@ -1591,6 +1591,12 @@ function matchTeamSearch(team, query, now) {
   if (query.time === "today" && dayKey(team.startAt) !== dayKey(now)) return false;
   return true;
 }
+// Keep weights aligned with the optional local sorter in apps/miniapp/src/utils/lobby.ts.
+function teamHeat(team) {
+  const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  const reactions = reactionCounts(team);
+  return count(team.viewCount) + 3 * (reactions.like + reactions.love - reactions.dislike) + reactions.next;
+}
 async function listTeams(event = {}, openid) {
   const now = nowMs();
   const limit = clampInt(event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
@@ -1605,9 +1611,11 @@ async function listTeams(event = {}, openid) {
   active.forEach((team) => { if (team.gameName) gameCounts.set(team.gameName, (gameCounts.get(team.gameName) || 0) + 1); });
   const filtered = active.filter((team) => matchTeamSearch(team, event, now));
   filtered.sort((a, b) => {
+    if (event.sortMode === "hot") {
+      return teamHeat(b) - teamHeat(a) || Number(b.createdAt || 0) - Number(a.createdAt || 0) || String(a._id).localeCompare(String(b._id));
+    }
     const available = (t) => resolveStatus(t, now) === "recruiting" && t.memberCount < t.capacity;
     if (available(a) !== available(b)) return available(a) ? -1 : 1;
-    if (event.sortMode === "hot" && a.memberCount !== b.memberCount) return b.memberCount - a.memberCount;
     if (event.sortMode === "start" && a.startAt !== b.startAt) return a.startAt - b.startAt;
     return Number(b.createdAt || 0) - Number(a.createdAt || 0) || String(a._id).localeCompare(String(b._id));
   });
@@ -1637,15 +1645,12 @@ async function recordTeamEvent(teamId, openid, kind) {
   const id = require("node:crypto").createHash("sha256").update(`${dayKey(nowMs())}:${teamId}:${openid}:${kind}`).digest("hex");
   await db.collection("team_events").doc(id).set({ data: { teamId, openid, kind, createdAt: nowMs() } });
 }
-// All-time unique detail visitors. Old manual watch reactions are never used here.
-async function recordTeamView(teamId, openid) {
+// Count every successful detail entry, including repeat visitors.
+async function recordTeamView(teamId) {
   return db.runTransaction(async tx => {
     const teamRef = tx.collection("teams").doc(teamId);
     const team = (await teamRef.get()).data;
     if (!teamExists(team)) throw new Error("队伍不存在");
-    const viewRef = tx.collection("team_views").doc(reactionDocId(teamId, openid));
-    if (await optionalReaction(viewRef)) return;
-    await viewRef.set({ data: { teamId, createdAt: nowMs() } });
     const current = Number(team.viewCount);
     await teamRef.update({ data: { viewCount: (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1 } });
   });
@@ -1660,7 +1665,7 @@ async function trackTeamEvent(event, openid) {
   const team = (await db.collection("teams").doc(teamId).get()).data;
   if (!teamExists(team)) return fail("队伍不存在");
   await recordTeamEvent(teamId, openid, event.kind);
-  if (["detail_view", "share_view"].includes(event.kind)) await recordTeamView(teamId, openid);
+  if (["detail_view", "share_view"].includes(event.kind)) await recordTeamView(teamId);
   await recordAction(openid, "trackTeamEvent");
   return ok();
 }

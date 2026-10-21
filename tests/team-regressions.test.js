@@ -550,11 +550,11 @@ test('lobby sorts by creation or heat, defaulting to newest first', () => {
   assert.equal(sortTeams(teams)[0]._id, 'new');
   assert.deepEqual(ids(sortTeams(teams, 'latest')), ['new', 'mid', 'old']);
   assert.equal(sortTeams(teams, 'not-a-mode')[0]._id, 'new');
-  // 热度按上车人数；人数相同再按最新创建。
+  // 浏览和互动决定热度，同热度再按最新创建；上车人数不参与。
   const tie = [
-    { _id: 'a', createdAt: now - 1000, memberCount: 3 },
-    { _id: 'b', createdAt: now - 90000, memberCount: 3 },
-    { _id: 'c', createdAt: now - 5000, memberCount: 4 },
+    { _id: 'a', createdAt: now - 1000, memberCount: 3, viewCount: 3 },
+    { _id: 'b', createdAt: now - 90000, memberCount: 5, viewCount: 3 },
+    { _id: 'c', createdAt: now - 5000, memberCount: 1, reactions: { counts: { like: 2 } } },
   ];
   assert.deepEqual(ids(sortTeams(tie, 'hot')), ['c', 'a', 'b']);
   // 目前只提供最新 / 最热两档。
@@ -584,7 +584,7 @@ test('lobby search matches game, server, rank and note, and composes with filter
   assert.equal(matchKeyword(teams[1], '不存在'), false);
   // 搜索 + 游戏筛选 + 排序叠加：先搜「服」→ 三条都中，再筛 CS2 → a、c，再按最新在前 → a、c。
   assert.deepEqual(buildLobbyView(teams, { keyword: '服', gameFilter: 'CS2', sortMode: 'latest' }).map(t => t._id), ['a', 'c']);
-  // 只搜索不筛选，按最热（人数缺省为 0，回落到创建时间）排序。
+  // 只搜索不筛选，默认仍按创建时间排序。
   assert.deepEqual(buildLobbyView(teams, { keyword: 'CS2' }).map(t => t._id), ['a', 'c']);
   assert.deepEqual(buildLobbyView(teams, { keyword: '不存在' }), []);
 });
@@ -1222,7 +1222,7 @@ test('server game aliases, time filters, full teams and global sorting compose',
   const base = { ...teamPayload(), platform: 'Steam', memberCount: 2, status: 'recruiting', createdAt: 1 };
   const teams = [
     { ...base, _id: 'a', gameName: 'CS:GO', startAt: now - 1000, endAt: now + 3600000 },
-    { ...base, _id: 'b', gameName: 'cs 2', startAt: now + 600000, memberCount: 4 },
+    { ...base, _id: 'b', gameName: 'cs 2', startAt: now + 600000, memberCount: 4, viewCount: 8 },
     { ...base, _id: 'c', gameName: 'CS2', startAt: now + 600000, memberCount: 5, createdAt: 999 },
     { ...base, _id: 'd', gameName: 'CS2', startAt: now + 7200000, endAt: now + 10800000 },
   ];
@@ -1233,7 +1233,7 @@ test('server game aliases, time filters, full teams and global sorting compose',
   const all = await ctx.listTeams({ ...query, availableOnly: false, sortMode: 'hot' }, '');
   assert.equal(all.total, 4);
   assert.equal(all.list[0]._id, 'b');
-  assert.equal(all.list.at(-1)._id, 'c', 'full teams follow joinable teams');
+  assert.equal(all.list[1]._id, 'c', 'equal heat falls back to creation time even for full teams');
 });
 
 test('editing revalidates current member count and cancellation inside its transaction', async () => {
@@ -1408,19 +1408,45 @@ test('a new reaction reconciles legacy combined selections and their aggregate c
   assert.equal(result.reactions.counts.next, 0);
   assert.equal(result.reactions.counts.dislike, 1);
 });
-test('real visitors count once per team across detail/share visits, with old watch votes untouched', async () => {
+test('every detail/share entry increments views including repeat users, with old watch votes untouched', async () => {
   const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting', reactionCounts: { watch: 99 } };
   const ctx = backend({ teams: [team] });
   await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
   await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'a');
   await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
-  assert.equal(team.viewCount, 1);
+  assert.equal(team.viewCount, 3);
   await ctx.trackTeamEvent({ teamId: 't', kind: 'copy_room' }, 'b');
-  assert.equal(team.viewCount, 1);
+  assert.equal(team.viewCount, 3);
   await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'b');
-  assert.equal(team.viewCount, 2);
+  assert.equal(team.viewCount, 4);
   assert.equal(team.reactionCounts.watch, 99);
   const card = (await ctx.listTeams({}, 'visitor')).list[0];
-  assert.equal(card.viewCount, 2);
+  assert.equal(card.viewCount, 4);
   assert.equal(card.openid, undefined);
+});
+
+
+test('hot ranking uses views and current reactions globally before pagination and matches local sorting', async () => {
+  const now = Date.now();
+  const base = { ...teamPayload(), memberCount: 1, status: 'recruiting', startAt: now + 600000, endAt: now + 3600000, createdAt: 1 };
+  const teams = [
+    { ...base, _id: 'views', viewCount: 12 },
+    { ...base, _id: 'likes', viewCount: 1, reactionCounts: { like: 5 } },
+    { ...base, _id: 'love', viewCount: 2, reactionCounts: { love: 4, next: 4 }, memberCount: 5, status: 'full' },
+    { ...base, _id: 'down', viewCount: 20, reactionCounts: { dislike: 10 } },
+    { ...base, _id: 'legacy', viewCount: -1, reactionCounts: { watch: 999, like: -3 } },
+    { ...base, _id: 'new-tie', viewCount: 12, createdAt: 2 },
+    { ...base, _id: 'missing', viewCount: 'invalid' },
+  ];
+  const ctx = backend({ teams });
+  const first = await ctx.listTeams({ sortMode: 'hot', limit: 2 }, '');
+  const second = await ctx.listTeams({ sortMode: 'hot', offset: first.nextOffset, limit: 50 }, '');
+  const ordered = [...first.list, ...second.list];
+  const expected = ['love', 'likes', 'new-tie', 'views', 'legacy', 'missing', 'down'];
+  assert.deepEqual(ordered.map(t => t._id), expected);
+  assert.deepEqual(loadUtility('lobby').sortTeams(ordered.reverse(), 'hot').map(t => t._id), expected);
+  await ctx.setReaction({ teamId: 'likes', reaction: 'like', enabled: true }, 'visitor');
+  assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'likes');
+  await ctx.setReaction({ teamId: 'likes', reaction: 'like', enabled: false }, 'visitor');
+  assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'love');
 });

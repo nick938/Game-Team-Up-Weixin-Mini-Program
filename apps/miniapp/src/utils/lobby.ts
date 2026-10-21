@@ -3,7 +3,7 @@ import type { Team } from '../types/domain';
 // 数据是分页累加来的，这里只处理已加载到本地的部分。
 // 排序方式：
 // latest 最新——按创建时间倒序，刚发的车在最上面（默认）
-// hot 最热——按已上车人数排序，人越多越靠前
+// hot 最热——浏览量 + 赞×3 + 喜欢×3 + 下次一定 − 踩×3
 const SORT_MODES = [
   { key: 'latest', label: '最新' },
   { key: 'hot', label: '最热' },
@@ -15,9 +15,16 @@ function createdAtOf(team: Partial<Team>) {
   return Number((team && team.createdAt) || 0);
 }
 
-// 热度只看已上车人数；同人数按最新发布，避免顺序随机。
+// Match the server's global ranking; legacy manual watch reactions are not page views.
 function heatOf(team: Partial<Team>) {
-  return Number((team && team.memberCount) || 0);
+  const count = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  const reactions = team.reactions?.counts;
+  return (
+    count(team.viewCount) +
+    3 * (count(reactions?.like) + count(reactions?.love) - count(reactions?.dislike)) +
+    count(reactions?.next)
+  );
 }
 
 function normalizeMode(mode: string | undefined) {
@@ -28,7 +35,12 @@ function sortTeams(list: Team[], mode: string | undefined) {
   const arr = (list || []).slice();
   const key = normalizeMode(mode);
   if (key === 'hot') {
-    arr.sort((a, b) => heatOf(b) - heatOf(a) || createdAtOf(b) - createdAtOf(a));
+    arr.sort(
+      (a, b) =>
+        heatOf(b) - heatOf(a) ||
+        createdAtOf(b) - createdAtOf(a) ||
+        String(a._id).localeCompare(String(b._id)),
+    );
   } else {
     arr.sort((a, b) => createdAtOf(b) - createdAtOf(a));
   }

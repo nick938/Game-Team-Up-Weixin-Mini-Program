@@ -54,6 +54,7 @@ async function submit() {
             :maxlength="40"
             clearable
             required
+            hide-asterisk
             placeholder="输入游戏名"
             :error="errorFor('field-game')"
             @update:model-value="page.onGameName(String($event))"
@@ -194,7 +195,7 @@ async function submit() {
           :model-value="page.note"
           :maxlength="500"
           auto-height
-          placeholder="选填：区服、房间号、玩法或队友要求"
+          placeholder="选填：区服、房间号、KOOK 房间地址、玩法或队友要求"
           @update:model-value="page.onNote(String($event))"
         />
       </view>
@@ -206,7 +207,6 @@ async function submit() {
     <view class="publish-dock-spacer" />
     <view v-if="pageActive" class="publish-dock">
       <app-action-dock :active="pageActive">
-        <view class="publish-summary">{{ page.timeSummaryLine1 }} · {{ page.capacity }} 人</view>
         <wd-button
           block
           :loading="page.submitting"
@@ -251,7 +251,7 @@ async function submit() {
   white-space: nowrap;
 }
 .publish-dock-spacer {
-  height: 110px;
+  height: 86px;
 }
 .publish-dock {
   position: fixed;
@@ -261,12 +261,5 @@ async function submit() {
   max-width: 568px;
   margin: 0 auto;
   z-index: 30;
-}
-.publish-summary {
-  text-align: center;
-  color: #687085;
-  font-size: 11px;
-  line-height: 18px;
-  margin-bottom: 6px;
 }
 </style>

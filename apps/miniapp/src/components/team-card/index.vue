@@ -13,7 +13,7 @@ const props = withDefaults(
 );
 const view = useTeamPresentation(() => props.team);
 const reactions = useCardReactions(() => props.team);
-const visitors = computed(() => {
+const views = computed(() => {
   const count = Number(props.team.viewCount);
   return Number.isSafeInteger(count) && count >= 0 ? count : 0;
 });
@@ -124,8 +124,8 @@ function onTap() {
             :kind="item.id"
           />
         </view>
-        <view class="room-visitors" :aria-label="visitors + '人看过'">
-          <wd-icon name="eye" size="14px" /> {{ visitors }}
+        <view class="room-visitors" :aria-label="views + '次浏览'">
+          <wd-icon name="eye" size="14px" /> {{ views }}
         </view>
         <wd-button
           size="mini"

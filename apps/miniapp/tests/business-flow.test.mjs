@@ -344,3 +344,34 @@ test('cached pages show their portal chrome even when onShow precedes the route-
   await page.hooks.onShow();
   assert.equal(page.bindings.pageActive.value, true, 'returning to the cached tab restores navigation');
 });
+
+test('each detail entry tracks a view while internal refreshes and failed loads do not add views', async () => {
+  let failNext = true;
+  const h = harness({
+    callTeam: async (action) => {
+      if (action === 'getTeam') {
+        if (failNext) {
+          failNext = false;
+          throw new Error('offline');
+        }
+        return { team: futureTeam(), role: null, members: [] };
+      }
+      return { ok: true };
+    },
+  });
+  const first = h.page('pages/team/detail');
+  first.hooks.onLoad({ id: 't' });
+  await first.loadDetail();
+  assert.equal(h.calls.filter((call) => call.action === 'trackTeamEvent').length, 0);
+  await first.loadDetail();
+  await first.loadDetail();
+  const second = h.page('pages/team/detail');
+  second.hooks.onLoad({ id: 't', from: 'share' });
+  await second.loadDetail();
+  const events = h.calls.filter((call) => call.action === 'trackTeamEvent');
+  assert.equal(events.length, 2);
+  assert.deepEqual(
+    events.map((call) => call.input.kind),
+    ['detail_view', 'share_view'],
+  );
+});

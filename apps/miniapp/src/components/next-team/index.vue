@@ -2,7 +2,7 @@
 defineOptions({ name: 'NextTeam' });
 import type { Team } from '../../types/domain';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
-const props = defineProps<{ team: Team }>();
+const props = defineProps<{ team: Team; highlighted?: boolean }>();
 const emit = defineEmits<{ open: [detail: { id: string; gameName: string }]; refresh: [] }>();
 const view = useTeamPresentation(
   () => props.team,
@@ -11,7 +11,10 @@ const view = useTeamPresentation(
 );
 </script>
 <template>
-  <wd-card v-if="view.ongoing" custom-class="!mx-0 !mb-3 next-team-card">
+  <wd-card
+    v-if="view.ongoing"
+    :custom-class="'!mx-0 !mb-3 next-team-card' + (highlighted ? ' mine-next-team' : '')"
+  >
     <view class="flex items-center justify-between gap-2">
       <view class="min-w-0 flex-1"
         ><view class="text-sm font-semibold text-ink truncate"
@@ -28,7 +31,7 @@ const view = useTeamPresentation(
         ></view
       >
       <wd-button
-        variant="text"
+        :variant="highlighted ? 'soft' : 'text'"
         size="small"
         @click="emit('open', { id: team.id || team._id, gameName: team.gameName })"
         >回到队伍</wd-button
@@ -36,3 +39,12 @@ const view = useTeamPresentation(
     </view>
   </wd-card>
 </template>
+
+<style scoped>
+:deep(.mine-next-team.wd-card) {
+  border-color: var(--app-brand-light);
+  --wot-card-bg: #f5f3ff;
+  box-shadow: none;
+  --wot-card-content-padding: 14px;
+}
+</style>

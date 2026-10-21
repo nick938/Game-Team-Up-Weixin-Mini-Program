@@ -35,6 +35,9 @@ export default defineUniPages({
     {
       path: 'pages/mine/mine',
       style: {
+        navigationStyle: 'custom',
+        navigationBarTextStyle: 'white',
+        navigationBarBackgroundColor: '#211B3B',
         navigationBarTitleText: '我的',
         enablePullDownRefresh: true,
       },
