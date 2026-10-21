@@ -711,7 +711,7 @@ function validateTeamInput(input, { isCreate }) {
   if (endAt - startAt > MAX_TEAM_MS) {
     return { error: "一局最长 24 小时" };
   }
-  if (!roomNo) return { error: "请填写房间 / 加入方式" };
+  if (!roomNo) return { error: "请填写车头的好友码或联系方式" };
   const text = `${gameName}${roomNo}${roomPwd}${server}${rankReq}${note}`;
   if (BAD.test(text)) {
     return { error: "内容包含不允许发布的信息" };
@@ -1413,12 +1413,12 @@ async function dedupeTeamMembers(teamId, team, list) {
 
 // One deterministic record per actor and team. Set the desired value so retries are idempotent.
 const REACTION_IDS = ["like", "fire", "laugh", "love", "watch", "game", "dislike", "busy", "time", "next"];
-const REACTION_GROUPS = { like: ["like", "dislike"], dislike: ["like", "dislike"], love: ["love"], busy: ["busy", "time", "next"], time: ["busy", "time", "next"], next: ["busy", "time", "next"] };
+const REACTION_GROUPS = Object.fromEntries(["like", "dislike", "love", "busy", "time", "next"].map(id => [id, REACTION_IDS]));
 function selectedReactions(own) {
   return [...new Set((Array.isArray(own?.reactions) ? own.reactions : own?.reaction ? [own.reaction] : []).filter(id => REACTION_IDS.includes(id)))];
 }
 function reactionSummary(team, own) {
-  const selected = selectedReactions(own);
+  const selected = selectedReactions(own).slice(-1);
   return { counts: reactionCounts(team), selected, mine: selected[selected.length - 1] || "" };
 }
 function reactionDocId(teamId, openid) {
@@ -1467,10 +1467,10 @@ async function setReaction(event, openid) {
     const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
     const own = await optionalReaction(ownRef);
     const previous = selectedReactions(own);
-    // Legacy clients can still send their single desired reaction; v2 updates one dimension.
+    // Every actor selects one reaction. A write also reconciles older multi-reaction records.
     const next = event.enabled === undefined ? (reaction ? [reaction] : []) : event.enabled
-      ? [...previous.filter(id => !REACTION_GROUPS[reaction].includes(id)), reaction]
-      : previous.filter(id => id !== reaction);
+      ? [reaction]
+      : previous.filter(id => id !== reaction).slice(-1);
     const counts = reactionCounts(team);
     for (const id of REACTION_IDS) counts[id] = Math.max(0, counts[id] + Number(next.includes(id)) - Number(previous.includes(id)));
     if (JSON.stringify(previous) !== JSON.stringify(next)) {

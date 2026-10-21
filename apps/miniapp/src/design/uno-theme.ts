@@ -54,7 +54,7 @@ page,body{${appThemeStyle};${wotStyle};background:${c.page};color:${c.ink};font-
 .room-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-title-padding:12px 12px 8px;--wot-card-content-padding:0 12px 12px}
 .next-team-card.wd-card{border:1px solid rgba(255,255,255,.9);--wot-card-content-padding:12px;--wot-card-bg:rgba(250,251,255,.96);box-shadow:0 2px 12px rgba(38,43,72,.04)}
 .room-status-compact{display:inline-block;padding:2px 6px;font-size:11px;line-height:16px}
-.room-reactions{display:grid;grid-template-columns:.9fr .9fr 1.15fr 1.65fr;gap:2px;border-top:1px solid ${c.border};padding-top:8px}
+.room-reactions{display:grid;grid-template-columns:repeat(3,minmax(0,.7fr)) minmax(0,1.8fr) minmax(0,.75fr) minmax(0,1.05fr);gap:2px;border-top:1px solid ${c.border};padding-top:8px}
 .room-reactions .room-reaction.wd-button{width:100%;min-width:0;min-height:44px;padding:0;font-size:12px;line-height:18px;white-space:nowrap;border-radius:10px;--wot-button-primary-color:${c.muted};--wot-button-primary-color-active:${c.muted};background:transparent}
 .room-reactions .room-reaction-active.wd-button{--wot-button-primary-color:${c.brand};--wot-button-primary-color-active:${c['brand-pressed']}}
 .reaction-symbol{display:inline-flex;align-items:center;vertical-align:middle;margin-right:3px}

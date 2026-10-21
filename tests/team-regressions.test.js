@@ -1153,7 +1153,7 @@ test('cloud requires a room / join method for creating and editing', () => {
   const ctx = backend();
   for (const isCreate of [true, false]) {
     for (const roomNo of [undefined, '', '   ', '\t\n']) {
-      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写房间 / 加入方式');
+      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写车头的好友码或联系方式');
     }
     const valid = ctx.validateTeamInput({ ...teamPayload(), roomNo: '  Steam 好友代码 123456  ' }, { isCreate });
     assert.equal(valid.error, undefined);
@@ -1371,30 +1371,42 @@ test('daily API routes authenticate, moderate custom games, block banned writes 
   assert.equal((await risky.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
 });
 
-test('v2 reactions allow independent affection and schedule, enforce exclusivity, and retain legacy counts', async () => {
+test('all four reactions are mutually exclusive, switching updates counts and retries remain idempotent', async () => {
   const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting' };
   const ctx = backend({ teams: [team] });
-  const react = (reaction, enabled = true) => ctx.setReaction({ teamId: 't', reaction, enabled }, 'a');
+  const react = (reaction, enabled = true, actor = 'a') => ctx.setReaction({ teamId: 't', reaction, enabled }, actor);
   await ctx.setReaction({ teamId: 't', reaction: 'watch' }, 'a');
+  for (const reaction of ['like', 'dislike', 'love', 'next', 'like']) {
+    const result = await react(reaction);
+    assert.deepEqual(Array.from(result.reactions.selected), [reaction]);
+    for (const id of ['like', 'dislike', 'love', 'next', 'watch'])
+      assert.equal(result.reactions.counts[id], id === reaction ? 1 : 0);
+  }
   await react('like');
-  await react('love');
-  await react('busy');
-  let result = await react('next');
-  assert.deepEqual(Array.from(result.reactions.selected).sort(), ['like', 'love', 'next', 'watch']);
-  assert.equal(result.reactions.counts.watch, 1);
-  assert.equal(result.reactions.counts.like, 1);
-  await react('dislike');
-  result = await react('next');
-  assert.deepEqual(Array.from(result.reactions.selected).sort(), ['dislike', 'love', 'next', 'watch']);
-  assert.equal(result.reactions.counts.like, 0);
-  assert.equal(result.reactions.counts.busy, 0);
-  await react('next');
-  assert.equal(team.reactionCounts.next, 1);
-  await react('next', false);
-  result = await react('next', false);
-  assert.equal(result.reactions.counts.next, 0);
-  assert.equal(result.reactions.counts.love, 1);
+  assert.equal(team.reactionCounts.like, 1);
+  await react('love', true, 'b');
+  const staleCancel = await react('next', false);
+  assert.equal(staleCancel.reactions.mine, 'like');
+  await react('like', false);
+  const cancelled = await react('like', false);
+  assert.deepEqual(Array.from(cancelled.reactions.selected), []);
+  assert.equal(cancelled.reactions.counts.like, 0);
+  assert.equal(cancelled.reactions.counts.love, 1);
   assert.equal((await react('watch')).ok, false);
+});
+test('a new reaction reconciles legacy combined selections and their aggregate counts', async () => {
+  const key = require('node:crypto').createHash('sha256').update(JSON.stringify(['t', 'a'])).digest('hex');
+  const team = { _id: 't', ...teamPayload(), reactionCounts: {like: 2, love: 1, next: 1} };
+  const ctx = backend({teams: [team]});
+  await ctx.require('wx-server-sdk').database().collection('team_reactions').doc(key).set({
+    data: {teamId:'t',reactions:['like','love','next'],reaction:'next'}
+  });
+  const result = await ctx.setReaction({teamId:'t',reaction:'dislike',enabled:true}, 'a');
+  assert.deepEqual(Array.from(result.reactions.selected), ['dislike']);
+  assert.equal(result.reactions.counts.like, 1);
+  assert.equal(result.reactions.counts.love, 0);
+  assert.equal(result.reactions.counts.next, 0);
+  assert.equal(result.reactions.counts.dislike, 1);
 });
 test('real visitors count once per team across detail/share visits, with old watch votes untouched', async () => {
   const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting', reactionCounts: { watch: 99 } };

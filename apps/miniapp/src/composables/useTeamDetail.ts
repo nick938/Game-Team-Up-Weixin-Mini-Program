@@ -234,7 +234,7 @@ export function useTeamDetail() {
         endAt: '结束时间',
         platform: '平台',
         server: '区服',
-        roomNo: '加入方式',
+        roomNo: '车头联系方式',
         roomPwd: '密码',
       };
       let seenAt = 0;

@@ -3,7 +3,7 @@ import { overlappingTeams } from '../utils/team-schedule';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
 import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
-import type { TeamDraft, User } from '../types/domain';
+import type { Team, TeamDraft, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { loadMyProfile } from '../utils/my-profile';
@@ -18,9 +18,9 @@ import {
   START_PRESETS,
   DURATION_PRESETS,
   sortPlatforms,
-  hasExtraSettings,
   moreSettingsHint,
   tonightStartAt,
+  mergeLegacyNote,
   resolveStartAt,
   resolveEndAtMinutes,
   detectDurationMinutes,
@@ -77,7 +77,7 @@ export function usePublish() {
       durationPickerIndex: durationPickerIndexFor(durationMinutes),
       timeSummaryLine1: summary.line1,
       timeSummaryLine2: summary.line2,
-      capacity: 5,
+      capacity: 4,
       roomNo: '',
       roomPwd: '',
       platform: 'Steam',
@@ -91,6 +91,7 @@ export function usePublish() {
       showProfile: false,
       pendingAction: '',
       fromLast: false,
+      selectedHistoryId: '',
       showMore: false,
       proxyMode: false,
       proxyKeyword: '',
@@ -103,6 +104,7 @@ export function usePublish() {
     proxyTimer: null as ReturnType<typeof setTimeout> | null,
     proxySearchToken: 0,
     singlePage: false,
+    recentLaunches: [] as Team[],
     ...Object.assign(emptyForm(), {
       canProxy: false,
       suggestedGames: GAME_CATALOG,
@@ -207,10 +209,10 @@ export function usePublish() {
       const extras = {
         roomNo: team.roomNo || '',
         roomPwd: team.roomPwd || '',
-        server: team.server || '',
+        server: '',
         voice: VOICES.indexOf(voice || '') >= 0 ? voice : 'KOOK',
-        rankReq: team.rankReq || '',
-        note: team.note || '',
+        rankReq: '',
+        note: mergeLegacyNote(team),
       };
       const summary = buildTimeSummary({
         startDate: start.date,
@@ -226,7 +228,7 @@ export function usePublish() {
         ...emptyForm(),
         editingId: id,
         minimumCapacity: Math.max(2, team.memberCount),
-        showMore: hasExtraSettings(extras),
+        showMore: !!extras.roomPwd || extras.voice !== '不限',
         gameName: team.gameName || '',
         startDate: start.date,
         startTime: start.time,
@@ -265,12 +267,12 @@ export function usePublish() {
     const voice = draft.voice === 'Discord' ? 'KOOK' : draft.voice;
     const platform = PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : 'Steam';
     const extras = {
-      roomNo: draft.roomNo || '',
-      roomPwd: draft.roomPwd || '',
-      server: draft.server || '',
+      roomNo: readGameSettings(draft.gameName)?.contact || '',
+      roomPwd: '',
+      server: '',
       voice: VOICES.indexOf(voice || '') >= 0 ? voice : 'KOOK',
-      rankReq: draft.rankReq || '',
-      note: draft.note || '',
+      rankReq: '',
+      note: mergeLegacyNote(draft),
     };
     const summary = buildTimeSummary({
       startDate: start.date,
@@ -285,7 +287,7 @@ export function usePublish() {
     patchState({
       ...emptyForm(),
       fromLast: true,
-      showMore: hasExtraSettings(extras),
+      showMore: !!extras.roomPwd || extras.voice !== '不限',
       gameName: draft.gameName || '',
       startDate: start.date,
       startTime: start.time,
@@ -299,14 +301,129 @@ export function usePublish() {
       durationPickerIndex: durationPickerIndexFor(durationMinutes),
       timeSummaryLine1: summary.line1,
       timeSummaryLine2: summary.line2,
-      capacity: draft.capacity || 5,
+      capacity: draft.capacity || 4,
       platform,
       platforms: sortPlatforms(platform, PLATFORMS),
       ...extras,
       moreHint: moreSettingsHint(extras),
     });
   }
+  let historyLoadedAt = 0;
+  async function loadRecentLaunches() {
+    if (historyLoadedAt && Date.now() - historyLoadedAt < 60000) return;
+    try {
+      const res = await callTeam('myTeams');
+      const now = Date.now();
+      const seen = new Set<string>();
+      state.recentLaunches = (res.hosted || [])
+        .sort((a, b) => Number(b.createdAt || b.startAt) - Number(a.createdAt || a.startAt))
+        .filter((team) => {
+          const name = team.gameName?.trim().toLowerCase();
+          if (!name || seen.has(name)) return false;
+          seen.add(name);
+          return true;
+        })
+        .slice(0, 3);
+      historyLoadedAt = now;
+    } catch {
+      // History is optional: entering a game and publishing must still work.
+    }
+  }
+  function historyTime(team: Partial<Team>) {
+    return dateParts(Number(team.startAt)).time;
+  }
+  function reuseLaunch(team: Team) {
+    if (state.editingId || state.submitting) return;
+    const now = Date.now();
+    const previous = new Date(team.startAt);
+    let startAt = team.startAt;
+    if (startAt <= now) {
+      const next = new Date(now);
+      next.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+      if (next.getTime() <= now) next.setDate(next.getDate() + 1);
+      startAt = next.getTime();
+    }
+    const proxyMode = state.proxyMode;
+    const proxyHost = state.proxyHost;
+    applyDraft(team);
+    changeStart(startAt);
+    const minutes = detectDurationMinutes(team.startAt, team.endAt || team.expireAt || 0);
+    if (minutes) changeDuration(minutes);
+    patchState({
+      roomNo: proxyMode ? '' : team.roomNo || '',
+      selectedHistoryId: team._id,
+      proxyMode,
+      proxyHost,
+    });
+  }
+  const DRAFT_KEY = 'publish-draft-v2';
+  let draftRestored = false;
+  function readLocal(key: string) {
+    try {
+      return hostPlatform.getStorageSync(key);
+    } catch {
+      return null;
+    }
+  }
+  function writeLocal(key: string, value: unknown) {
+    try {
+      hostPlatform.setStorageSync(key, value);
+    } catch {
+      // Local convenience must never block publishing.
+    }
+  }
+  function readGameSettings(name: string) {
+    const value = readLocal('publish-game-v2:' + name.trim());
+    if (!value || typeof value !== 'object') return null;
+    return value as { contact?: string; capacity?: number; durationMinutes?: number };
+  }
+  function applyGameSettings(name: string) {
+    if (state.editingId) return;
+    const settings = readGameSettings(name);
+    if (!settings) return;
+    const patch: Partial<typeof state> = {};
+    if (Number.isInteger(settings.capacity) && settings.capacity! >= 2 && settings.capacity! <= 20)
+      patch.capacity = settings.capacity;
+    if (!state.proxyMode && typeof settings.contact === 'string') patch.roomNo = settings.contact;
+    patchState(patch);
+    if (settings.durationMinutes) changeDuration(settings.durationMinutes);
+  }
+  function rememberSettings() {
+    if (state.proxyMode) return;
+    writeLocal('publish-game-v2:' + state.gameName.trim(), {
+      contact: state.roomNo.trim(),
+      capacity: state.capacity,
+      durationMinutes: state.durationMinutes,
+    });
+  }
+  function saveDraft() {
+    if (state.singlePage || state.editingId || state.proxyMode || state.submitting) return;
+    if (!state.gameName.trim() && !state.roomNo.trim() && !state.note.trim()) {
+      writeLocal(DRAFT_KEY, null);
+      return;
+    }
+    writeLocal(DRAFT_KEY, { ...buildTeam(), roomPwd: '', weeklyId: state.weeklyId });
+  }
+  function restoreDraft() {
+    if (draftRestored) return;
+    draftRestored = true;
+    const draft = readLocal(DRAFT_KEY);
+    if (!draft || typeof draft !== 'object' || typeof draft.gameName !== 'string') return;
+    // Expired start times are renewed; unfinished future dates remain intact.
+    applyDraft(draft);
+    if (Number(draft.startAt) > Date.now()) changeStart(Number(draft.startAt));
+    const minutes = detectDurationMinutes(draft.startAt, draft.endAt);
+    if (minutes) changeDuration(minutes);
+    patchState({
+      roomNo: draft.roomNo || '',
+      fromLast: false,
+      ...(draft.weeklyId && Number(draft.startAt) > Date.now()
+        ? { weeklyId: draft.weeklyId, weeklyStartAt: draft.startAt, weeklyGameName: draft.gameName }
+        : {}),
+    });
+  }
   function startNew() {
+    writeLocal(DRAFT_KEY, null);
     patchState(emptyForm());
     void loadProxyAccess();
   }
@@ -385,19 +502,34 @@ export function usePublish() {
   }
   function onGameName(input: string) {
     const gameName = input;
-    const patch: Partial<typeof state> = { gameName };
+    if (!gameName.trim() && !state.editingId && (state.selectedHistoryId || state.fromLast)) {
+      const { proxyMode, proxyHost, proxyKeyword, submitting } = state;
+      patchState({ ...emptyForm(), proxyMode, proxyHost, proxyKeyword, submitting });
+      writeLocal(DRAFT_KEY, null);
+      return;
+    }
+    const patch: Partial<typeof state> = { gameName, selectedHistoryId: '', fromLast: false };
     const game = findGame(gameName);
-    if (game && game.platform) patch.platforms = sortPlatforms(game.platform, PLATFORMS);
+    if (game && game.platform) {
+      patch.platform = game.platform;
+      patch.platforms = sortPlatforms(game.platform, PLATFORMS);
+    }
     patchState(patch);
+    if (game) applyGameSettings(game.name);
   }
   function pickSuggestedGame(input: string) {
     const game = findGame(input);
-    const patch: Partial<typeof state> = { gameName: game?.name || input };
+    const patch: Partial<typeof state> = {
+      gameName: game?.name || input,
+      selectedHistoryId: '',
+      fromLast: false,
+    };
     if (game && PLATFORMS.indexOf(game.platform) >= 0) {
       patch.platform = game.platform;
       patch.platforms = sortPlatforms(game.platform, PLATFORMS);
     }
     patchState(patch);
+    applyGameSettings(game?.name || input);
   }
   function onStartDate(input: string) {
     const patch: Partial<typeof state> = { startDate: input, startPreset: 'custom' };
@@ -473,11 +605,15 @@ export function usePublish() {
     state.proxyTimer = null;
     state.proxySearchToken = (state.proxySearchToken || 0) + 1;
   }
+  let ownContactBeforeProxy = '';
   function toggleProxy(input: boolean) {
     if (state.editingId || !state.canProxy) return;
     cancelProxySearch();
     const proxyMode = Boolean(input);
+    if (proxyMode === state.proxyMode) return;
+    if (proxyMode) ownContactBeforeProxy = state.roomNo;
     patchState({
+      roomNo: proxyMode ? '' : ownContactBeforeProxy,
       proxyMode,
       proxyKeyword: '',
       proxySearching: false,
@@ -515,6 +651,7 @@ export function usePublish() {
     if (!host || !host.userId) return;
     cancelProxySearch();
     patchState({
+      roomNo: state.proxyHost?.userId === host.userId ? state.roomNo : '',
       proxyHost: host,
       proxyKeyword: host.nickName || '',
       proxyResults: [],
@@ -617,6 +754,9 @@ export function usePublish() {
       if (editingId) {
         await callTeam('updateTeam', { teamId: editingId, team });
         rememberPublishedGame(team.gameName);
+        rememberSettings();
+        historyLoadedAt = 0;
+        writeLocal(DRAFT_KEY, null);
         patchState(emptyForm());
         toast.success('已保存');
         setTimeout(() => {
@@ -630,6 +770,9 @@ export function usePublish() {
         }
         const res = await callTeam('createTeam', payload);
         rememberPublishedGame(team.gameName);
+        rememberSettings();
+        historyLoadedAt = 0;
+        writeLocal(DRAFT_KEY, null);
         const helped = !!payload.hostOpenid;
         patchState(emptyForm());
         toast.success(helped ? '已帮 TA 发车' : '已发车');
@@ -709,13 +852,18 @@ export function usePublish() {
         patch.platforms = sortPlatforms(prefill.platform, PLATFORMS);
       }
       patchState(withTimeSummary(patch));
+      applyGameSettings(prefill.name || '');
+    } else {
+      restoreDraft();
     }
-    await loadProxyAccess();
+    await Promise.all([loadProxyAccess(), loadRecentLaunches()]);
   });
   onHide(() => {
+    saveDraft();
     unbindCopyUrl(hostPlatform);
   });
   onUnload(() => {
+    saveDraft();
     cancelProxySearch();
     unbindCopyUrl(hostPlatform);
   });
@@ -726,13 +874,7 @@ export function usePublish() {
     return shareToTimeline(plazaShare('开黑星球｜发起组队开黑'));
   });
   const visibleSuggestions = computed(() => gameSuggestions(state.gameName));
-  const roomPlaceholder = computed(() =>
-    state.platform === 'Steam'
-      ? 'Steam 好友代码 / 房间号'
-      : state.platform === '手游'
-        ? '游戏 ID / 房间码 / 加好友方式'
-        : '房间号 / 游戏 ID / 加入方式',
-  );
+  const roomPlaceholder = computed(() => 'Steam 好友码 / 游戏 ID / 微信号');
   const startTimestamp = computed(() => combineDateTime(state.startDate, state.startTime));
   const minTimestamp = new Date().setHours(0, 0, 0, 0);
   const maxTimestamp = Date.now() + 7 * 24 * 3600000;
@@ -744,9 +886,15 @@ export function usePublish() {
   }
   function changeDuration(minutes: number) {
     const index = DURATION_PICKER.findIndex((item) => item.minutes === minutes);
-    if (index >= 0) pickCustomDuration(index);
+    if (index >= 0) {
+      pickCustomDuration(index);
+      patchState({ durationHours: durationPresetHoursFromMinutes(minutes) });
+    }
   }
   return {
+    loadRecentLaunches,
+    reuseLaunch,
+    historyTime,
     visibleSuggestions,
     roomPlaceholder,
     startNew,

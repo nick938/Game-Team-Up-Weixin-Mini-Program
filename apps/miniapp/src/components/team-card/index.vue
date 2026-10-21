@@ -58,10 +58,6 @@ function onTap() {
           </view>
         </view>
       </template>
-      <view class="room-meta flex items-start gap-2 mb-2">
-        <wd-icon name="time-line" size="14px" />
-        <text class="min-w-0 flex-1 text-xs leading-5">{{ team.timeText || '时间待确认' }}</text>
-      </view>
       <view class="room-host-row">
         <view class="room-host">
           <wd-avatar
@@ -73,19 +69,11 @@ function onTap() {
           />
           <text class="text-xs text-secondary truncate">{{ team.hostNickName || '玩家' }}</text>
         </view>
-        <view @tap.stop>
-          <wd-button
-            size="small"
-            variant="soft"
-            open-type="share"
-            :button-id="'team-forward-' + (teamId || team.id || team._id)"
-            custom-class="room-forward"
-            @click="prepareCardShare(team, teamId)"
-            ><wd-icon name="share-external" size="15px" /> 转发</wd-button
-          >
+        <view class="room-meta">
+          <wd-icon name="time-line" size="13px" />
+          <text>{{ team.timeText || '时间待确认' }}</text>
         </view>
       </view>
-      <view class="room-visitors"><wd-icon name="eye" size="13px" /> {{ visitors }} 人看过</view>
       <view class="room-reactions" @tap.stop>
         <view v-for="item in reactions.REACTIONS" :key="item.id" class="reaction-slot">
           <wd-button
@@ -95,7 +83,7 @@ function onTap() {
               (reactions.state.summary.selected?.includes(item.id) ? ' room-reaction-active' : '')
             "
             variant="text"
-            :disabled="reactions.state.pending"
+            :aria-busy="reactions.state.pending"
             :aria-label="item.label + '，' + (reactions.state.summary.counts[item.id] || 0) + '人'"
             :aria-pressed="reactions.state.summary.selected?.includes(item.id)"
             @click="reactions.react(item.id)"
@@ -123,7 +111,7 @@ function onTap() {
                 size="16px"
               />
             </view>
-            <text>{{ item.label }}</text>
+            <text v-if="item.id === 'next'">{{ item.label }}</text>
             <text v-if="reactions.state.summary.counts[item.id]" class="reaction-count">{{
               (reactions.state.summary.counts[item.id] || 0) > 99
                 ? '99+'
@@ -136,6 +124,18 @@ function onTap() {
             :kind="item.id"
           />
         </view>
+        <view class="room-visitors" :aria-label="visitors + '人看过'">
+          <wd-icon name="eye" size="14px" /> {{ visitors }}
+        </view>
+        <wd-button
+          size="mini"
+          variant="text"
+          open-type="share"
+          :button-id="'team-forward-' + (teamId || team.id || team._id)"
+          custom-class="room-forward"
+          @click="prepareCardShare(team, teamId)"
+          ><wd-icon name="share-external" size="15px" /> 转发</wd-button
+        >
       </view>
     </wd-card>
   </view>
@@ -154,27 +154,41 @@ function onTap() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 12px 0 6px;
+  margin: 6px 0 10px;
 }
 .room-host {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
-.room-host-row :deep(.room-forward.wd-button) {
-  min-width: 64px;
-  height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
+.room-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #687085;
+  white-space: nowrap;
+}
+.room-reactions :deep(.room-forward.wd-button) {
+  min-width: 0;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .room-visitors {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
+  justify-content: center;
+  gap: 3px;
+  font-size: 10px;
   color: #9295a5;
-  margin-bottom: 10px;
+  white-space: nowrap;
 }
 .reaction-count {
   margin-left: 2px;
@@ -186,6 +200,9 @@ function onTap() {
   position: relative;
   min-width: 0;
 }
+.room-reactions {
+  grid-template-columns: repeat(3, minmax(0, 0.7fr)) minmax(0, 1.8fr) minmax(0, 0.75fr) minmax(0, 1.05fr);
+}
 .room-reactions :deep(.room-reaction.wd-button) {
   display: flex;
   align-items: center;
@@ -193,7 +210,7 @@ function onTap() {
   height: 44px;
   padding: 0;
   line-height: 18px;
-  font-size: 12px;
+  font-size: 11px;
 }
 .room-reactions :deep(.room-reaction .wd-button__content),
 .room-reactions :deep(.room-reaction .wd-button__text) {

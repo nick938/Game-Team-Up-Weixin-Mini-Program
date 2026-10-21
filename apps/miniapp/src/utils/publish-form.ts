@@ -230,7 +230,7 @@ function validatePublishTeam(team: Partial<TeamDraft>, extra: PublishOptions) {
     return { message: '结束时间必须晚于现在', anchor: 'field-end' };
   }
   if (!String(team.roomNo || '').trim()) {
-    return { message: '请填写房间 / 加入方式', anchor: 'field-room' };
+    return { message: '请填写车头的好友码或联系方式', anchor: 'field-room' };
   }
   if (!Number.isInteger(team.capacity) || Number(team.capacity) < 2 || Number(team.capacity) > 20) {
     return { message: '人数需在 2–20 之间', anchor: 'field-capacity' };
@@ -281,4 +281,15 @@ interface PublishOptions {
   now?: number;
   maxStartAheadMs?: number;
   needProxyHost?: boolean;
+}
+
+// Keep existing structured information editable when moving to a single note.
+export function mergeLegacyNote(team: Partial<TeamDraft>) {
+  return [
+    team.server ? '区服：' + team.server : '',
+    team.rankReq ? '队友要求：' + team.rankReq : '',
+    team.note || '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }

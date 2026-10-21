@@ -18,9 +18,7 @@ const view = useTeamPresentation(
   },
 );
 const tags = computed(() =>
-  [page.team?.platform, page.team?.server, page.team?.voice, page.team?.rankReq].filter(
-    (value) => value && value !== '不限',
-  ),
+  [page.team?.server, page.team?.voice, page.team?.rankReq].filter((value) => value && value !== '不限'),
 );
 function goRoom() {
   platform.pageScrollTo({ selector: '#room-info', duration: 220 });
@@ -72,13 +70,15 @@ function goRoom() {
         ><view class="text-sm font-semibold mb-2">{{
           page.state.joinSuccess ? '加入成功，接下来进入游戏' : '你已加入这局'
         }}</view
-        ><view class="hint">复制下方房间号或好友码，打开游戏加入队友。这里占位不会自动进入游戏。</view></view
+        ><view class="hint"
+          >复制下方联系方式，添加车头后一起玩。上车只代表占位，不会自动添加好友。</view
+        ></view
       >
       <view id="room-info" class="panel">
-        <view class="section-title mb-3">怎么加入游戏</view>
+        <view class="section-title mb-3">如何联系车头</view>
         <view class="flex items-start justify-between gap-3">
           <view class="min-w-0 flex-1"
-            ><view class="hint mb-1">房间 / 好友码</view
+            ><view class="hint mb-1">好友码 / 联系方式</view
             ><view class="text-base break-all whitespace-pre-wrap">{{
               page.team.roomNo || '车头暂未填写'
             }}</view></view
@@ -88,7 +88,7 @@ function goRoom() {
           >
         </view>
         <view
-          v-if="page.team.hasPwd || view.canViewPassword || page.role"
+          v-if="page.team.hasPwd || (view.canViewPassword && page.team.roomPwd)"
           class="flex items-start justify-between gap-3 mt-4 pt-4 border-t border-solid border-border border-x-0 border-b-0"
         >
           <view class="min-w-0 flex-1"
@@ -221,7 +221,7 @@ function goRoom() {
           v-else-if="view.primaryAction === 'room'"
           block
           @click="page.team.roomNo ? page.copyRoom() : goRoom()"
-          >{{ page.team.roomNo ? '复制加入方式，进入游戏' : '查看进房信息' }}</wd-button
+          >{{ page.team.roomNo ? '复制车头联系方式' : '查看车头联系方式' }}</wd-button
         >
         <wd-button v-else block @click="page.goPlaza">{{
           view.recruitment === 'full'

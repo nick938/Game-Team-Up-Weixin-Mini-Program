@@ -3,10 +3,12 @@ import { useAttrs } from 'vue';
 defineOptions({ name: 'AppInput', inheritAttrs: false });
 defineProps<{
   label?: string;
+  titleWidth?: string | number;
   prop?: string;
   layout?: 'horizontal' | 'vertical';
   modelValue?: string | number;
   required?: boolean;
+  hideAsterisk?: boolean;
   error?: string;
   help?: string;
 }>();
@@ -17,9 +19,10 @@ const attrs = useAttrs();
   <wd-form-item
     :title="label"
     :required="required"
+    :hide-asterisk="hideAsterisk"
     :prop="prop"
     :layout="layout || 'horizontal'"
-    title-width="84px"
+    :title-width="titleWidth ?? '84px'"
     center
     value-align="left"
     custom-class="app-field"

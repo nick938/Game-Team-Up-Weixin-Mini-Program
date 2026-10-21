@@ -10,7 +10,7 @@ test('publish blocks empty join method before any write', async () => {
   Object.assign(page.state, { gameName: 'CS2', roomNo: '   ' });
   await page.onSubmit();
   assert.equal(h.calls.length, 0);
-  assert.ok(h.toasts.includes('请填写房间 / 加入方式'));
+  assert.ok(h.toasts.includes('请填写车头的好友码或联系方式'));
 });
 
 test('mine switches hosted/joined and ongoing/history independently', () => {

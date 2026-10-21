@@ -88,9 +88,9 @@ const emit = defineEmits<{
           @click="emit('relax')"
           >放宽筛选</wd-button
         >
-        <wd-button v-if="!hideClear" variant="text" @click="emit('clear')">{{
-          query?.gameName ? '查看全部游戏' : '清空筛选'
-        }}</wd-button>
+        <wd-button v-if="!hideClear && query?.gameName" variant="text" @click="emit('clear')"
+          >查看全部游戏</wd-button
+        >
         <wd-button v-if="allowPublish" variant="soft" @click="emit('publish')">{{
           publishLabel
         }}</wd-button></view
