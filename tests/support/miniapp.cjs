@@ -52,6 +52,7 @@ function harness(options = {}) {
     name = name.replaceAll('\\', '/').replace(/\.(js|ts|vue)$/, '');
     if (overrides[name]) return overrides[name];
     if (cache.has(name)) return cache.get(name);
+    if (name.endsWith('.json')) return JSON.parse(fs.readFileSync(path.join(sourceRoot, name), 'utf8'));
     const file = ['.vue', '.ts', '.js'].map(ext => path.join(sourceRoot, name + ext)).find(fs.existsSync);
     if (!file) throw new Error('module not found: ' + name);
     let source = fs.readFileSync(file, 'utf8');

@@ -137,7 +137,16 @@ onPageScroll(({ scrollTop }) => {
         @more="page.loadMore"
         @clear="page.clearFilters"
         @clear-time="page.setFilters({ time: '' })"
-        @relax="page.setFilters({ keyword: '', platform: '', server: '', voice: '', availableOnly: true })"
+        @relax="
+          page.setFilters({
+            keyword: '',
+            groupIds: [],
+            platform: '',
+            server: '',
+            voice: '',
+            availableOnly: true,
+          })
+        "
         @publish="page.goPublish"
       >
         <template #heading

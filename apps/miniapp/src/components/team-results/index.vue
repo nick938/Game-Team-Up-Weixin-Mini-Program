@@ -82,7 +82,12 @@ const emit = defineEmits<{
         <wd-button
           v-if="
             query &&
-            (query.keyword || query.platform || query.server || query.voice || query.availableOnly === false)
+            (query.keyword ||
+              query.platform ||
+              query.server ||
+              query.voice ||
+              query.groupIds?.length ||
+              query.availableOnly === false)
           "
           variant="text"
           @click="emit('relax')"

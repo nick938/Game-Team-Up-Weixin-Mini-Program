@@ -3,6 +3,8 @@ import { useAttrs } from 'vue';
 defineOptions({ name: 'AppTextarea', inheritAttrs: false });
 defineProps<{
   label?: string;
+  layout?: 'horizontal' | 'vertical';
+  titleWidth?: string | number;
   modelValue?: string | number;
   required?: boolean;
   error?: string;
@@ -16,7 +18,9 @@ const attrs = useAttrs();
     :prop="prop"
     :title="label"
     :required="required"
-    layout="vertical"
+    :layout="layout || 'vertical'"
+    :title-width="titleWidth"
+    :center="layout === 'horizontal'"
     value-align="left"
     custom-class="app-field"
   >

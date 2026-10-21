@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const profileOptions = require("./lib/profile-options.json");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -738,7 +739,7 @@ function validateTeamInput(input, { isCreate }) {
   };
 }
 
-// 公开资料只保留一个自由填写、上限 50 字的签名，用户可自行写入 Steam 好友码 / KOOK 等信息。
+// Optional public preferences; omitted fields preserve old-client data, [] explicitly clears.
 const PROFILE_BIO_MAX = 50;
 
 function validatePublicProfile(event) {
@@ -751,6 +752,28 @@ function validatePublicProfile(event) {
     if (BAD.test(text)) return { error: "签名包含不支持的内容" };
     value.bio = text;
   }
+  for (const [key, label, pattern] of [
+    ["steamFriendCode", "Steam 好友码", /^\d{1,20}$/],
+    ["wechatId", "微信 ID", /^[A-Za-z0-9_-]{1,32}$/],
+  ]) {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
+    if (typeof event[key] !== "string") return { error: `${label}格式不正确` };
+    const text = event[key].trim();
+    if (text && !pattern.test(text)) return { error: `${label}格式不正确` };
+    value[key] = text;
+  }
+  for (const [key, label, max, allowed] of [
+    ["groupIds", "群组标识", 10, profileOptions.groups.map(item => item.value)],
+    ["favoriteGames", "常玩游戏", 5, null],
+    ["playTimes", "常玩时间", 5, profileOptions.playTimes.map(item => item.value)],
+  ]) {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
+    const list = event[key];
+    if (!Array.isArray(list) || list.length > max || list.some(item =>
+      typeof item !== "string" || !item.trim() || item.length > 40 || BAD.test(item) ||
+      (allowed && !allowed.includes(item)))) return { error: `${label}格式不正确` };
+    value[key] = [...new Set(list.map(item => item.trim()))];
+  }
   return { value };
 }
 
@@ -761,6 +784,11 @@ function publicProfile(user, member) {
     avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
     avatarBase64: safeAvatarBase64(user && user.avatarBase64),
     bio: (user && typeof user.bio === "string") ? user.bio : "",
+    steamFriendCode: typeof user?.steamFriendCode === "string" ? user.steamFriendCode : "",
+    wechatId: typeof user?.wechatId === "string" ? user.wechatId : "",
+    groupIds: Array.isArray(user?.groupIds) ? user.groupIds : [],
+    favoriteGames: Array.isArray(user?.favoriteGames) ? user.favoriteGames : [],
+    playTimes: Array.isArray(user?.playTimes) ? user.playTimes : [],
   };
 }
 
@@ -792,12 +820,12 @@ async function saveProfile(event, openid) {
   const existed = await getUser(openid);
   if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
-  const profileFields = ["bio"];
+  const profileFields = ["bio", "favoriteGames", "steamFriendCode", "wechatId"];
   const nickChanged = !existed || existed.nickName !== nickName;
   const fieldsChanged = profileFields.some(
     (key) =>
       Object.prototype.hasOwnProperty.call(checked.value, key) &&
-      checked.value[key] !== ((existed && existed[key]) || "")
+      JSON.stringify(checked.value[key]) !== JSON.stringify((existed && existed[key]) || "")
   );
   if (nickChanged || fieldsChanged) {
     const textError = await textSafeError(
@@ -928,7 +956,7 @@ async function createTeam(event, openid) {
         }
         if (!isOngoing(latest, nowMs())) throw new Error("这趟车已结束或已散");
         if (["gameName", "platform", "startAt", "endAt", "capacity"].some(key => latest[key] !== checked.value[key])) throw new Error("请保留推荐局的游戏、平台、时间和人数");
-        await ref.update({ data: { ...checked.value, pendingHost: false, openid, memberCount: 1, hostNickName: user.nickName, hostAvatarUrl: user.avatarUrl || "", claimedAt: nowMs(), updatedAt: nowMs() } });
+        await ref.update({ data: { ...checked.value, groupIds: Array.isArray(user.groupIds) ? [...user.groupIds] : [], pendingHost: false, openid, memberCount: 1, hostNickName: user.nickName, hostAvatarUrl: user.avatarUrl || "", claimedAt: nowMs(), updatedAt: nowMs() } });
         await tx.collection("members").add({ data: { teamId, openid, role: "host", nickName: user.nickName, avatarUrl: user.avatarUrl || "", joinedAt: nowMs() } });
       });
     } catch (error) {
@@ -942,6 +970,7 @@ async function createTeam(event, openid) {
   const teamData = {
     ...checked.value,
     openid: hostId,
+    groupIds: Array.isArray(hostUser.groupIds) ? [...hostUser.groupIds] : [],
     memberCount: 1,
     status: "recruiting",
     hostNickName: hostUser.nickName,
@@ -1593,6 +1622,8 @@ function searchText(value) {
 }
 function matchTeamSearch(team, query, now) {
   if (query.weeklyId && team.weeklyId !== query.weeklyId) return false;
+  if (Array.isArray(query.groupIds) && query.groupIds.length &&
+      !query.groupIds.some(id => Array.isArray(team.groupIds) && team.groupIds.includes(id))) return false;
   const keyword = searchText(query.keyword);
   if (keyword && ![team.gameName, team.server, team.rankReq, team.note]
     .some((value) => searchText(value).includes(keyword))) return false;
@@ -1616,6 +1647,9 @@ function teamHeat(team) {
   return count(team.viewCount) + 3 * (reactions.like + reactions.love - reactions.dislike) + reactions.next;
 }
 async function listTeams(event = {}, openid) {
+  if (event.groupIds !== undefined && (!Array.isArray(event.groupIds) || event.groupIds.length > 100 ||
+    event.groupIds.some(id => typeof id !== "string" || !profileOptions.groups.some(group => group.value === id))))
+    return fail("群组筛选格式不正确");
   const now = nowMs();
   const limit = clampInt(event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
   const offset = clampInt(event.offset, 0, 0, 100000);

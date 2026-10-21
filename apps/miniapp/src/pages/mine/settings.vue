@@ -23,7 +23,7 @@ onHide(() => {
     <wd-cell-group border>
       <wd-cell
         title="编辑资料"
-        label="头像、昵称与个人签名"
+        label="头像、签名、游戏偏好与联系方式"
         prefix-icon="user"
         is-link
         @click="showProfile = true"

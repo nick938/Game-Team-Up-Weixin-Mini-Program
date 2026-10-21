@@ -2,6 +2,7 @@
 defineOptions({ name: 'TeamFilters' });
 import { computed, reactive, ref, watch } from 'vue';
 import type { TeamSearch } from '../../types/domain';
+import { GROUP_OPTIONS } from '../../utils/profile-options';
 import { PLATFORMS, VOICES } from '../../utils/constants';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { useAppTheme } from '../../composables/useAppTheme';
@@ -46,6 +47,7 @@ const count = computed(
       props.query.server,
       props.query.voice,
       !props.query.availableOnly,
+      !!props.query.groupIds?.length,
     ].filter(Boolean).length,
 );
 function open() {
@@ -55,6 +57,7 @@ function open() {
 function reset() {
   Object.assign(draft, {
     ...(props.gameOptions ? { gameName: '' } : {}),
+    groupIds: [],
     time: '',
     platform: '',
     server: '',
@@ -65,6 +68,7 @@ function reset() {
 function apply() {
   emit('change', {
     ...(props.gameOptions ? { gameName: draft.gameName || '' } : {}),
+    groupIds: [...(draft.groupIds || [])],
     time: draft.time,
     platform: draft.platform,
     server: draft.server,
@@ -112,6 +116,13 @@ function apply() {
           :value="gameOptions.find((item) => item.value === (draft.gameName || ''))?.label || '全部游戏'"
           is-link
           @click="showGame = true"
+        />
+        <app-multi-select
+          v-model="draft.groupIds"
+          label="群组标识"
+          :columns="GROUP_OPTIONS"
+          :active="expanded && active !== false"
+          placeholder="不限群组，可多选"
         />
         <app-picker label="开局时间" v-model="draft.time" :columns="times" />
         <app-picker

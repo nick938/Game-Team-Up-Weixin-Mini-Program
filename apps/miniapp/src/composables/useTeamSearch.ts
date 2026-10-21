@@ -18,6 +18,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     gameFilter: '全部',
     keyword: '',
     sortMode: 'latest',
+    groupIds: [] as string[],
     platform: '',
     server: '',
     voice: '',
@@ -35,6 +36,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     return {
       keyword: state.keyword.trim(),
       gameName: state.gameFilter === '全部' ? '' : state.gameFilter,
+      groupIds: [...state.groupIds],
       platform: state.platform,
       server: state.server,
       voice: state.voice,
@@ -118,6 +120,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     Object.assign(state, {
       keyword: '',
       gameFilter: '全部',
+      groupIds: [] as string[],
       platform: '',
       server: '',
       voice: '',

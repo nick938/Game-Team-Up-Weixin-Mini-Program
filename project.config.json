@@ -48,7 +48,7 @@
   },
   "appid": "wxa1af4fb6a4c66334",
   "projectname": "game-team-miniapp",
-  "libVersion": "2.32.3",
+  "libVersion": "3.17.3",
   "cloudfunctionTemplateRoot": "cloudfunctionTemplate/",
   "condition": {
     "miniprogram": {

@@ -71,10 +71,10 @@ const entries = computed(() => [
           <view class="mine-profile-copy">
             <view class="mine-nickname">{{ page.user.nickName || '设置头像昵称' }}</view>
             <view class="mine-bio">{{ page.profileHint }}</view>
+            <profile-tags :user="page.user" groups-only />
             <view class="mine-edit">编辑资料 <wd-icon name="arrow-right" size="12px" /></view>
           </view>
         </view>
-        <view class="mine-cover-caption">一起开黑，下局见。</view>
       </view>
       <view class="mine-content">
         <view class="mine-stats">
@@ -104,7 +104,6 @@ const entries = computed(() => [
         <view class="mine-menu-group">
           <wd-cell-group border>
             <wd-cell title="更新公告" prefix-icon="notification" is-link center @click="page.openUpdates" />
-            <wd-cell title="更新日志" prefix-icon="history" is-link center @click="page.openChangelog" />
           </wd-cell-group>
         </view>
         <view v-if="page.isAdmin || page.isOrganizer" class="mine-menu-group">
@@ -191,6 +190,7 @@ const entries = computed(() => [
   position: relative;
   overflow: hidden;
   padding-top: var(--mine-nav-height);
+  padding-bottom: 48px;
   background: #211b3b;
   color: #fff;
 }
@@ -251,14 +251,6 @@ const entries = computed(() => [
   font-size: 12px;
   line-height: 20px;
   color: #d6d0ff;
-}
-.mine-cover-caption {
-  position: relative;
-  padding: 0 24px 48px;
-  color: #d6d0e5;
-  font-size: 11px;
-  line-height: 18px;
-  letter-spacing: 1px;
 }
 .mine-content {
   position: relative;
@@ -321,8 +313,25 @@ const entries = computed(() => [
   box-shadow: none;
 }
 .mine-menu-group :deep(.wd-cell) {
+  display: flex;
+  align-items: center;
   min-height: 58px;
   box-sizing: border-box;
+}
+.mine-menu-group :deep(.wd-cell__wrapper) {
+  width: 100%;
+  align-items: center;
+}
+.mine-menu-group :deep(.wd-cell__left),
+.mine-menu-group :deep(.wd-cell__body) {
+  align-items: center;
+}
+.mine-menu-group :deep(.wd-cell__prefix),
+.mine-menu-group :deep(.wd-cell__arrow-right) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 /* NextTeam uses the same light purple treatment as the other pages. */
 .mine-error {

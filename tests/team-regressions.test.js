@@ -83,6 +83,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
   const ctx = {
     require: (id) => {
       if (id === "node:crypto") return require(id);
+      if (id === "./lib/profile-options.json") return require("../cloudfunctions/team/lib/profile-options.json");
       if (id === "./lib/user-rankings") return require("../cloudfunctions/team/lib/user-rankings");
       if (id === "./lib/daily-play") return require("../cloudfunctions/team/lib/daily-play");
       if (id === "nodemailer") {
@@ -339,7 +340,7 @@ test('room profile returns only nickName/avatar/bio and rejects unrelated member
   const ctx = backend({ teams: [{ _id: 't', gameName: 'CS2' }], members: [{ _id: 'm', teamId: 't', openid: 'u', nickName: '旧昵称' }, { _id: 'other', teamId: 'another', openid: 'u' }], users });
   const result = await ctx.getPublicProfile({ teamId: 't', memberId: 'm' });
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarFileID', 'avatarBase64', 'bio', 'nickName'].sort());
+  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarFileID', 'avatarBase64', 'bio', 'nickName', 'groupIds', 'favoriteGames', 'playTimes', 'steamFriendCode', 'wechatId'].sort());
   assert.equal(result.profile.nickName, '最新昵称');
   assert.equal(result.profile.bio, 'Steam 00123');
   assert.equal(result.profile.privateField, undefined);
@@ -1512,4 +1513,99 @@ test('official car labels survive API projection and claiming; normal publishers
   const result = await ctx.getTeam({ teamId: created.teamId }, 'u');
   assert.equal(result.team.dailyNightId, undefined);
   assert.equal(result.team.officialSource, undefined);
+});
+
+test('optional profile preferences validate, preserve omitted fields and explicitly clear', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({ users });
+  const selected = { groupIds: ['underground-gaming'], favoriteGames: ['CS2'], playTimes: ['weekend'] };
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', ...selected }, 'u')).ok, true);
+  await ctx.saveProfile({ nickName: '改名' }, 'u');
+  for (const key of Object.keys(selected)) assert.deepEqual([...users[0][key]], selected[key]);
+  for (const invalid of [
+    { groupIds: ['invented-group'] }, { groupIds: 'underground-gaming' },
+    { favoriteGames: Array(6).fill('CS2') }, { favoriteGames: [42] },
+    { playTimes: ['invented-time'] }, { playTimes: null },
+  ]) {
+    assert.equal((await ctx.saveProfile({ nickName: '不应保存', ...invalid }, 'u')).ok, false);
+    assert.equal(users[0].nickName, '改名');
+  }
+  assert.equal((await ctx.saveProfile({ nickName: '改名', groupIds: [], favoriteGames: [], playTimes: [] }, 'u')).ok, true);
+  for (const key of Object.keys(selected)) assert.equal(users[0][key].length, 0);
+});
+
+test('favorite game text is moderated before persistence and public preferences exclude account data', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', groupIds: ['underground-gaming'], favoriteGames: ['CS2'], playTimes: ['weekend'], privateField: 'secret' }];
+  const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'risky' } }) });
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', favoriteGames: ['不安全游戏'] }, 'u')).ok, false);
+  assert.deepEqual(users[0].favoriteGames, ['CS2']);
+  const profile = ctx.publicProfile(users[0], {});
+  assert.deepEqual([...profile.groupIds], ['underground-gaming']);
+  assert.deepEqual([...profile.favoriteGames], ['CS2']);
+  assert.deepEqual([...profile.playTimes], ['weekend']);
+  assert.equal(profile.privateField, undefined);
+});
+
+test('group filter uses OR semantics, excludes untagged teams only when selected and paginates after filtering', async () => {
+  const base = { ...teamPayload(), memberCount: 1, status: 'recruiting' };
+  const teams = Array.from({ length: 130 }, (_, i) => ({ ...base, _id: 'group-' + i, createdAt: i, ...(i >= 120 ? { groupIds: ['underground-gaming'] } : {}) }));
+  const ctx = backend({ teams, paginate: true });
+  assert.equal((await ctx.listTeams({}, '')).total, 130);
+  assert.equal((await ctx.listTeams({ groupIds: [] }, '')).total, 130);
+  const query = { groupIds: ['underground-gaming'], limit: 3 };
+  const first = await ctx.listTeams(query, '');
+  assert.equal(first.total, 10);
+  assert.equal(first.hasMore, true);
+  assert.deepEqual([...first.list.map(t => t._id)], ['group-129', 'group-128', 'group-127']);
+  const next = await ctx.listTeams({ ...query, offset: first.nextOffset }, '');
+  assert.deepEqual([...next.list.map(t => t._id)], ['group-126', 'group-125', 'group-124']);
+  assert.equal(ctx.matchTeamSearch({ groupIds: ['b'] }, { groupIds: ['a', 'b'] }, Date.now()), true);
+  assert.equal(ctx.matchTeamSearch({}, { groupIds: ['a', 'b'] }, Date.now()), false);
+  assert.equal((await ctx.listTeams({ groupIds: 'underground-gaming' }, '')).ok, false);
+});
+
+test('normal and proxy publication snapshot actual host group and ignore client supplied groups', async () => {
+  const users = [
+    { _id: 'host', nickName: '车头', groupIds: ['underground-gaming'] },
+    { _id: 'helper', nickName: '代开', groupIds: [] },
+  ];
+  const teams = [];
+  const ctx = backend({ users, teams, organizers: [{ _id: 'helper' }] });
+  const payload = { team: { ...teamPayload(), groupIds: ['fake'] } };
+  assert.equal((await ctx.createTeam(payload, 'host')).ok, true);
+  assert.deepEqual([...teams[0].groupIds], ['underground-gaming']);
+  assert.equal((await ctx.createTeam({ ...payload, hostOpenid: 'host' }, 'helper')).ok, true);
+  assert.deepEqual([...teams[1].groupIds], ['underground-gaming']);
+  await ctx.saveProfile({ nickName: '车头', groupIds: [] }, 'host');
+  assert.deepEqual([...teams[0].groupIds], ['underground-gaming']);
+  assert.deepEqual([...teams[1].groupIds], ['underground-gaming']);
+});
+
+test('contact fields preserve leading zeros, round trip publicly, survive older clients and clear explicitly', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', privateField: 'secret' }];
+  const ctx = backend({ users });
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', steamFriendCode: ' 00123456 ', wechatId: ' Player_123 ', favoriteGames: ['自己写的游戏'] }, 'u')).ok, true);
+  assert.equal(users[0].steamFriendCode, '00123456');
+  assert.equal(users[0].wechatId, 'Player_123');
+  await ctx.saveProfile({ nickName: '改名' }, 'u');
+  const profile = ctx.publicProfile(users[0], {});
+  assert.equal(profile.steamFriendCode, '00123456');
+  assert.equal(profile.wechatId, 'Player_123');
+  assert.deepEqual([...profile.favoriteGames], ['自己写的游戏']);
+  assert.equal(profile.privateField, undefined);
+  await ctx.saveProfile({ nickName: '改名', steamFriendCode: '', wechatId: '' }, 'u');
+  assert.equal(ctx.publicProfile(users[0], {}).steamFriendCode, '');
+  assert.equal(users[0].wechatId, '');
+});
+
+test('invalid contact payloads fail before any profile write', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({ users });
+  for (const invalid of [
+    { steamFriendCode: 123456 }, { steamFriendCode: 'not-a-code' }, { steamFriendCode: '1'.repeat(21) },
+    { wechatId: [] }, { wechatId: 'id with spaces' }, { wechatId: 'a'.repeat(33) },
+  ]) {
+    assert.equal((await ctx.saveProfile({ nickName: '不应保存', ...invalid }, 'u')).ok, false);
+    assert.equal(users[0].nickName, '玩家');
+  }
 });

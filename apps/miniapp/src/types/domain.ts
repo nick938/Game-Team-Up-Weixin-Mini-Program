@@ -35,6 +35,11 @@ export interface DailyBoard {
 }
 /** Shared business payloads. Display fields are added by the view formatters. */
 export interface User {
+  steamFriendCode?: string;
+  wechatId?: string;
+  groupIds?: string[];
+  favoriteGames?: string[];
+  playTimes?: string[];
   userId?: string;
   _id?: string;
   nickName?: string;
@@ -52,6 +57,7 @@ export interface RankingUser {
   count: number;
 }
 export interface Team {
+  groupIds?: string[];
   pendingHost?: boolean;
   dailyNightId?: string;
   officialSource?: 'champion' | 'random';
@@ -149,6 +155,7 @@ export interface AdminRow extends Partial<Team>, User {
   systemInfo?: string;
 }
 export interface TeamSearch {
+  groupIds?: string[];
   weeklyId?: string;
   offset?: number;
   limit?: number;
@@ -244,7 +251,16 @@ export interface TeamRequests {
   joinTeam: { teamId: string };
   leaveTeam: { teamId: string };
   cancelTeam: { teamId: string };
-  saveProfile: { nickName: string; bio: string; avatarUrl: string };
+  saveProfile: {
+    nickName: string;
+    bio: string;
+    avatarUrl: string;
+    groupIds?: string[];
+    favoriteGames?: string[];
+    steamFriendCode?: string;
+    wechatId?: string;
+    playTimes?: string[];
+  };
   submitFeedback: VersionInput & { kind: string; page: string; content: string };
   submitBug: VersionInput & { page: string; content: string; errorMsg: string; systemInfo: string };
   submitReport: VersionInput & { targetType: 'team'; targetId: string; reason: string; content: string };

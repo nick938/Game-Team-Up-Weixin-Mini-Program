@@ -1,0 +1,10 @@
+{
+  "groups": [{ "value": "underground-gaming", "label": "不知名地下组织游戏群" }],
+  "playTimes": [
+    { "value": "weekday-evening", "label": "工作日晚间" },
+    { "value": "weekday-daytime", "label": "工作日白天" },
+    { "value": "weekend", "label": "周末" },
+    { "value": "late-night", "label": "深夜档" },
+    { "value": "flexible", "label": "时间不固定" }
+  ]
+}

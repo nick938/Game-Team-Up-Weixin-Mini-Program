@@ -78,6 +78,9 @@ function onTap() {
           <text>{{ team.timeText || '时间待确认' }}</text>
         </view>
       </view>
+      <view v-if="team.groupIds?.length" class="mb-2"
+        ><profile-tags :user="{ groupIds: team.groupIds }" groups-only
+      /></view>
       <view class="room-reactions" @tap.stop>
         <view v-for="item in reactions.REACTIONS" :key="item.id" class="reaction-slot">
           <wd-button
@@ -200,6 +203,8 @@ function onTap() {
   align-items: center;
   justify-content: center;
   gap: 3px;
+  height: 44px;
+  line-height: 18px;
   font-size: 10px;
   color: #9295a5;
   white-space: nowrap;
@@ -216,6 +221,7 @@ function onTap() {
 }
 .room-reactions {
   grid-template-columns: repeat(3, minmax(0, 0.7fr)) minmax(0, 1.8fr) minmax(0, 0.75fr) minmax(0, 1.05fr);
+  align-items: center;
 }
 .room-reactions :deep(.room-reaction.wd-button) {
   display: flex;
@@ -226,8 +232,8 @@ function onTap() {
   line-height: 18px;
   font-size: 11px;
 }
-.room-reactions :deep(.room-reaction .wd-button__content),
-.room-reactions :deep(.room-reaction .wd-button__text) {
+.room-reactions :deep(.wd-button__content),
+.room-reactions :deep(.wd-button__text) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,5 +244,21 @@ function onTap() {
 .reaction-pigeon-icon {
   width: 18px;
   height: 18px;
+}
+.reaction-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+}
+.room-reactions :deep(.wd-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
 }
 </style>
