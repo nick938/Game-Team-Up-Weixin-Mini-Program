@@ -44,7 +44,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
       ...baseQuery(),
     };
   }
-  async function loadList(reset = true, options: { keepVisible?: boolean } = {}) {
+  async function loadList(reset = true, options: { keepVisible?: boolean; keepForSort?: boolean } = {}) {
     if (isSinglePage() || (!reset && (state.loading || state.loadingMore || !state.hasMore))) return;
     clearTimeout(timer);
     const id = ++requestId;
@@ -52,7 +52,11 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     const requestQuery = query();
     const queryKey = JSON.stringify(requestQuery);
     // A cached tab may refresh in the background, but changed filters must never retain old results.
-    const keepVisible = options.keepVisible && loadedQuery === queryKey;
+    const sameFilters =
+      !!loadedQuery &&
+      JSON.stringify({ ...JSON.parse(loadedQuery), sortMode: requestQuery.sortMode }) === queryKey;
+    const keepVisible =
+      (options.keepVisible && loadedQuery === queryKey) || (options.keepForSort && sameFilters);
     if (reset && !keepVisible)
       Object.assign(state, { teams: [], filtered: [], total: 0, hasMore: false, loadingMore: false });
     state.loading = reset;
@@ -131,8 +135,9 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     void loadList();
   }
   function pickSort(value: string) {
+    if (state.sortMode === value) return;
     state.sortMode = value;
-    void loadList();
+    void loadList(true, { keepForSort: true });
   }
   function loadMore() {
     return loadList(false);

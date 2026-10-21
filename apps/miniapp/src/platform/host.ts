@@ -15,6 +15,7 @@ export const platform = {
   hideTabBar: uni.hideTabBar,
   navigateBack: uni.navigateBack,
   navigateTo: uni.navigateTo,
+  redirectTo: uni.redirectTo,
   pageScrollTo: uni.pageScrollTo,
   setClipboardData: uni.setClipboardData,
   setNavigationBarTitle: uni.setNavigationBarTitle,

@@ -51,7 +51,7 @@ export function presentTeam(
     capacity >= 2 &&
     capacity <= 20 &&
     Number.isInteger(count) &&
-    count >= 1 &&
+    count >= (team.pendingHost ? 0 : 1) &&
     count <= capacity;
   const timesValid = Number.isFinite(start) && start > 0 && Number.isFinite(end) && end >= start;
   if (
@@ -110,9 +110,11 @@ export function presentTeam(
         ? '已散'
         : lifecycle === 'ended'
           ? '已结束'
-          : full
-            ? '已满员'
-            : `还差 ${needCount} 人`,
+          : team.pendingHost
+            ? '待首位玩家发车'
+            : full
+              ? '已满员'
+              : `还差 ${needCount} 人`,
     timeLabel: !ongoing ? '' : lifecycle === 'active' ? '进行中' : start - now <= 3600000 ? '即将开始' : '',
     tone: !ongoing ? 'closed' : full ? 'full' : 'open',
     primaryAction,

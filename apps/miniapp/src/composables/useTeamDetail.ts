@@ -377,6 +377,10 @@ export function useTeamDetail() {
   }
   async function onJoin() {
     if (state.joining) return;
+    if (state.team?.pendingHost) {
+      hostPlatform.navigateTo({ url: `/pages/publish/claim?teamId=${encodeURIComponent(state.teamId)}` });
+      return;
+    }
     state.joining = true;
     try {
       let conflicts = [] as Team[];

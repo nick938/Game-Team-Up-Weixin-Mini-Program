@@ -83,6 +83,8 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
   const ctx = {
     require: (id) => {
       if (id === "node:crypto") return require(id);
+      if (id === "./lib/user-rankings") return require("../cloudfunctions/team/lib/user-rankings");
+      if (id === "./lib/daily-play") return require("../cloudfunctions/team/lib/daily-play");
       if (id === "nodemailer") {
         return { createTransport: () => ({ sendMail: sendMail || (async () => ({})) }) };
       }
@@ -1288,21 +1290,18 @@ test('team lists return each viewer reaction without leaking identity', async ()
   assert.equal((await ctx.myTeams('host')).hosted[0].reactions.counts.fire, 1);
 });
 
-test('weekly publication validates authoritative game/time and filters unrelated teams', async () => {
+test('retired weekly and manual daily departures cannot create a second activity car', async () => {
   const teams = [], members = [];
-  const ctx = backend({teams,members,users:[{_id:'u',nickName:'玩家'}]});
-  const payload = {...teamPayload(),weeklyId:'2026-10-23'};
-  const previousRequire = ctx.require;
-  ctx.require = id => id === './lib/weekly-play' ? {createWeeklyPlay:()=>({get:async()=>({weekId:'2026-10-23',selectedGame:{name:'CS2'},startAt:payload.startAt})})} : previousRequire(id);
-  assert.equal((await ctx.createTeam({team:payload},'u')).ok,true);
-  assert.equal(teams[0].weeklyId,'2026-10-23');
-  assert.equal((await ctx.createTeam({team:{...payload,weeklyId:'2026-10-16'}},'u')).ok,false);
-  assert.equal((await ctx.createTeam({team:{...payload,gameName:'DOTA2'}},'u')).ok,false);
-  assert.equal((await ctx.createTeam({team:{...payload,startAt:payload.startAt+60000}},'u')).ok,false);
-  assert.equal(teams.length,1);
-  assert.equal(members.length,1);
-  assert.equal(ctx.matchTeamSearch(teams[0],{weeklyId:'2026-10-23'},Date.now()),true);
-  assert.equal(ctx.matchTeamSearch({...teams[0],weeklyId:''},{weeklyId:'2026-10-23'},Date.now()),false);
+  const ctx = backend({ teams, members, users: [{ _id: 'u', nickName: '玩家' }] });
+  ctx.getOpenid = async () => 'u';
+  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), weeklyId: '2026-10-23' } }, 'u')).ok, false);
+  for (const type of ['getWeeklyPlay', 'votePlay', 'launchPlayOption']) {
+    const result = await ctx.exports.main({ type });
+    assert.equal(result.ok, false);
+    assert.match(result.errMsg, /每日16:00/);
+  }
+  assert.equal(teams.length, 0);
+  assert.equal(members.length, 0);
 });
 
 test('editing weekly game or start time detaches the team from the activity without cancelling it', async () => {
@@ -1311,17 +1310,6 @@ test('editing weekly game or start time detaches the team from the activity with
   assert.equal((await ctx.updateTeam({teamId:'w',team:{gameName:'DOTA2'}},'u')).ok,true);
   assert.equal(teams[0].weeklyId,'');
   assert.equal(teams[0].status,'recruiting');
-});
-
-test('expired weekly activities reject new teams without writing a host or team', async () => {
-  const teams=[],members=[];
-  const ctx=backend({teams,members,users:[{_id:'u',nickName:'玩家'}]});
-  const payload={...teamPayload(),weeklyId:'2026-10-23'};
-  const previous=ctx.require;
-  ctx.require=id=>id==='./lib/weekly-play'?{createWeeklyPlay:()=>({get:async()=>({weekId:payload.weeklyId,selectedGame:{name:'CS2'},startAt:payload.startAt,serverNow:Date.now(),endAt:Date.now()-1})})}:previous(id);
-  assert.equal((await ctx.createTeam({team:payload},'u')).ok,false);
-  assert.equal(teams.length,0);
-  assert.equal(members.length,0);
 });
 
 test('daily cars remain visible in the lobby and personal teams; room info can change while the agreed game/time stays fixed', async () => {
@@ -1337,14 +1325,14 @@ test('daily cars remain visible in the lobby and personal teams; room info can c
   }
 });
 
-test('daily API routes authenticate, moderate custom games, block banned writes and create a real visible car', async () => {
+test('real timer creates an unowned car; claiming requires full form and then normal passengers can join', async () => {
   const teams = [], members = [];
   const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }, { _id: 'blocked', nickName: '封禁', banned: true }] });
+  let at = Date.parse('2026-10-20T15:00:00+08:00');
+  ctx.nowMs = () => at;
   let actor = 'a';
   ctx.getOpenid = async () => actor;
-  const previous = ctx.require;
-  ctx.require = id => id === './lib/daily-play' ? require('../cloudfunctions/team/lib/daily-play') : previous(id);
-  const input = { type: 'createPlayOption', gameName: '饥荒联机版', platform: 'Steam', startAt: Date.now(), endAt: Date.now() + 7200000, requestId: 'integration-key' };
+  const input = { type: 'createPlayOption', gameName: '饥荒联机版', platform: 'Steam', requestId: 'integration-key' };
   const created = await ctx.exports.main(input);
   assert.equal(created.ok, true);
   const optionId = created.board.options[0].id;
@@ -1352,23 +1340,56 @@ test('daily API routes authenticate, moderate custom games, block banned writes 
   assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true })).ok, false);
   actor = 'b';
   assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true, openid: 'forged-user' })).ok, true);
-  const launched = await ctx.exports.main({ type: 'launchPlayOption', optionId });
-  assert.equal(launched.ok, true);
+  assert.equal(teams.length, 0);
+  at = Date.parse('2026-10-20T16:00:00+08:00');
+  const tick = await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
+  assert.equal(tick.ok, true);
+  const board = (await ctx.exports.main({ type: 'getDailyPlay' })).board;
   assert.equal(teams.length, 1);
+  assert.equal(teams[0].openid, undefined);
+  assert.equal(teams[0].memberCount, 0);
+  assert.equal(members.length, 0);
+  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, board.teamId);
+  assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'b')).ok, false);
+  const teamInput = { gameName: teams[0].gameName, platform: teams[0].platform, startAt: teams[0].startAt, endAt: teams[0].endAt, capacity: teams[0].capacity, roomNo: '' };
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
+  teamInput.roomNo = '待填写';
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
+  teamInput.roomNo = 'Steam好友码123';
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: { ...teamInput, gameName: '改名' } }, 'b')).ok, false);
+  const claimed = await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b');
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.teamId, board.teamId);
   assert.equal(teams[0].openid, 'b');
+  assert.equal(teams[0].memberCount, 1);
+  assert.equal(teams[0].pendingHost, false);
+  assert.deepEqual(members.map(m => m.openid), ['b']);
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, true);
+  assert.equal(members.length, 1);
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'a')).ok, false);
+  assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'a')).ok, true);
   assert.equal(teams[0].memberCount, 2);
-  assert.deepEqual(members.map(m => m.openid).sort(), ['a', 'b']);
-  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, launched.teamId);
-  assert.equal((await ctx.myTeams('a')).joined[0]._id, launched.teamId);
-  actor = 'a';
-  assert.equal((await ctx.exports.main({ type: 'getDailyPlay' })).board.options[0].joined, true);
+  assert.equal((await ctx.myTeams('b')).hosted[0]._id, board.teamId);
+  await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
+  assert.equal(teams.length, 1);
+});
 
-  const risky = backend({ users: [{ _id: 'a', nickName: 'A' }], msgCheck: async () => ({ errCode: 0, result: { suggest: 'risky' } }) });
-  risky.getOpenid = async () => 'a';
-  const oldRequire = risky.require;
-  risky.require = id => id === './lib/daily-play' ? require('../cloudfunctions/team/lib/daily-play') : oldRequire(id);
-  assert.equal((await risky.exports.main(input)).ok, false);
-  assert.equal((await risky.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+test('custom game names require an explicit security pass; review, risky, malformed and outages never publish', async () => {
+  const cases = [
+    async () => ({ errCode: 0, result: { suggest: 'review' } }),
+    async () => ({ errCode: 0, result: { suggest: 'risky' } }),
+    async () => ({ errCode: 0 }),
+    async () => { throw new Error('security offline'); },
+  ];
+  for (const msgCheck of cases) {
+    const ctx = backend({ users: [{ _id: 'a', nickName: 'A' }], msgCheck });
+    ctx.nowMs = () => Date.parse('2026-10-20T15:00:00+08:00');
+    ctx.getOpenid = async () => 'a';
+    const result = await ctx.exports.main({ type: 'createPlayOption', gameName: '自定义游戏', platform: 'Steam', requestId: 'secure-key' });
+    assert.equal(result.ok, false);
+    assert.match(result.errMsg, /安全检测/);
+    assert.equal((await ctx.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+  }
 });
 
 test('all four reactions are mutually exclusive, switching updates counts and retries remain idempotent', async () => {
@@ -1449,4 +1470,46 @@ test('hot ranking uses views and current reactions globally before pagination an
   assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'likes');
   await ctx.setReaction({ teamId: 'likes', reaction: 'like', enabled: false }, 'visitor');
   assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'love');
+});
+
+test('concurrent complete-form claims elect one host without adding a second car or member', async () => {
+  const team = { _id: 'night_test', ...teamPayload(), platform: 'Steam', dailyNightId: 'test', pendingHost: true, memberCount: 0, roomNo: '', status: 'recruiting' };
+  const members = [], teams = [team];
+  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }] });
+  const input = { claimTeamId: team._id, team: { ...team, roomNo: '好友码123' } };
+  const results = await Promise.all(['a', 'b'].map(uid => ctx.createTeam(input, uid)));
+  assert.equal(results.filter(result => result.ok).length, 1);
+  assert.equal(results.find(result => !result.ok).code, "CLAIM_TAKEN");
+  assert.equal(teams.length, 1);
+  assert.equal(members.length, 1);
+  assert.equal(team.memberCount, 1);
+  assert.equal(team.pendingHost, false);
+  assert.equal(members[0].openid, team.openid);
+});
+test('user ranking endpoint scans past the first page and returns public profiles only', async () => {
+  const users = [{ _id: 'top', nickName: '榜首', avatarUrl: 'cloud://env/avatar.png', bio: '公开签名' }, { _id: 'other', nickName: '其他' }];
+  const teams = Array.from({ length: 130 }, (_, i) => ({ _id: 't' + i, ...teamPayload(), openid: i < 100 ? 'other' : 'top' }));
+  const ctx = backend({ teams, users, paginate: true });
+  const result = await ctx.getUserRankings();
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(result.hosted, row => row.count), [100, 30]);
+  assert.ok(result.hosted[1].avatarUrl.startsWith('https://tmp.example/'));
+  assert.equal(result.hosted[1].bio, '公开签名');
+  assert.equal(result.hosted[0].bio, '');
+  assert.ok(!JSON.stringify(result).includes('reminderPreferences'));
+  assert.ok(!JSON.stringify(result).includes('openid'));
+  assert.equal(result.hosted[0]._id, undefined);
+});
+
+test('official car labels survive API projection and claiming; normal publishers cannot forge official metadata', async () => {
+  const ctx = backend({ users: [{ _id: 'u', nickName: '用户' }] });
+  const champion = ctx.stripSecret({ _id: 'c', ...teamPayload(), dailyNightId: 'today', dailyOptionId: 'vote' }, false);
+  assert.equal(champion.officialSource, 'champion');
+  const random = ctx.stripSecret({ _id: 'r', ...teamPayload(), dailyNightId: 'today', officialSource: 'random' }, false);
+  assert.equal(random.officialSource, 'random');
+  const created = await ctx.createTeam({ team: { ...teamPayload(), dailyNightId: 'forged', officialSource: 'champion' } }, 'u');
+  assert.equal(created.ok, true);
+  const result = await ctx.getTeam({ teamId: created.teamId }, 'u');
+  assert.equal(result.team.dailyNightId, undefined);
+  assert.equal(result.team.officialSource, undefined);
 });

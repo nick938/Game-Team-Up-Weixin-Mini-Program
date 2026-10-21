@@ -3,40 +3,35 @@ export interface DailyOption {
   id: string;
   gameName: string;
   platform: string;
-  startAt: number;
-  endAt: number;
   createdAt: number;
   votes: number;
   mine: boolean;
-  teamId: string;
-  memberCount: number;
-  joined: boolean;
-  status: string;
-  capacity: number;
-  expired: boolean;
 }
 export interface DailyBoard {
   dayId: string;
   serverNow: number;
-  options: DailyOption[];
-}
-export interface PlayGame {
-  id: string;
-  name: string;
-  platform: string;
-  votes: number;
-}
-export interface WeeklyActivity {
-  weekId: string;
+  settleAt: number;
   startAt: number;
-  drawAt: number;
   endAt: number;
-  serverNow: number;
   votingClosed: boolean;
-  mine: string;
-  totalVotes: number;
-  selectedGame: Omit<PlayGame, 'votes'> | null;
-  games: PlayGame[];
+  settledAt: number;
+  winnerId: string;
+  teamId: string;
+  unavailableReason: string;
+  source: 'vote' | 'history' | '';
+  selectedGame: { gameName: string; platform: string; capacity: number } | null;
+  team: {
+    id: string;
+    gameName: string;
+    platform: string;
+    memberCount: number;
+    capacity: number;
+    status: string;
+    pendingHost: boolean;
+    hostNickName: string;
+    endAt: number;
+  } | null;
+  options: DailyOption[];
 }
 /** Shared business payloads. Display fields are added by the view formatters. */
 export interface User {
@@ -49,7 +44,17 @@ export interface User {
   bio?: string;
 }
 export type TeamRole = 'host' | 'member';
+export interface RankingUser {
+  bio?: string;
+  userKey: string;
+  nickName: string;
+  avatarUrl: string;
+  count: number;
+}
 export interface Team {
+  pendingHost?: boolean;
+  dailyNightId?: string;
+  officialSource?: 'champion' | 'random';
   weeklyId?: string;
   reactions?: ReactionSummary;
   viewCount?: number;
@@ -176,12 +181,10 @@ export interface AdminStats {
   platforms: { platform: string; count: number; pct?: number }[];
 }
 export interface TeamResults {
+  getUserRankings: { hosted: RankingUser[]; joined: RankingUser[]; generatedAt: number };
   getDailyPlay: { board: DailyBoard };
   createPlayOption: { board: DailyBoard | null };
   votePlayOption: { board: DailyBoard | null; teamId: string };
-  launchPlayOption: { board: DailyBoard | null; teamId: string };
-  getWeeklyPlay: { activity: WeeklyActivity };
-  votePlay: { activity: WeeklyActivity };
   getProfile: { user?: User; isAdmin?: boolean; isOrganizer?: boolean };
   getTeam: { team: Team; members: Member[]; role: TeamRole | null; reactions?: ReactionSummary };
   getPublicProfile: { profile: User };
@@ -224,12 +227,10 @@ export interface VersionInput {
   envVersion: string;
 }
 export interface TeamRequests {
+  getUserRankings: undefined;
   getDailyPlay: undefined;
-  createPlayOption: { gameName: string; platform: string; startAt: number; endAt: number; requestId: string };
+  createPlayOption: { gameName: string; platform: string; requestId: string };
   votePlayOption: { optionId: string; want: boolean };
-  launchPlayOption: { optionId: string };
-  getWeeklyPlay: undefined;
-  votePlay: { weekId: string; gameId: string };
   getProfile: undefined;
   getTeam: { teamId: string };
   setReaction: { teamId: string; reaction: ReactionId | ''; enabled?: boolean };
@@ -238,7 +239,7 @@ export interface TeamRequests {
   trackTeamEvent: { teamId: string; kind: 'detail_view' | 'share_view' | 'copy_room' };
   myTeams: undefined;
   searchProxyUsers: { keyword: string };
-  createTeam: { team: TeamInput; hostOpenid?: string };
+  createTeam: { team: TeamInput; hostOpenid?: string; claimTeamId?: string };
   updateTeam: { teamId: string; team: TeamInput };
   joinTeam: { teamId: string };
   leaveTeam: { teamId: string };

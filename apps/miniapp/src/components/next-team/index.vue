@@ -20,7 +20,7 @@ const view = useTeamPresentation(
         ><view class="text-sm font-semibold text-ink truncate"
           >{{
             team.mark === '我发起的' && view.recruitment === 'open'
-              ? '我正在招人'
+              ? '我正在招队友'
               : view.lifecycle === 'active'
                 ? '正在开局'
                 : '下一局'

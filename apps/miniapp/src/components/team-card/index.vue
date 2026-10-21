@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamCard' });
 import { computed } from 'vue';
+import { officialTeamLabel } from '../../utils/team-source';
 import ReactionEffect from '../reaction-effect/index.vue';
 import { prepareCardShare } from '../../utils/card-share';
 import type { Team } from '../../types/domain';
@@ -42,6 +43,7 @@ function onTap() {
             <view class="text-base font-semibold leading-6 break-words line-clamp-2">{{
               team.gameName || '组队'
             }}</view>
+            <text v-if="officialTeamLabel(team)" class="official-badge">{{ officialTeamLabel(team) }}</text>
             <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
           </view>
           <view class="shrink-0 text-right">
@@ -67,7 +69,9 @@ function onTap() {
             mode="aspectFill"
             :src="team.hostAvatarUrl || '/static/images/avatar.png'"
           />
-          <text class="text-xs text-secondary truncate">{{ team.hostNickName || '玩家' }}</text>
+          <text class="text-xs text-secondary truncate">{{
+            team.pendingHost ? '等待首位玩家发车' : team.hostNickName || '玩家'
+          }}</text>
         </view>
         <view class="room-meta">
           <wd-icon name="time-line" size="13px" />
@@ -142,6 +146,16 @@ function onTap() {
 </template>
 
 <style scoped>
+.official-badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: #6255e7;
+  background: #f0edff;
+  font-size: 10px;
+  font-weight: 600;
+}
 .room-occupancy {
   font-size: 18px;
   line-height: 24px;

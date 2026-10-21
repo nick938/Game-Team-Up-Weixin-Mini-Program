@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/team/detail');
+import { officialTeamLabel } from '../../utils/team-source';
 import AppActionDock from '../../components/app-action-dock/index.vue';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { reactive, computed } from 'vue';
@@ -36,6 +37,9 @@ function goRoom() {
     <template v-if="page.team">
       <view class="panel">
         <view class="flex flex-wrap items-center gap-2 mb-3">
+          <text v-if="officialTeamLabel(page.team)" class="official-badge">{{
+            officialTeamLabel(page.team)
+          }}</text>
           <text
             class="room-status"
             :class="
@@ -80,7 +84,7 @@ function goRoom() {
           <view class="min-w-0 flex-1"
             ><view class="hint mb-1">好友码 / 联系方式</view
             ><view class="text-base break-all whitespace-pre-wrap">{{
-              page.team.roomNo || '车头暂未填写'
+              page.team.roomNo || (page.team.pendingHost ? '待首位玩家完成发车后填写' : '车头暂未填写')
             }}</view></view
           >
           <wd-button v-if="page.team.roomNo" size="small" variant="soft" @click="page.copyRoom"
@@ -211,8 +215,14 @@ function goRoom() {
           :loading="page.state.joining"
           :disabled="page.state.joining"
           @click="page.onJoin"
-          >{{ view.lifecycle === 'active' ? '中途加入' : '加入队伍' }} · 还差
-          {{ view.needCount }} 人</wd-button
+          >{{
+            page.team.pendingHost
+              ? '我来发车 · 填写联系方式'
+              : view.lifecycle === 'active'
+                ? '中途加入'
+                : '加入队伍'
+          }}
+          · 还差 {{ view.needCount }} 人</wd-button
         >
         <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
           >分享招人 · 还缺 {{ view.needCount }} 人</wd-button
@@ -304,3 +314,14 @@ function goRoom() {
     <entry-notices />
   </app-shell>
 </template>
+
+<style scoped>
+.official-badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #6255e7;
+  background: #f0edff;
+  font-size: 12px;
+  font-weight: 600;
+}
+</style>

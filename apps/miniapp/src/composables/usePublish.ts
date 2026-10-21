@@ -2,7 +2,7 @@ import { gameSuggestions, rememberGame } from '../utils/recent-games';
 import { overlappingTeams } from '../utils/team-schedule';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
-import { onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+import { onLoad, onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import type { Team, TeamDraft, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
@@ -30,7 +30,10 @@ import {
   buildTimeSummary,
   validatePublishTeam,
 } from '../utils/publish-form';
-export function usePublish() {
+export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) {
+  let requestedClaimId = '';
+  let claimActive = true;
+  let claimLoadRevision = 0;
   const { toast, dialog, showError } = usePageFeedback();
   const MAX_TEAM_MS = MAX_TEAM_HOURS * 60 * 60 * 1000;
   const DURATION_PICKER = buildDurationPicker();
@@ -57,6 +60,7 @@ export function usePublish() {
     });
     return {
       editingId: '',
+      claimTeamId: '',
       weeklyId: '',
       weeklyStartAt: 0,
       weeklyGameName: '',
@@ -397,12 +401,20 @@ export function usePublish() {
     });
   }
   function saveDraft() {
-    if (state.singlePage || state.editingId || state.proxyMode || state.submitting) return;
+    if (
+      claimMode ||
+      state.singlePage ||
+      state.editingId ||
+      state.claimTeamId ||
+      state.proxyMode ||
+      state.submitting
+    )
+      return;
     if (!state.gameName.trim() && !state.roomNo.trim() && !state.note.trim()) {
       writeLocal(DRAFT_KEY, null);
       return;
     }
-    writeLocal(DRAFT_KEY, { ...buildTeam(), roomPwd: '', weeklyId: state.weeklyId });
+    writeLocal(DRAFT_KEY, { ...buildTeam(), roomPwd: '' });
   }
   function restoreDraft() {
     if (draftRestored) return;
@@ -417,9 +429,6 @@ export function usePublish() {
     patchState({
       roomNo: draft.roomNo || '',
       fromLast: false,
-      ...(draft.weeklyId && Number(draft.startAt) > Date.now()
-        ? { weeklyId: draft.weeklyId, weeklyStartAt: draft.startAt, weeklyGameName: draft.gameName }
-        : {}),
     });
   }
   function startNew() {
@@ -669,11 +678,6 @@ export function usePublish() {
   }
   function buildTeam() {
     return {
-      ...(state.weeklyId &&
-      state.weeklyGameName === state.gameName.trim() &&
-      state.weeklyStartAt === combineDateTime(state.startDate, state.startTime)
-        ? { weeklyId: state.weeklyId }
-        : {}),
       gameName: (state.gameName || '').trim(),
       startAt: combineDateTime(state.startDate, state.startTime),
       endAt: combineDateTime(state.endDate, state.endTime),
@@ -764,7 +768,10 @@ export function usePublish() {
           if (url) hostPlatform.navigateTo({ url });
         }, 400);
       } else {
-        const payload: { team: ReturnType<typeof buildTeam>; hostOpenid?: string } = { team };
+        const payload: { team: ReturnType<typeof buildTeam>; hostOpenid?: string; claimTeamId?: string } = {
+          team,
+        };
+        if (state.claimTeamId) payload.claimTeamId = state.claimTeamId;
         if (state.proxyMode && state.proxyHost && state.proxyHost.userId) {
           payload.hostOpenid = state.proxyHost.userId;
         }
@@ -777,13 +784,21 @@ export function usePublish() {
         patchState(emptyForm());
         toast.success(helped ? '已帮 TA 发车' : '已发车');
         setTimeout(() => {
+          if (claimMode && !claimActive) return;
           const url = teamDetailPath(res.teamId, { gameName: team.gameName });
-          if (url) hostPlatform.navigateTo({ url });
+          if (url) (claimMode ? hostPlatform.redirectTo : hostPlatform.navigateTo)({ url });
         }, 400);
       }
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
-      if (e.code === 'NEED_PROFILE') {
+      if (claimMode && !claimActive) return;
+      if (e.code === 'CLAIM_TAKEN' && state.claimTeamId) {
+        const teamId = state.claimTeamId;
+        patchState(emptyForm());
+        toast.show('已有玩家完成发车，前往队伍详情上车');
+        const url = teamDetailPath(teamId, {});
+        if (url) (claimMode ? hostPlatform.redirectTo : hostPlatform.navigateTo)({ url });
+      } else if (e.code === 'NEED_PROFILE') {
         patchState({ showProfile: true, pendingAction: 'submit' });
       } else {
         showError(e);
@@ -808,15 +823,70 @@ export function usePublish() {
       onSubmit();
     }
   }
+  async function loadClaim() {
+    const revision = ++claimLoadRevision;
+    if (!requestedClaimId) {
+      state.editLoadError = '缺少官方队伍，请返回重新进入';
+      return;
+    }
+    state.editLoadError = '';
+    try {
+      const { team } = await callTeam('getTeam', { teamId: requestedClaimId });
+      if (!claimActive || revision !== claimLoadRevision) return;
+      if (!team.pendingHost) {
+        const url = teamDetailPath(requestedClaimId, {});
+        if (url) hostPlatform.redirectTo({ url });
+        return;
+      }
+      if (!team.dailyNightId || !team.endAt || team.endAt <= Date.now() || team.status === 'cancelled')
+        throw new Error('这趟官方车已结束，请返回看看其他队伍');
+      const start = dateParts(team.startAt),
+        end = dateParts(team.endAt);
+      patchState(
+        withTimeSummary({
+          ...emptyForm(),
+          claimTeamId: requestedClaimId,
+          gameName: team.gameName,
+          platform: team.platform,
+          platforms: sortPlatforms(team.platform, PLATFORMS),
+          capacity: team.capacity,
+          startDate: start.date,
+          startTime: start.time,
+          endDate: end.date,
+          endTime: end.time,
+          startPreset: 'custom',
+        }),
+      );
+    } catch (error) {
+      if (claimActive && revision === claimLoadRevision)
+        state.editLoadError = error instanceof Error ? error.message : '加载失败，请重试';
+    }
+  }
+  if (claimMode)
+    onLoad((query = {}) => {
+      requestedClaimId = String(query.teamId || '');
+    });
   onShow(async () => {
     const singlePage = isSinglePage();
     patchState({ singlePage });
     if (singlePage) return;
+    if (claimMode) {
+      claimActive = true;
+      if (!state.claimTeamId) await loadClaim();
+      return;
+    }
     bindCopyUrl(hostPlatform, () => plazaShare('开黑星球｜发起组队开黑'));
     const app = useAppStore();
     const editingId = app.editingTeamId;
     const draft = app.republishTeam;
     const prefill = app.prefillGame;
+    if (prefill?.claimTeamId) {
+      app.prefillGame = null;
+      hostPlatform.navigateTo({
+        url: `/pages/publish/claim?teamId=${encodeURIComponent(prefill.claimTeamId)}`,
+      });
+      return;
+    }
     if (editingId) {
       app.editingTeamId = null;
       app.republishTeam = null;
@@ -832,14 +902,15 @@ export function usePublish() {
     } else if (prefill) {
       app.prefillGame = null;
       patchState(emptyForm());
-      const patch: Partial<typeof state> = { gameName: prefill.name || '' };
-      if (prefill.startAt && prefill.weeklyId) {
+      const patch: Partial<typeof state> = {
+        gameName: prefill.name || '',
+        claimTeamId: prefill.claimTeamId || '',
+        ...(prefill.capacity ? { capacity: prefill.capacity } : {}),
+      };
+      if (prefill.startAt) {
         const start = dateParts(prefill.startAt);
-        const end = dateParts(prefill.startAt + 2 * 3600000);
+        const end = dateParts(prefill.endAt || prefill.startAt + 2 * 3600000);
         Object.assign(patch, {
-          weeklyId: prefill.weeklyId,
-          weeklyStartAt: prefill.startAt,
-          weeklyGameName: prefill.name,
           startDate: start.date,
           startTime: start.time,
           endDate: end.date,
@@ -852,17 +923,25 @@ export function usePublish() {
         patch.platforms = sortPlatforms(prefill.platform, PLATFORMS);
       }
       patchState(withTimeSummary(patch));
-      applyGameSettings(prefill.name || '');
-    } else {
+      if (!prefill.claimTeamId && !prefill.fromPlayVote) applyGameSettings(prefill.name || '');
+    } else if (!state.claimTeamId) {
       restoreDraft();
     }
     await Promise.all([loadProxyAccess(), loadRecentLaunches()]);
   });
   onHide(() => {
+    if (claimMode) {
+      claimActive = false;
+      claimLoadRevision++;
+    }
     saveDraft();
     unbindCopyUrl(hostPlatform);
   });
   onUnload(() => {
+    if (claimMode) {
+      claimActive = false;
+      claimLoadRevision++;
+    }
     saveDraft();
     cancelProxySearch();
     unbindCopyUrl(hostPlatform);
@@ -952,6 +1031,7 @@ export function usePublish() {
     durationPickerLabels,
     patchState,
     loadEdit,
+    retryClaim: loadClaim,
     applyDraft,
     toggleMore,
     applyDurationTo,

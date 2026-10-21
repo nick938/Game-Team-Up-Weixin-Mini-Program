@@ -11,7 +11,16 @@ export const useAppStore = defineStore('application', {
     isOrganizer: false,
     editingTeamId: null as string | null,
     republishTeam: null as TeamDraft | null,
-    prefillGame: null as (Pick<Game, 'name' | 'platform'> & { startAt?: number; weeklyId?: string }) | null,
+    prefillGame: null as
+      | (Pick<Game, 'name' | 'platform'> & {
+          startAt?: number;
+          endAt?: number;
+          capacity?: number;
+          claimTeamId?: string;
+          fromPlayVote?: boolean;
+          weeklyId?: string;
+        })
+      | null,
     lastError: '',
   }),
 });

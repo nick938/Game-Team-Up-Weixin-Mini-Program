@@ -1,142 +1,103 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { useDailyPlay } from '../../composables/useDailyPlay';
 import { shareToFriend, shareToTimeline } from '../../utils/share';
 defineOptions({ name: 'PlayVotePage' });
 const page = useDailyPlay();
-const showEditor = ref(false);
-const dayStart = computed(() =>
-  Date.parse(
-    `${page.state.board?.dayId || new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10)}T00:00:00+08:00`,
-  ),
-);
-const options = computed(() =>
-  [...(page.state.board?.options || [])].sort(
-    (a, b) =>
-      Number(a.expired || a.status === 'cancelled') - Number(b.expired || b.status === 'cancelled') ||
-      b.createdAt - a.createdAt,
-  ),
-);
-const share = { title: '今天玩啥？选游戏、约时间，够两人就发车', path: '/pages/play/play', query: '' };
+const showRules = ref(false);
+const podium = [1, 0, 2];
+const share = { title: '今天玩啥？投想玩，随时自己发一车', path: '/pages/play/play', query: '' };
 onShareAppMessage(() => shareToFriend(share));
 onShareTimeline(() => shareToTimeline(share));
-function time(at: number) {
-  const date = new Date(at + 8 * 3600000);
-  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
-}
 </script>
 <template>
+  <page-navigation title="今天玩啥" />
   <timeline-preview v-if="page.singlePage.value" />
-  <app-shell v-else title="今天玩啥" subtitle="把想玩的游戏放这里，等一个同频的搭子。">
-    <view class="panel play-intro">
-      <image class="play-art" src="/static/images/play-today.png" mode="aspectFill" />
-      <view class="brand-kicker">TODAY'S PLAYLIST</view>
-      <view class="section-title mt-2">想玩的，都可以安排</view>
-      <view class="intro-copy">选游戏，约时间。至少 2 人想玩，就能一键发车。</view>
-      <view class="hint mt-3">发车的人是车头，投过想玩的搭子自动上车；发车后还可以继续加入。</view>
-    </view>
-    <wd-button v-if="!showEditor" block custom-class="!mb-4" @click="showEditor = true"
-      >＋ 添加想玩的游戏和时间</wd-button
-    >
-    <view v-else class="panel">
-      <view class="section-title mb-3">＋ 添加我的想玩</view>
-      <view class="hint mb-2">游戏名称</view>
-      <wd-input
-        v-model="page.form.gameName"
-        placeholder="例如：双人成行、饥荒联机版"
-        :maxlength="40"
-        clearable
-      />
-      <view class="platforms">
-        <wd-button
-          v-for="item in ['Steam', '端游', '手游', '主机']"
-          :key="item"
-          size="small"
-          :variant="page.form.platform === item ? 'solid' : 'soft'"
-          @click="page.form.platform = item"
-          >{{ item }}</wd-button
-        >
+  <app-shell v-else>
+    <view class="play-content">
+      <view class="play-heading">
+        <view class="page-heading">大家今天想玩啥</view>
       </view>
-      <app-datetime-picker
-        v-model="page.form.startAt"
-        label="可以开始"
-        :min-date="dayStart"
-        :max-date="dayStart + 86400000 - 1"
-      />
-      <app-datetime-picker
-        v-model="page.form.endAt"
-        label="玩到几点"
-        :min-date="page.form.startAt + 60000"
-        :max-date="page.form.startAt + 86400000"
-      />
-      <view class="hint my-3"
-        >北京时间 · 开始时间选今天，可添加多个游戏或不同时间的选项。创建后默认加入想玩。</view
+      <view class="play-caption">全天投票，选好游戏就能自己发车。</view>
+      <view v-if="page.state.error" class="panel"
+        ><view class="text-sm mb-3">{{ page.state.error }}</view
+        ><wd-button variant="soft" @click="page.load">重新加载</wd-button></view
       >
-      <wd-button block :loading="page.state.busy" @click="page.create">添加想玩选项</wd-button>
-      <wd-button block variant="text" @click="showEditor = false">收起，看看大家想玩什么</wd-button>
-    </view>
-    <view class="flex justify-between items-center mb-3">
-      <text class="font-semibold">大家的想玩清单</text
-      ><text class="hint">{{ page.state.board?.dayId || '今天' }}</text>
-    </view>
-    <view v-if="page.state.error" class="panel"
-      ><view class="text-sm mb-3">{{ page.state.error }}</view
-      ><wd-button variant="soft" @click="page.load">重新加载</wd-button></view
-    >
-    <view v-else-if="!page.state.board" class="panel"><wd-loading /> 正在寻找今天的搭子</view>
-    <view v-if="page.state.board && !options.length" class="panel empty-play"
-      ><view class="section-title">今天的第一局，等你提议</view
-      ><view class="hint mt-2">在上面写下游戏和时间，邀请搭子来点「想玩」。</view></view
-    >
-    <view v-for="option in options" :key="option.id" class="panel play-option">
-      <view class="flex items-center justify-between gap-2"
-        ><view class="text-base font-semibold">{{ option.gameName }}</view
-        ><text class="option-tag">{{ option.teamId ? '已发车' : '约局中' }}</text></view
-      >
-      <view class="text-sm text-secondary mt-2"
-        >{{ option.platform }} · {{ time(option.startAt) }}–{{ time(option.endAt)
-        }}{{
-          option.endAt >= Date.parse(`${page.state.board?.dayId}T00:00:00+08:00`) + 86400000 ? '（次日）' : ''
-        }}</view
-      >
-      <view class="intent-count mt-3"
-        >{{ option.votes }} 人想玩<text v-if="option.teamId" class="hint">
-          · {{ option.memberCount }}/{{ option.capacity }} 人在车上</text
-        ></view
-      >
-      <view v-if="option.expired || option.status === 'cancelled'" class="hint mt-3">{{
-        option.status === 'cancelled' ? '这趟车已散' : '这个时间段已结束'
-      }}</view>
-      <view v-else class="option-actions mt-3">
-        <wd-button
-          :variant="option.mine ? 'solid' : 'soft'"
-          :disabled="page.state.busy"
-          @click="page.vote(option)"
-          >{{
-            option.teamId
-              ? option.joined
-                ? '已上车 · 查看'
-                : '想玩并上车'
-              : option.mine
-                ? '已想玩 · 取消'
-                : '＋ 我想玩'
-          }}</wd-button
+      <view v-else-if="!page.state.board" class="panel"><wd-loading /> 正在收集大家的想玩</view>
+      <template v-if="page.state.board">
+        <view class="podium" aria-label="今天想玩游戏前三名">
+          <view v-for="place in podium" :key="place" class="podium-seat" :class="`podium-${place}`">
+            <view class="podium-label">{{ ['👑 冠军', '🥈 亚军', '🥉 季军'][place] }}</view>
+            <view class="podium-name">{{ page.options.value[place]?.gameName || '等你来发起' }}</view>
+            <view class="podium-count">{{ page.options.value[place]?.votes || 0 }}<text> 票</text></view>
+          </view>
+        </view>
+        <view class="list-heading"
+          ><text class="section-title">全部游戏投票</text
+          ><text class="hint">{{ page.options.value.length }} 个投票 · 实时排序</text></view
         >
-        <wd-button
-          v-if="!option.teamId"
-          variant="soft"
-          :disabled="option.votes < 2 || page.state.busy"
-          @click="page.launch(option)"
-          >{{ option.votes >= 2 ? '一键发车' : '再等一位搭子' }}</wd-button
+        <view v-if="!page.options.value.length" class="panel empty-play">
+          <view class="section-title">还没有投票，发起一个吧</view>
+          <view class="hint mt-2 mb-4">点下方「发起投票」，填个游戏名，邀请群友一起选。</view>
+        </view>
+        <view v-for="(option, index) in page.options.value" :key="option.id" class="panel play-option">
+          <view class="option-main"
+            ><text class="rank-number" :class="{ 'rank-top': index < 3 }">{{ index + 1 }}</text
+            ><view class="option-name">{{ option.gameName }}</view
+            ><text class="vote-count">{{ option.votes }}<text> 票</text></text></view
+          >
+          <view class="option-actions">
+            <wd-button
+              block
+              size="small"
+              :variant="option.mine ? 'soft' : 'base'"
+              :disabled="page.state.busy"
+              @click="page.vote(option)"
+              >{{ option.mine ? '已投票 · 取消' : '＋ 投一票' }}</wd-button
+            >
+            <wd-button block size="small" variant="soft" @click="page.launch(option)">发一车 →</wd-button>
+          </view>
+        </view>
+        <view v-if="page.options.value.length" class="hint mb-5"
+          >投票不占座；点「发一车」，时间、人数由你自己定。</view
         >
-        <wd-button v-else variant="text" @click="page.open(option.teamId)">查看这趟车 →</wd-button>
+        <view class="rules-toggle" role="button" @click="showRules = !showRules"
+          >{{ showRules ? '收起规则' : '投票规则' }} <text>{{ showRules ? '⌃' : '⌄' }}</text></view
+        >
+        <view v-if="showRules" class="panel rules-copy">
+          <view>全天都能发起投票、给多个游戏投票，也能随时自己发车。同一款游戏每人一票，再点可取消。</view>
+          <view
+            >官方每天16:00选出一辆车，在大厅查看，21:00–23:00开玩。有票选当时冠军，无票从历史车随机选；之后仍可继续投票。</view
+          >
+          <view>点游戏下方的「发一车」，自己选择时间和人数。并列票数按发起投票的时间排序。</view>
+        </view>
+      </template>
+    </view>
+    <view v-if="!page.showEditor.value && !page.showProfile.value" class="vote-action-dock">
+      <view class="vote-action-inner">
+        <wd-button block variant="soft" open-type="share">邀请群友投票</wd-button>
+        <wd-button block @click="page.showEditor.value = true">＋ 发起投票</wd-button>
       </view>
-      <view v-if="!option.teamId && option.votes >= 2" class="hint mt-3"
-        >点击发车即成为车头，全部想玩的人自动上车。</view
-      >
     </view>
-    <wd-button block variant="soft" open-type="share">邀请搭子来选今天的游戏</wd-button>
+    <wd-popup
+      :z-index="1100"
+      v-model="page.showEditor.value"
+      position="center"
+      closable
+      custom-style="width: calc(100% - 40px); max-width: 420px; border-radius: 20px;"
+      :close-on-click-modal="!page.state.busy"
+    >
+      <view class="proposal-editor">
+        <view class="section-title mb-4">发起游戏投票</view>
+        <view class="text-sm mb-2">游戏名称</view>
+        <wd-input v-model="page.form.gameName" placeholder="例如：饥荒联机版" :maxlength="40" clearable />
+        <view class="hint my-4"
+          >每个游戏每人一票，可以支持多个游戏。同名游戏会合并，发起后默认给自己投一票。</view
+        >
+        <wd-button block :loading="page.state.busy" @click="page.create">发起投票</wd-button>
+      </view>
+    </wd-popup>
     <profile-gate
       :show="page.showProfile.value"
       @close="page.showProfile.value = false"
@@ -145,55 +106,157 @@ function time(at: number) {
   </app-shell>
 </template>
 <style scoped>
-.play-intro {
-  position: relative;
-  overflow: hidden;
-  background: #eee9ff;
-  padding-top: 24px;
+.play-content {
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
 }
-.play-art {
-  position: absolute;
+.vote-action-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
   right: 0;
-  top: 0;
-  width: 160px;
-  height: 100%;
-  opacity: 0.4;
-  pointer-events: none;
+  z-index: 90;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: #f4f5f8;
+  border-top: 1px solid rgba(98, 85, 231, 0.08);
 }
-.play-intro > view {
-  position: relative;
+.vote-action-inner {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 12px;
+  max-width: 528px;
+  margin: 0 auto;
 }
-.intro-copy {
-  max-width: 75%;
-  margin-top: 12px;
-  font-size: 14px;
-  line-height: 1.7;
-  color: #594b86;
+.play-heading .page-heading {
+  font-size: 21px;
 }
-.platforms,
-.option-actions {
+.play-caption {
+  margin: 8px 0 20px;
+  color: #7d748d;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.proposal-editor {
+  padding: 28px 20px 24px;
+}
+.podium {
   display: flex;
-  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 8px;
+  margin-bottom: 22px;
 }
-.platforms {
-  margin: 12px 0;
+.podium-seat {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: #eeebf6;
+  text-align: center;
 }
-.option-tag {
-  flex-shrink: 0;
-  padding: 4px 8px;
-  color: #6255e7;
-  background: #eeecff;
-  border-radius: 8px;
+.podium-0 {
+  background: #fff0c9;
+  padding-top: 17px;
+  padding-bottom: 14px;
+}
+.podium-2 {
+  background: #f7e8de;
+}
+.podium-label {
   font-size: 11px;
+  color: #7b688b;
 }
-.intent-count {
-  color: #6255e7;
-  font-size: 14px;
+.podium-0 .podium-label {
+  color: #8b6416;
+}
+.podium-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  height: 36px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 18px;
+  margin: 6px 0;
+  font-size: 12px;
   font-weight: 600;
 }
+.podium-count {
+  color: #6255e7;
+  font-size: 18px;
+  font-weight: 700;
+}
+.podium-count text {
+  font-size: 11px;
+  font-weight: 400;
+}
+.list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 .empty-play {
-  text-align: center;
-  padding: 28px 16px;
+  padding: 22px 18px;
+}
+.empty-play .section-title {
+  font-size: 15px;
+}
+.play-option {
+  padding: 16px;
+}
+.option-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rank-number {
+  width: 20px;
+  color: #a49bb3;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.rank-top {
+  color: #6255e7;
+}
+.option-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 600;
+}
+.vote-count {
+  flex-shrink: 0;
+  color: #6255e7;
+  font-size: 18px;
+  font-weight: 700;
+}
+.vote-count text {
+  color: #93899f;
+  font-size: 11px;
+  font-weight: 400;
+}
+.option-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+.rules-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  color: #93899f;
+  font-size: 12px;
+  padding: 4px 0 16px;
+}
+.rules-copy {
+  color: #7d748d;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.rules-copy > view + view {
+  margin-top: 10px;
 }
 </style>

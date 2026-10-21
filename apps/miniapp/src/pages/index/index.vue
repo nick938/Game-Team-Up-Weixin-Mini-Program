@@ -76,20 +76,18 @@ onPageScroll(({ scrollTop }) => {
           ><image class="entry-art" src="/static/images/play-today.png" mode="aspectFill" /><view
             class="entry-kicker"
             >TODAY</view
-          ><view class="entry-title">今天玩啥</view
-          ><view class="entry-copy">选游戏 · 约时间 · 满 2 人发车</view
+          ><view class="entry-title">今天玩啥</view><view class="entry-copy">投出想玩，随时约一局</view
           ><view class="entry-link">找个搭子 →</view></view
         >
         <view
           role="button"
-          class="home-play-entry home-friday-entry"
+          class="home-play-entry home-ranking-entry"
           @click="platform.navigateTo({ url: '/pages/friday/friday' })"
-          ><image class="entry-art" src="/static/images/play-friday.png" mode="aspectFill" /><view
+          ><image class="entry-art" src="/static/images/home-rankings.png" mode="aspectFill" /><view
             class="entry-kicker"
-            >FRIDAY NIGHT</view
-          ><view class="entry-title">周五一起开黑</view
-          ><view class="entry-copy">每周五 21:00 · 随机联机游戏</view
-          ><view class="entry-link">看看本周玩啥 →</view></view
+            >TOP PLAYERS</view
+          ><view class="entry-title">用户排行</view><view class="entry-copy">发车榜 · 上车榜</view
+          ><view class="entry-link">看看谁上榜 →</view></view
         >
       </view>
       <team-filters
@@ -179,9 +177,10 @@ onPageScroll(({ scrollTop }) => {
 .home-play-entry {
   position: relative;
   overflow: hidden;
-  min-height: 156px;
-  padding: 18px 12px 12px;
-  border-radius: 20px;
+  box-sizing: border-box;
+  height: 142px;
+  padding: 14px 12px 12px;
+  border-radius: 18px;
   background: #eae2ff;
   color: #3e2878;
   box-shadow: 0 5px 16px #6255e712;
@@ -210,20 +209,20 @@ onPageScroll(({ scrollTop }) => {
 }
 .entry-copy {
   max-width: 120px;
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 11px;
-  line-height: 1.7;
+  line-height: 1.55;
 }
 .entry-link {
-  margin-top: 30px;
+  margin-top: 16px;
   font-size: 11px;
   font-weight: 600;
 }
-.home-friday-entry {
+.home-ranking-entry {
   background: #252051;
   color: #fff;
 }
-.home-friday-entry .entry-copy {
+.home-ranking-entry .entry-copy {
   color: #e1d7ff;
 }
 

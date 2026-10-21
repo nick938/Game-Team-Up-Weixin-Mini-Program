@@ -115,7 +115,7 @@ test('proxy contact never replaces the users own saved contact', async () => {
   assert.equal(h.storage.get('publish-game-v2:CS2').contact, '我的好友码');
 });
 
-test('a draft can restore notes before choosing a game, and future Friday drafts keep their activity link', async () => {
+test('a draft can restore notes before choosing a game, and retired weekly drafts restore as ordinary teams', async () => {
   for (const gameName of ['', 'CS2']) {
     const h = harness();
     const startAt = Date.now() + 86400000;
@@ -133,8 +133,9 @@ test('a draft can restore notes before choosing a game, and future Friday drafts
     await page.hooks.onShow();
     assert.equal(page.state.gameName, gameName);
     assert.equal(page.state.note, '萌新友好');
-    assert.equal(page.state.weeklyId, gameName ? 'friday' : '');
-    if (gameName) assert.equal(page.state.weeklyStartAt, startAt);
+    assert.equal(page.state.weeklyId, '');
+    assert.equal(page.buildTeam().weeklyId, undefined);
+    assert.equal(page.buildTeam().startAt, Math.floor(startAt / 60000) * 60000);
   }
 });
 

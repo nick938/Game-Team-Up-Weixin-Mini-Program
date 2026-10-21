@@ -375,3 +375,37 @@ test('each detail entry tracks a view while internal refreshes and failed loads 
     ['detail_view', 'share_view'],
   );
 });
+
+test('sorting retains the visible list during a request while actual filter changes still clear it', async () => {
+  let complete, reject;
+  let count = 0;
+  const h = harness({
+    callTeam: (action) => {
+      if (action !== 'listTeams') return { hosted: [], joined: [] };
+      if (++count === 1) return { list: [futureTeam({ _id: 'latest' })], total: 1 };
+      return new Promise((resolve, fail) => {
+        complete = resolve;
+        reject = fail;
+      });
+    },
+  });
+  const page = h.page('pages/index/index');
+  await page.loadList();
+  page.pickSort('hot');
+  assert.equal(page.state.loading, true);
+  assert.equal(page.state.filtered[0]._id, 'latest');
+  complete({ list: [futureTeam({ _id: 'hot' })], total: 1 });
+  await flush();
+  assert.equal(page.state.filtered[0]._id, 'hot');
+  page.pickSort('hot');
+  assert.equal(count, 2);
+  page.pickSort('latest');
+  reject(new Error('排序加载失败'));
+  await flush();
+  assert.equal(page.state.filtered[0]._id, 'hot');
+  assert.equal(page.state.listError, '排序加载失败');
+  page.pickGame('其他游戏');
+  assert.equal(page.state.filtered.length, 0);
+  complete({ list: [], total: 0 });
+  await flush();
+});

@@ -5,11 +5,11 @@ export default defineUniPages({
   pages: [
     {
       path: 'pages/play/play',
-      style: { navigationBarTitleText: '今天玩啥', enablePullDownRefresh: true },
+      style: { navigationStyle: 'custom', navigationBarTitleText: '今天玩啥', enablePullDownRefresh: true },
     },
     {
       path: 'pages/friday/friday',
-      style: { navigationBarTitleText: '周五一起开黑', enablePullDownRefresh: true },
+      style: { navigationStyle: 'custom', navigationBarTitleText: '用户排行', enablePullDownRefresh: true },
     },
     {
       path: 'pages/index/index',
@@ -25,6 +25,10 @@ export default defineUniPages({
         navigationBarTitleText: '开黑星球｜游戏搭子',
         enablePullDownRefresh: true,
       },
+    },
+    {
+      path: 'pages/publish/claim',
+      style: { navigationBarTitleText: '接手官方车' },
     },
     {
       path: 'pages/publish/publish',
@@ -139,6 +143,7 @@ export default defineUniPages({
       '^admin-overview$': '@/components/admin-overview/index.vue',
       '^app-(input|textarea|picker|datetime-picker)$': '@/components/app-$1/index.vue',
       '^app-shell$': '@/components/app-shell/index.vue',
+      '^page-navigation$': '@/components/page-navigation/index.vue',
       '^team-card$': '@/components/team-card/index.vue',
       '^lobby-hero$': '@/components/lobby-hero/index.vue',
       '^profile-gate$': '@/components/profile-gate/index.vue',

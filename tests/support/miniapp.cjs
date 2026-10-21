@@ -15,7 +15,7 @@ function harness(options = {}) {
   const target = options.target || 'mp-weixin';
   const platform = {
     showToast: value => toasts.push(value.title), showLoading() {}, hideLoading() {},
-    navigateTo: value => navigation.push(value.url), switchTab: value => navigation.push(value.url),
+    navigateTo: value => navigation.push(value.url), redirectTo: value => navigation.push(value.url), switchTab: value => navigation.push(value.url),
     navigateBack() {}, setNavigationBarTitle() {}, stopPullDownRefresh() {}, hideTabBar() {}, showTabBar() {},
     getStorageSync: key => storage.get(key), setStorageSync: (key, value) => storage.set(key, value),
     getLaunchOptionsSync: () => options.launch || {}, getEnterOptionsSync: () => options.launch || {},
