@@ -19,6 +19,7 @@ import { callTeam } from '../api/team';
 import { getAppVersion } from '../utils/version';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { scheduledTeams } from '../utils/team-schedule';
+import { uniqueMyTeams, myTeamsPath } from '../utils/my-teams';
 import { teamDetailPath } from '../utils/team-entry';
 export function useMine() {
   const { toast, dialog } = usePageFeedback();
@@ -41,6 +42,7 @@ export function useMine() {
     loading: false,
     profileError: '',
     listError: '',
+    teamsLoaded: false,
     singlePage: false,
     ...{
       user: cachedProfile.user || ({} as User),
@@ -116,6 +118,7 @@ export function useMine() {
         const hosted = splitTeams((teamsResult.value.hosted || []).map(decorateTeam));
         const joined = splitTeams((teamsResult.value.joined || []).map(decorateTeam));
         patchState({
+          teamsLoaded: true,
           hostedOngoing: hosted.ongoing,
           hostedPast: hosted.past,
           joinedOngoing: joined.ongoing,
@@ -231,6 +234,13 @@ export function useMine() {
     return shareToTimeline(plazaShare());
   });
   const nextTeam = computed(() => scheduledTeams([...state.hostedOngoing, ...state.joinedOngoing])[0]);
+  const ongoingCount = computed(() => uniqueMyTeams(state.hostedOngoing, state.joinedOngoing).length);
+  function openMyTeams(tab: 'hosted' | 'joined' | 'all') {
+    hostPlatform.navigateTo({ url: myTeamsPath(tab) });
+  }
+  function openSettings() {
+    hostPlatform.navigateTo({ url: '/pages/mine/settings' });
+  }
   function openHelp() {
     hostPlatform.navigateTo({ url: '/pages/help/help' });
   }
@@ -238,6 +248,9 @@ export function useMine() {
     openUpdates: () => hostPlatform.navigateTo({ url: '/pages/updates/updates' }),
     openChangelog: () => hostPlatform.navigateTo({ url: '/pages/changelog/changelog' }),
     nextTeam,
+    ongoingCount,
+    openMyTeams,
+    openSettings,
     openHelp,
     splitTeams,
     getProfileHint,

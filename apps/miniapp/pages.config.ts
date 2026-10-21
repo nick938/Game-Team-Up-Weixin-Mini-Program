@@ -29,6 +29,8 @@ export default defineUniPages({
     {
       path: 'pages/publish/publish',
       style: {
+        navigationStyle: 'custom',
+        navigationBarTextStyle: 'black',
         navigationBarTitleText: '发起组队开黑',
       },
     },
@@ -38,10 +40,13 @@ export default defineUniPages({
         navigationStyle: 'custom',
         navigationBarTextStyle: 'white',
         navigationBarBackgroundColor: '#211B3B',
+        backgroundColor: semantic.color.page,
         navigationBarTitleText: '我的',
         enablePullDownRefresh: true,
       },
     },
+    { path: 'pages/mine/teams', style: { navigationBarTitleText: '我的队伍', enablePullDownRefresh: true } },
+    { path: 'pages/mine/settings', style: { navigationBarTitleText: '设置中心' } },
     {
       path: 'pages/team/detail',
       style: {
