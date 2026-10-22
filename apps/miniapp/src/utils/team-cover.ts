@@ -1,4 +1,4 @@
-import { semantic } from '../design/tokens';
+import { STATUS_TEXT } from './constants';
 import type { Team } from '../types/domain';
 import { platform } from '../platform/host';
 // 分享卡片的封面：把这一趟车的信息画成 5:4 的图。
@@ -9,22 +9,22 @@ import { platform } from '../platform/host';
 import { formatStartAt } from './format';
 import { presentTeam } from './team-presentation';
 
-// Colors share the runtime design source; the canvas contains public fields only.
+// Preserve the original vehicle invitation artwork independently of page restyling.
 const COLORS = {
-  bgFrom: semantic.color['brand-light'],
-  bgMid: semantic.color.page,
-  bgTo: semantic.color.surface,
+  bgFrom: '#e6e1ff',
+  bgMid: '#f3f1ff',
+  bgTo: '#ffffff',
   blob: 'rgba(98, 85, 231, 0.08)',
   blobMint: 'rgba(123, 224, 192, 0.14)',
-  text: semantic.color.ink,
-  sub: semantic.color.secondary,
-  accent: semantic.color.brand,
-  tagBg: semantic.color['surface-muted'],
-  tagText: semantic.color.secondary,
-  fullBg: semantic.color['brand-light'],
-  fullText: semantic.color.brand,
-  idleBg: semantic.color['surface-muted'],
-  idleText: semantic.color.muted,
+  text: '#202438',
+  sub: '#535b72',
+  accent: '#6255e7',
+  tagBg: '#f1f2f9',
+  tagText: '#697188',
+  fullBg: '#e9f7f3',
+  fullText: '#21876f',
+  idleBg: '#f0f1f6',
+  idleText: '#777e92',
 };
 
 // 画布逻辑尺寸，5:4。节点 CSS 宽固定 375 —— 正好等于设计稿的 750rpx，所以 rpx 值除以 2 就是这里的 px。
@@ -59,13 +59,13 @@ function coverContent(team: Partial<Team> | null) {
     needText = `还差 ${view.needCount} 人`;
   }
 
-  const tags = [team.platform, team.server, team.voice, team.rankReq].filter(
+  const tags = [team.server, team.voice, team.rankReq].filter(
     (tag): tag is string => !!tag && tag !== '不限',
   );
 
   return {
     status,
-    statusText: view.statusLabel,
+    statusText: STATUS_TEXT[status] || view.statusLabel,
     gameName: String(team.gameName || '开黑'),
     timeText: formatStartAt(team.startAt),
     countText: capacity ? `${memberCount}/${capacity}` : `${memberCount} 人`,

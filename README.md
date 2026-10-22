@@ -1,118 +1,82 @@
 # 开黑星球｜游戏搭子
 
-使用 pnpm workspace 管理前端和上传工具。前端基于裁剪后的 unibest 工程配置构建，使用 uni-app、Vue 3、TypeScript、Vite、UnoCSS、Pinia 和 Wot UI。`apps/miniapp` 是唯一前端源码。
+游戏组队小程序：发车、分享车辆邀请、上车并复制加入方式。大厅提供搜索、筛选、卡片反馈、每日游戏投票和用户排行；底部保留「大厅 / 发车 / 我的」三个入口。
 
-工程构建目标为**微信小程序和独立 QQ 小程序**。QQ 后端尚未完成接入；构建成功不代表 QQ 已可用。H5 仅供本地开发、界面检查和 HTTP 诊断，不作为产品发布端。
+当前唯一前端位于 `apps/miniapp`，使用 uni-app、Vue 3、TypeScript、Pinia、UnoCSS 和 Wot UI 2.3.2。微信调用现有 `team` 云函数；QQ 前端可构建，独立 HTTPS 业务后端仍待接入。H5 用于开发和界面检查。
 
-## 项目结构
+## 开发与验证
 
-```text
-package.json         根目录开发、检查和发布命令
-pnpm-workspace.yaml  工作区范围及依赖构建许可
-pnpm-lock.yaml       前端和上传工具统一锁文件
-tools/miniapp-release/ 微信上传 SDK
-apps/miniapp/         唯一前端，页面与组件全部采用 <script setup lang="ts">
-cloudfunctions/team/ 现有微信业务后端：组队、资料、角色、审核和提醒
-cloudfunctions/p0Health/ 独立 HTTP 接入诊断，供前端诊断页使用
-tests/               服务端、共享业务规则与 Vue 组件回归测试
-docs/                产品资料、发布说明和品牌资源
-project.config.json  微信开发者工具入口，指向新前端的微信构建产物
-```
-
-## 本地开发
-
-使用 Node.js 24 和 pnpm 10.34.5（根 `packageManager` 固定版本）。以下命令均在仓库根目录执行；启用 Corepack 后可由它选择固定版本的 pnpm。首次从旧工程切换时先移除旧的 `apps/miniapp/node_modules` 和 `tools/miniapp-release/node_modules`，再安装。安装会启用 Husky 提交检查；`--ignore-scripts` 安装后需额外执行 `pnpm hooks:install`。
+使用 Node.js 24 和 pnpm 10.34.5，在仓库根目录执行：
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
+pnpm check
 ```
 
-若当前系统文件监听报 `EMFILE`，使用 `CHOKIDAR_USEPOLLING=1 pnpm dev` 启用轮询。
+- `pnpm check`：lint、格式、类型检查和前后端测试。
+- `pnpm build:weixin` / `pnpm build:qq` / `pnpm build:h5`：分别构建各端。
+- `pnpm check:matrix`：服务端测试，加前端检查与三端构建，报告位于 `apps/miniapp/dist/p0/build-results.json`。
+- 本机遇到文件监听 `EMFILE` 时，在命令前加 `CHOKIDAR_USEPOLLING=1`。
 
-微信业务继续调用现有 `team` 云函数，保留当前数据库和存储。QQ 前端已准备 HTTPS 请求契约，后端接入方式与真实业务可用性仍待验证。前端配置见 [前端说明](apps/miniapp/README.md)。
+构建入口 `apps/miniapp/scripts/uni.mjs` 会先从 `manifest.config.ts` 生成配置，支持全新检出；生成的 `src/manifest.json`、`src/pages.json` 和类型声明不手改、不提交。微信和 QQ 构建还会检查分享页面的原生事件是否注册，缺失即失败。
 
-## 微信开发与发布
+## 当前功能与入口
+
+| 页面                     | 实际入口与用途                                             |
+| ------------------------ | ---------------------------------------------------------- |
+| 大厅、发车、我的         | 原生底部 TabBar；搜索队伍、发布/编辑、个人资料与个人队伍   |
+| 今天玩啥、用户排行       | 大厅两个入口；每日提议/投票、发车榜和上车榜                |
+| 车辆详情、接手官方车     | 点击车辆或分享卡片；每日待发车由首位提交完整表单的玩家接手 |
+| 游戏组队页               | 详情的同游戏入口、游戏跳转及搜一搜落地，保留现有分享路径   |
+| 我的队伍、设置中心       | 我的页面；查看发起/加入记录、编辑资料及协议                |
+| 帮助、更新公告、更新日志 | 我的和帮助入口；公告也有首次展示提示                       |
+| 协议、反馈、报错、举报   | 设置、帮助、欢迎信或车辆详情中的对应入口                   |
+| 管理端                   | 管理员在我的页面进入，云函数验证权限                       |
+
+页面配置维护在 `apps/miniapp/pages.config.ts`，当前共 18 页。没有产品入口的接入诊断页已移除；独立 HTTP 探测仍可通过命令行使用。
+
+- 大厅默认展示有空位和满员车辆，可手动开启「只看可加入」；游戏平台字段保留兼容，筛选不提供平台选项。
+- 发车备注最多 1000 字；加入方式公开，密码按成员权限返回；时间重叠提示后可以继续。
+- 卡片提供赞、踩、喜欢、下次一定，每人每车一个反馈，可切换或取消；请求防抖，失败回滚。
+- 大厅转发和详情分享使用相同的车辆标题、详情链接与信息图；封面不展示平台标签，不包含房间号或密码。
+- 公开资料展示昵称、头像、签名、群组、常玩游戏/时间和已填写的 Steam 好友码、微信 ID；排行和队伍成员入口使用相同资料抽屉。
+- 投票按上海时区每日独立；16:00确定官方推荐车，固定21:00–23:00。发车/上车榜按队伍去重，兼容旧用户身份字段。
+
+详细规则见 [产品说明](docs/产品需求.md)。
+
+## 微信体验版与发布
 
 ```sh
 pnpm build:weixin
 ```
 
-构建完成后，用微信开发者工具打开仓库根目录；`project.config.json` 的 `miniprogramRoot` 已指向 `apps/miniapp/dist/build/mp-weixin/`，云函数根目录仍为 `cloudfunctions/`。修改前端后重新构建；不要直接修改构建产物。
+微信开发者工具打开仓库根目录；`project.config.json` 指向 `apps/miniapp/dist/build/mp-weixin/`。构建后上传开发版本，在微信后台设为体验版，再用手机验收。体验版支持自定义分享标题和封面。
 
-云函数有改动时，单独上传并部署 `cloudfunctions/team`（云端安装依赖，保留定时触发器）。前端上传、云函数部署、体验版及正式发布是独立步骤。本次源码整理不包含部署和发布。
+云函数有改动时，单独上传并部署 `cloudfunctions/team`，选择「云端安装依赖」，包含 `lib` 并保留 `startRemind` 定时器。前端构建、上传、体验版设置、提审/正式发布及云函数部署分别执行。本地测试不能代替真机分享、真实账号持久化和消息送达验证。
 
-`cloudfunctions/team/mail.local.js` 是本地 SMTP 配置，不提交；可参考 `mail.example.js`。管理员通过 `ADMIN_OPENIDS` 环境变量或 `admins` 集合配置，组局员通过 `ORGANIZER_OPENIDS` 或管理端配置。业务入口仍由服务端校验角色和封禁状态。
+GitHub Actions 的 Miniapp CI 在代码 push / PR 后检查并构建微信；WeChat Upload 在推送 `vX.Y.Z` Tag 或手动触发时上传微信开发版本，不自动提审、上线或部署云函数。Tag、代码及最新更新日志版本须一致。QQ 不在 Actions 自动构建或上传。
 
-## 管理端用户标识
+## 目录与维护
 
-举报、报错、反馈中的提交人显示 `users` 集合的最新昵称；举报车头优先显示昵称，查不到时回退为 OpenID。用户管理卡片保留 OpenID，便于配置管理员或复制核对。接口仍由云函数校验管理权限。
-
-## 头像维护
-
-- 数据库存储原始 `cloud://` fileID，`team` 云函数返回可展示的 HTTPS `avatarUrl`。前端头像直接用 Wot UI `wd-avatar` 展示，不传 fileID，也不再读取历史 base64；旧账号若只有 base64 而没有可用链接，会显示默认头像。链接到期后重新进入页面或下拉刷新。
-- 更换头像时先上传新图片，上传失败不提示保存成功；只改昵称时复用原 fileID。头像相关改动需同步部署微信前端与 `team` 云函数，验收两个账号互看、更换头像、只改昵称及上传失败。
-- 云存储权限、套餐续费和文件是否存在由云端配置决定，不根据固定日期推断权限会自动变化。参考 [CloudBase 云存储 SDK](https://docs.cloudbase.net/storage/sdk)。
-
-## 验证
-
-在仓库根目录安装依赖后执行：
-
-```sh
-pnpm check
-pnpm check:matrix
+```text
+apps/miniapp/          唯一前端，页面、组件、平台适配和前端测试
+cloudfunctions/team/  微信业务云函数，包含 lib 模块与定时提醒
+cloudfunctions/p0Health/ 独立 HTTP 传输探测，仅保留命令行检查
+scripts/miniapp/       发布计划、构建和上传工具
+tools/miniapp-release/ 微信上传 SDK
+tests/               服务端及共享规则回归测试
+docs/                当前产品、维护、发布和运营资料
 ```
 
-根目录测试包含服务端身份、组队规则、提醒、权限、头像和朋友圈单页行为；前端测试覆盖会话、Vue 页面交互和组件事件。前端测试工具通过 Vue SFC 编译器执行实际 setup 与响应式状态，替换宿主 API 和网络请求。
+根目录维护唯一的 `pnpm-lock.yaml`；云函数保留独立依赖，由云端安装。开发规则见 [AGENTS.md](AGENTS.md)。
 
-`check:matrix` 执行 ESLint、Prettier、前端测试、严格类型检查以及 微信、QQ 构建和 H5 开发检查，结果写入 `apps/miniapp/dist/p0/build-results.json`。编译和本地测试不代替微信/QQ 真机登录、订阅消息、分享、头像及发车上车验收。
+分享事件必须在页面 `.vue` setup 中直接调用 `onShareAppMessage` / `onShareTimeline` 注册，composable 只提供处理函数；仅在 composable 中注册会遗漏原生分享事件，表现为微信自动截取当前页面。规则和构建检查都需要保留。
 
-## 开发约定
-
-- workspace 只包含 `apps/miniapp` 和 `tools/miniapp-release`，统一由根 `pnpm-lock.yaml` 锁定；不在子目录生成 npm 或 pnpm 锁文件。
-- 云函数不加入 workspace，保留独立 `package.json`，继续通过微信开发者工具在云端安装依赖和部署。
-- `pnpm dev` 开发 H5；`pnpm check` 执行规范、格式、类型与前后端测试；`pnpm check:matrix` 执行服务端测试与微信、QQ 构建与 H5 开发检查。单独操作前端可使用 `pnpm --filter game-team-miniapp <命令>`。
-
-- 所有页面交互控件采用 Wot UI；自有样式采用 UnoCSS，颜色与公共布局统一维护在 `uno.config.ts`。
-- 页面和组件使用 `<script setup lang="ts">`，应用状态由 Pinia 管理，页面状态使用 Vue 响应式 API。
-- `pages.config.ts`、`manifest.config.ts` 是配置源；`src/pages.json`、`src/manifest.json` 和页面类型由构建生成。
-- 微信专属能力集中放在 `src/platform/`，业务请求统一经过 `src/api/`。
-- 业务类型集中在 `src/types/domain.ts`。共享业务工具全部使用 TypeScript，开启 `strict` 并禁用 `allowJs`。
-- 默认版本号维护在 `apps/miniapp/package.json`；正式版显示宿主提供的发布版本号。
-- 品牌运行资源位于 `apps/miniapp/src/static/images/`；宣传素材源文件与生成脚本位于 `docs/`。
-
-## 文档导航
-
-- 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)、[搜索排查与获客渠道](docs/搜索排查与获客渠道.md)。
-- 开发与模板：[前端说明](apps/miniapp/README.md)。
-- 部署与维护：[自动上传](docs/微信Tag自动上传.md)、本文的头像维护说明。
-- HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)。
-- 素材维护：[品牌设计说明](docs/brand/设计说明.md)、[推广配图说明](docs/promo/设计说明.md)。
-
-## 微信与 QQ CI 上传
-
-相关代码 push / PR 后自动测试并编译微信。推送 `vX.Y.Z` Tag 后，**WeChat Upload** 校验 Tag、代码和最新更新日志版本一致，再构建并上传微信开发版本；也保留手动上传入口。Actions 暂不构建或上传 QQ。凭据、出口 IP 与人工提审步骤见 [完整配置说明](docs/微信Tag自动上传.md)。本工作流不执行提审、正式上线或云函数部署。
-
-### 卡片表情
-
-队伍卡片直接展示六种表情，每人每队一个，可切换或再次点击取消；点击表情不会进入详情。列表响应带 `reactions`（计数与当前用户的选择），详情页不再提供表情操作。
-
-部署时先更新 `team` 云函数，再更新小程序。`team_reactions` 集合仅允许管理端读写，前端通过云函数访问。`setReaction({ teamId, reaction })` 中空字符串表示取消。QQ HTTPS 后端需适配相同契约。群组标识功能暂缓，不包含在当前实现中。
-
-### 更新公告
-
-欢迎弹窗只在本机首次进入时显示，内容与已读状态独立于更新公告。每个新版本或新公告首次打开时单独通知，确认后不重复；新用户先关闭欢迎弹窗，待关闭动画结束后再展示更新公告。用户可从「我的 → 更新公告」或「帮助与反馈 → 更新公告」随时查看。
-
-后续更新维护 `apps/miniapp/src/utils/updates.ts`：新公告放在 `UPDATES` 首位，使用新的稳定 `id`，保留旧公告。公告已读状态按代码版本与公告 `id` 缓存在本机；时间线预览不弹出、不标记已读。公告随小程序代码发布，不依赖新增云函数接口。
-
-### 更新日志
-
-用户可从「我的 → 更新日志」或更新公告页查看按版本整理的详细变化。页面数据维护在 `apps/miniapp/src/utils/changelog.ts`，新版本放在首位并保留历史记录；正式发布时使用实际上传版本与发布日期。
-
-仓库的 [CHANGELOG.md](CHANGELOG.md) 同步记录新增、修复、调整和发布说明，待发布内容不表示已上线。
-
-### 组队业务流程优化
-
-大厅与游戏页共用服务端搜索，支持游戏、关键词、平台、区服、语音、开局时间、只看可加入和排序；切换条件重置分页。新 `listTeams` 响应包含匹配总数、游戏选项和下一页位置。发车/加入的时间冲突为提示，仍可继续；编辑在事务内重新校验状态与人数。
-
-详情新增可选提醒、信息变更提示和加入后的进房引导；大厅与我的提供下一局入口；帮助与反馈集中到独立页面。`team_events` 记录访问、加入与成功复制行为，管理端明确区分行为记录与实际进入游戏。需先配套部署 `team` 云函数、确认新集合权限，再发布前端；QQ HTTPS 后端另行适配。参见 [产品需求](docs/产品需求.md) 和 [实施验证与部署顺序](docs/业务流程优化验收.md)。
+- [前端工程与 QQ 接入](apps/miniapp/README.md)
+- [维护、部署与真机验收](docs/维护与验收.md)
+- [微信 Tag 自动上传](docs/微信Tag自动上传.md)
+- [HTTP 探测工具](cloudfunctions/p0Health/README.md)
+- [更新历史](CHANGELOG.md)
+- [冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)、[搜索排查与获客渠道](docs/搜索排查与获客渠道.md)
+- [品牌素材](docs/brand/设计说明.md)、[推广素材](docs/promo/设计说明.md)

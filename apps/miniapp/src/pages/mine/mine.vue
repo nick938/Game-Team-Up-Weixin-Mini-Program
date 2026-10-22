@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { computed, reactive, ref } from 'vue';
 import { onPageScroll, onResize, onShow } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
@@ -44,6 +45,9 @@ const entries = computed(() => [
   { tab: 'joined' as const, title: '我加入的', count: page.joinedCount },
   { tab: 'all' as const, title: '未结束', count: page.ongoingCount },
 ]);
+// Keep native share hook registration in the page SFC for uni compilation.
+onShareAppMessage(page.shareAppMessage);
+onShareTimeline(page.shareTimeline);
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
@@ -146,12 +150,12 @@ const entries = computed(() => [
     </view>
     <profile-gate :show="page.showProfile" @done="page.onProfileDone" @close="page.onProfileClose" />
     <entry-notices />
-    <canvas
-      type="2d"
-      id="cardShareCover"
-      class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
-    />
   </app-shell>
+  <canvas
+    type="2d"
+    id="cardShareCover"
+    class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+  />
 </template>
 <style scoped>
 :deep(.page-profile) {

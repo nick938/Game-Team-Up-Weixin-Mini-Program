@@ -22,6 +22,6 @@ node --test tests/p0-health.test.js
 pnpm --filter game-team-miniapp check:http https://测试域名/p0/health
 ```
 
-脚本检查 GET、HEAD、写方法拒绝、CORS、OPTIONS 和未知路径，报告写入 `apps/miniapp/dist/p0/http-results.json`。前端诊断页通过 `VITE_P0_HEALTH_URL` 指定探测地址。
+脚本检查 GET、HEAD、写方法拒绝、CORS、OPTIONS 和未知路径，报告写入 `apps/miniapp/dist/p0/http-results.json`。此探测保留为命令行工具，不在小程序内提供诊断页面。
 
 探测成功仅代表传输可用，不代表 QQ 登录或业务接入完成。此函数与 `team` 业务入口独立。

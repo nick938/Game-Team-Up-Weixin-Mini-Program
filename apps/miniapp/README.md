@@ -1,87 +1,65 @@
 # 开黑星球 · uni-app 前端
 
-工程构建目标为微信和**独立 QQ 小程序**；QQ 后端尚未完成接入。H5 仅供开发、界面检查和诊断。使用裁剪后的 unibest 工程配置、uni-app / Vue 3 / TypeScript / Vite / UnoCSS / Pinia / Wot UI。
+本目录是唯一业务前端，使用 uni-app、Vue 3、严格 TypeScript、Pinia、UnoCSS 和 Wot UI 2.3.2。微信调用 `cloudfunctions/team`；独立 QQ 小程序保留构建与 HTTPS 请求适配，后端接入仍待完成。H5 用于开发和界面检查。
 
-## 开发和检查
+## 开发命令
 
-本目录是根 pnpm workspace 的前端包；依赖与锁文件由仓库根目录统一管理，Node.js 24 / pnpm 10.34.5。日常命令在根目录执行，单独运行前端脚本使用 `pnpm --filter game-team-miniapp <命令>`。
+依赖和锁文件统一在仓库根目录维护，使用 Node.js 24、pnpm 10.34.5：
 
 ```sh
-# 在仓库根目录执行
 pnpm install --frozen-lockfile
 pnpm dev
-pnpm check:matrix
+pnpm check
+pnpm build:weixin
+pnpm build:qq
+pnpm build:h5
 ```
 
-`check:matrix` 顺序执行 ESLint、Prettier 格式检查、本地行为测试、严格类型检查和 微信/QQ 构建与 H5 开发检查，输出 `dist/p0/build-results.json`。在受限文件监听环境中可加 `CHOKIDAR_USEPOLLING=1` 运行命令。本仓库根目录的服务端、共享规则及 Vue 组件回归为 `pnpm run test:server`。
+单独执行前端命令使用 `pnpm --filter game-team-miniapp <命令>`。`pnpm check:matrix` 执行服务端测试及前端检查、三端构建，报告写入 `dist/p0/build-results.json`；文件监听受限时使用 `CHOKIDAR_USEPOLLING=1`。
 
-- 微信产物：`dist/build/mp-weixin/`，导入微信开发者工具；使用现有微信 AppID 与云函数环境。
-- QQ 产物：`dist/build/mp-qq/`，后续导入 QQ 开发工具；需要独立 QQ AppID、服务端配置及合法域名。
-- H5 主要用于前端检查。不提供假登录或自动读取生产业务的旁路；没有业务会话时不能把空列表当作线上数据。
+构建入口 `scripts/uni.mjs` 先从 `manifest.config.ts` 生成真实配置，再启动 uni CLI，避免全新检出缺少 manifest。版本支持 `MINIAPP_VERSION` 覆盖，公开 AppID 从环境配置读取。微信/QQ 构建完成后自动执行 `scripts/check-share-hooks.mjs`，检查 8 个分享页面的原生事件标记。
 
-## 当前工程
+## 页面与结构
 
-唯一业务前端，页面与组件全部使用 `<script setup lang="ts">`，共享业务工具全部使用严格 TypeScript。交互统一采用 Wot UI，自有样式统一采用 UnoCSS，测试读取当前 uni-app 源码。
+当前保留 18 个有入口或分享/搜索落地用途的页面，清单见 [根 README](../../README.md)。`pages/friday/friday` 实际是用户排行，保留旧路径兼容；不再注册无入口的 `pages/probe/index`。
 
-10 个业务页面和原路由：大厅、游戏页、发车、我的、详情、协议、反馈、报错、举报、管理端。公共组件包括统一页面壳、Wot 表单入口、队伍卡片、资料填写、欢迎信、成员资料、队伍管理和管理端统计。保留游戏目录、分页/排序、日期时长规则、必填加入方式、密码可见提示、代开和管理员交互。
+| 目录 / 配置                             | 职责                                                   |
+| --------------------------------------- | ------------------------------------------------------ |
+| `src/pages`                             | 页面模板、页面生命周期和原生分享事件注册               |
+| `src/composables`                       | 业务状态、请求与交互处理，返回分享函数供页面注册       |
+| `src/components`                        | Wot 组合组件、统一表单、队伍卡片及资料抽屉             |
+| `src/api`、`src/platform`               | 业务调用、登录会话与宿主适配                           |
+| `src/stores`、`src/types`、`src/utils`  | Pinia、业务契约与共享工具                              |
+| `src/design`、`uno.config.ts`           | 页面主题、布局与样式；分享封面单独保留原车辆邀请图样式 |
+| `pages.config.ts`、`manifest.config.ts` | 页面、TabBar、应用配置的维护源                         |
+| `tests`                                 | 实际 Vue setup、响应式状态、分享数据及组件模板回归     |
 
-微信使用集中适配的现有 `team` 云调用；QQ 使用 `uni.login` 取得宿主 code，再调用 HTTPS 登录/业务接口。QQ 不初始化 `wx.cloud`、不复用微信订阅模板、不使用微信专用头像按钮；使用跨端选图和手填昵称。
+页面和组件采用 `<script setup lang="ts">`。交互优先使用 Wot UI；队伍卡片转发使用原生 `button open-type="share"`，以保证 `data-card-share-id` 到达原生分享事件。生成的 `src/pages.json`、`src/manifest.json`、`src/types/uni-pages.d.ts` 不手改、不提交。
 
-## 目录与分层
+## 原生分享与车辆封面
 
-- `src/pages`：页面模板和路由入口。
-- `src/composables`：页面状态、生命周期与业务编排；`usePageFeedback` 统一 Wot 提示与确认框。
-- `src/components`：Wot 组合组件与可复用表单入口。
-- `src/api`、`src/platform`：业务请求与宿主能力适配。
-- `src/stores`、`src/types`、`src/utils`：共享状态、业务契约与纯工具。
-- `src/design`：三层设计 Token、Wot UI 映射和 UnoCSS 样式适配；原生导航与分享画布共用语义色。
-- `uno.config.ts`：统一主题、稳定的 px 尺寸与公共布局 shortcuts。
-- `src/composables/useAppTheme.ts`：页面与弹层主题注入；`useTeamPresentation.ts` 在时间边界更新视图。
-- `src/utils/team-presentation.ts`：队伍生命周期、招募状态、角色和公开展示映射。
+`onShareAppMessage`、`onShareTimeline` 必须在页面 `.vue` setup 中直接注册，不能仅藏在 composable 或子组件中。uni-app 根据页面源码生成 `__runtimeHooks`；遗漏标记时微信不会调用自定义分享逻辑，而会截取当前页面。
 
-设计基线见 [design.md](../../design.md)，本轮检查与真机边界见 [前端验证记录](../../docs/frontend-design-validation.md)。修改 `src/design` 中供构建使用的主题模块后，应重启开发服务，避免 UnoCSS 配置导入缓存与 Vue 运行时主题暂时不一致。
+列表和详情共用 `src/utils/team-share.ts` 的车辆标题/路径，以及 `team-cover.ts` 的绘图逻辑。列表通过原生按钮的车辆标识解析目标；画布位于页面层、不能放入自定义组件插槽。分享回调可通过 `promise` 等待车辆图片，绘制失败才回退品牌图。封面不展示平台、房间号或密码。
 
-## QQ 接入契约和未完成项
+检查函数返回值和 H5 截图均不能代替原生事件验证。构建检查通过后，还需在体验版分别从大厅和详情分享、切换两辆车检查图片和跳转是否一致。
 
-现有微信云函数、数据库和存储继续保留。QQ 客户端已准备以下 HTTPS 契约，后端实现与接入方式仍待验证；本文不将新建环境、搬库或微信切换后端作为既定步骤。
+## QQ 待接入契约
 
-复制 `.env.example` 为 `.env.local`：
+复制 `.env.example` 为 `.env.local`，填写独立 QQ AppID 与测试 API 地址。这里仅放公开配置，不放 AppSecret、上传密钥、code 或 token。
 
-```dotenv
-VITE_QQ_APP_ID=独立QQ小程序AppID
-VITE_API_BASE_URL=https://你的测试API域名
-```
+| 待实现接口              | 约定                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `POST /v1/auth/qq`      | 输入 `{code}`，返回 `{ok:true, accessToken, expiresAt}`，过期时间为毫秒时间戳  |
+| `POST /v1/rpc`          | 输入 `{action,input}`，使用 Bearer 会话；后端验证动作白名单、身份和权限        |
+| `POST /v1/media/avatar` | multipart 文件与 Bearer 会话，返回 `{ok:true,fileID}`，资料返回可读 HTTPS 头像 |
 
-这些是公开构建配置，不放 AppSecret、登录 code 或 token。真实登录、真机运行和发布验收需要有效 QQ AppID、已部署的接口及合法域名。
+会话只在内存保存，临近过期重新登录，401 清会话，写操作不自动重放。QQ 不初始化微信云能力、不复用微信订阅消息；填写域名或编译成功不代表登录、头像或跨端组队已可用。
 
-客户端已经准备以下 **待后端实现/部署的兼容接口**，并非现有线上 API：
+独立 HTTP 传输探测使用命令行 `check:http`，见 [p0Health](../../cloudfunctions/p0Health/README.md)，不提供小程序诊断页面。
 
-| 接口                    | 输入                           | 输出与约束                                                                                    |
-| ----------------------- | ------------------------------ | --------------------------------------------------------------------------------------------- |
-| `POST /v1/auth/qq`      | `{code}`                       | 后端向 QQ 核验后返回 `{ok:true, accessToken, expiresAt}`；expiresAt 为毫秒时间戳              |
-| `POST /v1/rpc`          | `{action,input}` + Bearer 会话 | 兼容现有 action 的临时桥接契约；服务端白名单、统一 actor 和权限校验；不可直接暴露旧 team 入口 |
-| `POST /v1/media/avatar` | multipart file + Bearer 会话   | 校验归属、大小、格式和内容后返回 `{ok:true,fileID}`；资料接口再返回可读 HTTPS 展示地址        |
+## 发布与维护
 
-会话只在内存保存，临近过期重新登录；401 清除会话，写操作不自动重放。现有服务端身份模块还只是独立基础实现，未接入生产入口。跨端共享用户/队伍、内容检测、头像上传和通知需要后端统一身份改造后才能业务闭环；仅填 API 域名不会让这些接口自动存在。
+微信开发工具打开仓库根目录，微信产物为 `dist/build/mp-weixin/`；QQ 产物为 `dist/build/mp-qq/`。前端上传、设置体验版、云函数部署及正式发布分别处理，见 [维护与验收](../../docs/维护与验收.md) 和 [微信 Tag 自动上传](../../docs/微信Tag自动上传.md)。
 
-## 验收层级
-
-本地测试/类型检查/多端编译、H5 浏览器交互、微信真机回归、QQ 真机业务验收分别记录。当前构建成功不能作为 QQ 正常登录、共用大厅或跨端上车已完成的证据。
-
-后续 QQ 接入需单独验证后端鉴权、业务权限、头像访问和两端组队流程；当前不以仅填 API 域名或编译成功作为业务可用的证据。
-
-## 模板来源与裁剪
-
-工程配置参考 [unibest base](https://github.com/unibest-tech/unibest/tree/base)，核对提交 `dc3af8ddb99b78fa806078c80434b664a4b1ce93`、模板版本 4.4.1；MIT 许可保留在 [LICENSE.unibest](LICENSE.unibest)。
-
-保留 UniPages/UniManifest、UnoCSS、Pinia 与现有 `uni.request` 请求层；未引入 layouts、alova、z-paging、模板演示页及模板上传脚本。页面无需额外布局包装，工程和上传脚本由本仓库维护。DCloud、Vue、Wot UI 等依赖版本见 package.json，统一由仓库根 pnpm-lock.yaml 锁定。
-
-`dev:h5` 和各端 `build:*` 统一通过 `scripts/uni.mjs` 启动：先从 `manifest.config.ts` 生成真实配置，再运行 uni CLI，支持全新检出和发布版本、公开 AppID 的环境变量覆盖。
-
-`pages.config.ts`、`manifest.config.ts` 是配置源；生成的 `src/pages.json`、`src/manifest.json` 和页面类型不手动修改或提交。检查使用 ESLint、Prettier、Husky 与 lint-staged，安装依赖后在根目录运行 `pnpm hooks:install` 启用提交前检查。
-
-2026-10-16 整理时仍记录有工具链依赖安全告警，包括 manifest 插件经 c12/giget 引入的 tar 6.2.1；删除未使用的 layouts 插件并未消除全部告警。该记录不代表已完成当前版本的依赖安全审计。
-
-## 自动上传
-
-GitHub Actions 当前只检查和上传微信；推送版本 Tag 后自动上传开发版本，见 [微信 Tag 自动上传](../../docs/微信Tag自动上传.md)。Tag、package.json 和最新更新日志版本必须一致。QQ 本地构建命令保留，Actions 暂停 QQ。
+工程配置参考 [unibest base](https://github.com/unibest-tech/unibest/tree/base)，基准提交 `dc3af8ddb99b78fa806078c80434b664a4b1ce93`、模板版本 4.4.1；MIT 许可保留在 [LICENSE.unibest](LICENSE.unibest)。依赖实际版本以 `package.json` 和根 `pnpm-lock.yaml` 为准。

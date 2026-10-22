@@ -199,17 +199,17 @@ test('team share cover content mirrors the detail page hero card', () => {
     rankReq: '',
   });
   assert.equal(recruiting.gameName, '房车（我们到了吗？）');
-  assert.equal(recruiting.statusText, '还差 7 人');
+  assert.equal(recruiting.statusText, '缺人');
   assert.equal(recruiting.needText, '还差 7 人');
   assert.equal(recruiting.countText, '5/12');
   assert.match(recruiting.timeText, /21:00/);
-  // 「不限」和空值不该占位置
-  assert.deepEqual(recruiting.tags, ['Steam', '亚服']);
+  // 平台标签不展示；「不限」和空值不占位置
+  assert.deepEqual(recruiting.tags, ['亚服']);
 
   assert.equal(coverContent(null), null);
   // 满员后不再显示「还差 N 人」，否则分享出去人数是矛盾的
   const full = coverContent({ ...live, displayStatus: 'full', memberCount: 12 });
-  assert.equal(full.statusText, '已满员');
+  assert.equal(full.statusText, '满员');
   assert.equal(full.needText, '');
   assert.equal(coverContent({ ...live, displayStatus: 'cancelled' }).statusText, '已散');
   assert.equal(coverContent({ ...live, displayStatus: 'expired' }).statusText, '已结束');

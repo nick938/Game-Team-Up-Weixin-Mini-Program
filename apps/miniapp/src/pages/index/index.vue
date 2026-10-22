@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/index/index');
 import { reactive, ref } from 'vue';
@@ -38,6 +39,9 @@ onResize(updateNavigation);
 onPageScroll(({ scrollTop }) => {
   scrolled.value = scrollTop > 24;
 });
+// Keep native share hook registration in the page SFC for uni compilation.
+onShareAppMessage(page.shareAppMessage);
+onShareTimeline(page.shareTimeline);
 </script>
 <template>
   <view class="lobby-home" :style="{ '--home-nav-height': navigation.total + 'px' }">
@@ -173,13 +177,13 @@ onPageScroll(({ scrollTop }) => {
         </template>
       </team-results>
       <entry-notices />
-      <canvas
-        type="2d"
-        id="cardShareCover"
-        class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
-      />
     </app-shell>
   </view>
+  <canvas
+    type="2d"
+    id="cardShareCover"
+    class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+  />
 </template>
 <style scoped>
 .home-play-entries {

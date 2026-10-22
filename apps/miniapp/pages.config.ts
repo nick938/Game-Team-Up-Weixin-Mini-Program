@@ -93,12 +93,6 @@ export default defineUniPages({
         backgroundTextStyle: 'light',
       },
     },
-    {
-      path: 'pages/probe/index',
-      style: {
-        navigationBarTitleText: '接入诊断',
-      },
-    },
   ],
   globalStyle: {
     backgroundColor: semantic.color.page,

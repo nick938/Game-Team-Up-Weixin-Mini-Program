@@ -5,8 +5,8 @@
   "scripts": {
     "dev:h5": "node scripts/uni.mjs --host 127.0.0.1",
     "build:h5": "node scripts/uni.mjs build",
-    "build:weixin": "node scripts/uni.mjs build -p mp-weixin",
-    "build:qq": "node scripts/uni.mjs build -p mp-qq",
+    "build:weixin": "node scripts/uni.mjs build -p mp-weixin && node scripts/check-share-hooks.mjs mp-weixin",
+    "build:qq": "node scripts/uni.mjs build -p mp-qq && node scripts/check-share-hooks.mjs mp-qq",
     "typecheck": "vue-tsc --noEmit",
     "check:matrix": "node scripts/build-matrix.mjs",
     "test": "node --test tests/*.test.mjs",

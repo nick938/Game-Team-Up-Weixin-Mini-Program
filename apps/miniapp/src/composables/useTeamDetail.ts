@@ -2,27 +2,20 @@ import { rememberGame } from '../utils/recent-games';
 import { overlappingTeams } from '../utils/team-schedule';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick } from 'vue';
-import {
-  onLoad,
-  onPullDownRefresh,
-  onShow,
-  onHide,
-  onUnload,
-  onShareAppMessage,
-  onShareTimeline,
-} from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import type { Team, User, Member, Seat, TeamRole, PageQuery } from '../types/domain';
 import { capabilities } from '../platform/host';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { isSinglePage } from '../utils/runtime';
 import { presentTeam } from '../utils/team-presentation';
-import { decorateTeam, formatStartAt } from '../utils/format';
+import { decorateTeam } from '../utils/format';
 import { callTeam } from '../api/team';
 import { requestTeamNotify } from '../utils/subscribe';
 import { resolveTeamId, teamShareQuery, usableTeamId } from '../utils/team-entry';
 import { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { renderTeamCover } from '../utils/team-cover';
+import { teamShare } from '../utils/team-share';
 import { recruitmentText } from '../utils/recruitment';
 export function useTeamDetail() {
   const { toast, dialog, showError } = usePageFeedback();
@@ -171,27 +164,7 @@ export function useTeamDetail() {
     return teamId;
   }
   function buildShare() {
-    const team = state.team;
-    const query = teamShareQuery(state.teamId);
-    const path = query ? `/pages/team/detail?${query}&from=share` : '/pages/index/index';
-    if (!team) {
-      return { title: '开黑星球', path, query };
-    }
-    const presentation = presentTeam(team, state.role);
-    const time = formatStartAt(team.startAt).replace(/今天 |今晚 |明天 /, '');
-    let title = `开黑星球｜${team.gameName}`;
-    if (presentation.recruitment === 'open') {
-      title += ` 还差 ${presentation.needCount} 人 · ${time}`;
-    } else if (presentation.recruitment === 'full') {
-      title += ' 已满员';
-    } else if (presentation.lifecycle === 'cancelled') {
-      title += ' 已散';
-    } else if (presentation.lifecycle === 'ended') {
-      title += ' 已结束';
-    } else {
-      title += ' 状态待确认';
-    }
-    return { title, path, query: query ? query + '&from=share' : query };
+    return teamShare(state.team, state.teamId);
   }
   async function prepareShareCover() {
     const team = state.team;
@@ -209,6 +182,7 @@ export function useTeamDetail() {
     }
     if (requestId !== state.coverRequest) return;
     state.shareCoverPath = path;
+    return path;
   }
   async function loadDetail() {
     if (isSinglePage()) return;
@@ -587,13 +561,21 @@ export function useTeamDetail() {
     state.memberProfileRequest += 1;
     unbindCopyUrl(hostPlatform);
   });
-  onShareAppMessage(() => {
-    return shareToFriend(buildShare(), state.shareCoverPath);
-  });
-  onShareTimeline(() => {
+  function shareAppMessage() {
+    const share = buildShare();
+    const payload = shareToFriend(share, state.shareCoverPath);
+    if (state.shareCoverPath) return payload;
+    return {
+      ...payload,
+      promise: prepareShareCover().then((imageUrl) => shareToFriend(share, imageUrl)),
+    };
+  }
+  function shareTimeline() {
     return shareToTimeline(buildShare(), state.shareCoverPath);
-  });
+  }
   return {
+    shareAppMessage,
+    shareTimeline,
     queryCanvasNode,
     waitForCanvasNode,
     pixelRatio,

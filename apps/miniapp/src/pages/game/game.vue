@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/game/game');
 import AppActionDock from '../../components/app-action-dock/index.vue';
@@ -10,6 +11,9 @@ import TeamResults from '../../components/team-results/index.vue';
 defineOptions({ name: 'GameGamePage' });
 useAppTheme();
 const page = reactive(useGame());
+// Keep native share hook registration in the page SFC for uni compilation.
+onShareAppMessage(page.shareAppMessage);
+onShareTimeline(page.shareTimeline);
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
@@ -55,10 +59,10 @@ const page = reactive(useGame());
       }}</wd-button></app-action-dock
     >
     <entry-notices />
-    <canvas
-      type="2d"
-      id="cardShareCover"
-      class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
-    />
   </app-shell>
+  <canvas
+    type="2d"
+    id="cardShareCover"
+    class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+  />
 </template>

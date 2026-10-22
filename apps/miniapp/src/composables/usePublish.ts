@@ -2,7 +2,7 @@ import { gameSuggestions, rememberGame } from '../utils/recent-games';
 import { overlappingTeams } from '../utils/team-schedule';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, computed, watch } from 'vue';
-import { onLoad, onShow, onHide, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
+import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import type { Team, TeamDraft, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
@@ -946,12 +946,12 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     cancelProxySearch();
     unbindCopyUrl(hostPlatform);
   });
-  onShareAppMessage(() => {
+  function shareAppMessage() {
     return shareToFriend(plazaShare('开黑星球｜发起组队开黑'));
-  });
-  onShareTimeline(() => {
+  }
+  function shareTimeline() {
     return shareToTimeline(plazaShare('开黑星球｜发起组队开黑'));
-  });
+  }
   const visibleSuggestions = computed(() => gameSuggestions(state.gameName));
   const roomPlaceholder = computed(() => 'Steam 好友码 / 游戏 ID / 微信号');
   const startTimestamp = computed(() => combineDateTime(state.startDate, state.startTime));
@@ -971,6 +971,8 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     }
   }
   return {
+    shareAppMessage,
+    shareTimeline,
     loadRecentLaunches,
     reuseLaunch,
     historyTime,

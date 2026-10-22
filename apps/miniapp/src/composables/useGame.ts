@@ -1,15 +1,6 @@
 import { cardShareFromEvent } from '../utils/card-share';
 import { ref } from 'vue';
-import {
-  onLoad,
-  onShow,
-  onHide,
-  onUnload,
-  onPullDownRefresh,
-  onReachBottom,
-  onShareAppMessage,
-  onShareTimeline,
-} from '@dcloudio/uni-app';
+import { onLoad, onShow, onHide, onUnload, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import type { Game, PageQuery } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
@@ -84,13 +75,16 @@ export function useGame() {
   onReachBottom(() => {
     if (!isSinglePage()) void search.loadMore();
   });
-  onShareAppMessage((event) => cardShareFromEvent(event) || shareToFriend(gameShare(game.value)));
-  onShareTimeline(() => shareToTimeline(gameShare(game.value)));
+  const shareAppMessage = (event: unknown) =>
+    cardShareFromEvent(event) || shareToFriend(gameShare(game.value));
+  const shareTimeline = () => shareToTimeline(gameShare(game.value));
   Object.defineProperties(search.state, {
     game: { get: () => game.value },
     seoTitle: { get: () => pageSeo(game.value).title },
   });
   return {
+    shareAppMessage,
+    shareTimeline,
     ...search,
     singlePage,
     game,

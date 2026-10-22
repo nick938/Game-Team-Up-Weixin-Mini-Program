@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/team/detail');
 import { officialTeamLabel } from '../../utils/team-source';
@@ -24,6 +25,9 @@ const tags = computed(() =>
 function goRoom() {
   platform.pageScrollTo({ selector: '#room-info', duration: 220 });
 }
+// Keep native share hook registration in the page SFC for uni compilation.
+onShareAppMessage(page.shareAppMessage);
+onShareTimeline(page.shareTimeline);
 </script>
 <template>
   <timeline-preview v-if="page.singlePage" />
@@ -305,14 +309,14 @@ function goRoom() {
       @retry="page.loadMemberProfile"
     />
     <profile-gate :show="page.showProfile" @done="page.onProfileDone" @close="page.onProfileClose" />
-    <canvas
-      v-if="page.team"
-      type="2d"
-      id="shareCover"
-      class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
-    />
     <entry-notices />
   </app-shell>
+  <canvas
+    v-if="page.team"
+    type="2d"
+    id="shareCover"
+    class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+  />
 </template>
 
 <style scoped>

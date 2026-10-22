@@ -141,17 +141,18 @@ function onTap() {
         <view class="room-visitors" :aria-label="views + '次浏览'">
           <wd-icon name="eye" size="14px" /> {{ views }}
         </view>
-        <wd-button
-          size="mini"
-          variant="text"
+        <!-- Native share data must reach onShareAppMessage across component boundaries. -->
+        <button
           open-type="share"
           :id="cardShare.buttonId"
-          :button-id="cardShare.buttonId"
-          custom-class="room-forward"
-          ><view class="reaction-button-content"
-            ><wd-icon name="share-external" size="15px" /><text>转发</text></view
-          ></wd-button
+          :data-card-share-id="cardShare.buttonId"
+          class="room-forward"
+          @tap.stop
         >
+          <view class="reaction-button-content"
+            ><wd-icon name="share-external" size="15px" /><text>转发</text></view
+          >
+        </button>
       </view>
     </wd-card>
   </view>
@@ -199,13 +200,26 @@ function onTap() {
   color: #687085;
   white-space: nowrap;
 }
-.room-reactions :deep(.room-forward.wd-button) {
+.room-forward {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #6255e7;
+  font-weight: 400;
+  line-height: 18px;
   min-width: 0;
   width: 100%;
   height: 44px;
   padding: 0;
   font-size: 11px;
   white-space: nowrap;
+}
+.room-forward::after {
+  border: 0;
 }
 .room-visitors {
   display: flex;

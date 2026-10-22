@@ -1,14 +1,7 @@
 import { cardShareFromEvent } from '../utils/card-share';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick, watch, computed } from 'vue';
-import {
-  onShow,
-  onHide,
-  onUnload,
-  onPullDownRefresh,
-  onShareAppMessage,
-  onShareTimeline,
-} from '@dcloudio/uni-app';
+import { onShow, onHide, onUnload, onPullDownRefresh } from '@dcloudio/uni-app';
 import type { Team, User } from '../types/domain';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
@@ -227,12 +220,12 @@ export function useMine() {
   onPullDownRefresh(() => {
     return load(true).finally(() => hostPlatform.stopPullDownRefresh());
   });
-  onShareAppMessage((event) => {
+  function shareAppMessage(event: unknown) {
     return cardShareFromEvent(event) || shareToFriend(plazaShare());
-  });
-  onShareTimeline(() => {
+  }
+  function shareTimeline() {
     return shareToTimeline(plazaShare());
-  });
+  }
   const nextTeam = computed(() => scheduledTeams([...state.hostedOngoing, ...state.joinedOngoing])[0]);
   const ongoingCount = computed(() => uniqueMyTeams(state.hostedOngoing, state.joinedOngoing).length);
   function openMyTeams(tab: 'hosted' | 'joined' | 'all') {
@@ -245,6 +238,8 @@ export function useMine() {
     hostPlatform.navigateTo({ url: '/pages/help/help' });
   }
   return {
+    shareAppMessage,
+    shareTimeline,
     openUpdates: () => hostPlatform.navigateTo({ url: '/pages/updates/updates' }),
     openChangelog: () => hostPlatform.navigateTo({ url: '/pages/changelog/changelog' }),
     nextTeam,

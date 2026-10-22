@@ -1,14 +1,6 @@
 import { cardShareFromEvent } from '../utils/card-share';
 import { ref, computed } from 'vue';
-import {
-  onShow,
-  onHide,
-  onUnload,
-  onPullDownRefresh,
-  onReachBottom,
-  onShareAppMessage,
-  onShareTimeline,
-} from '@dcloudio/uni-app';
+import { onShow, onHide, onUnload, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import { platform as hostPlatform } from '../platform/host';
 import { isSinglePage } from '../utils/runtime';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
@@ -110,9 +102,12 @@ export function useLobby() {
   onReachBottom(() => {
     if (!isSinglePage()) void search.loadMore();
   });
-  onShareAppMessage((event) => cardShareFromEvent(event) || shareToFriend(plazaShare(HOME_SHARE_TITLE)));
-  onShareTimeline(() => shareToTimeline(plazaShare(HOME_SHARE_TITLE)));
+  const shareAppMessage = (event: unknown) =>
+    cardShareFromEvent(event) || shareToFriend(plazaShare(HOME_SHARE_TITLE));
+  const shareTimeline = () => shareToTimeline(plazaShare(HOME_SHARE_TITLE));
   return {
+    shareAppMessage,
+    shareTimeline,
     gameTabs,
     gameOptions,
     ...search,
