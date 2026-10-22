@@ -41,3 +41,54 @@ test('older profiles keep empty public field defaults', () => {
   assert.equal(row.wechatId, '');
   assert.deepEqual([row.groupIds, row.favoriteGames, row.playTimes], [[], [], []]);
 });
+
+test('legacy profile identities share one ranking entry and never count the host as a passenger', () => {
+  const result = buildUserRankings({
+    users: [
+      { _id: 'host-document', _openid: 'host-openid', nickName: '老车头' },
+      { _id: 'member-document', openid: 'member-openid', _openid: 'member-legacy', nickName: '老队友' },
+    ],
+    teams: [
+      { _id: 'one', openid: 'host-openid' },
+      { _id: 'two', _openid: 'host-document' },
+    ],
+    members: [
+      { teamId: 'one', openid: 'member-document', role: 'member' },
+      { teamId: 'two', _openid: 'member-legacy', role: 'member' },
+      { teamId: 'one', openid: 'host-document', role: 'member' },
+    ],
+    events: [
+      { teamId: 'one', openid: 'member-openid', kind: 'join' },
+      { teamId: 'two', _openid: 'host-openid', kind: 'join' },
+    ],
+  });
+  assert.deepEqual(result.hosted.map(row => [row.nickName, row.count]), [['老车头', 2]]);
+  assert.deepEqual(result.joined.map(row => [row.nickName, row.count]), [['老队友', 2]]);
+  assert.ok(!JSON.stringify(result).includes('document'));
+  assert.ok(!JSON.stringify(result).includes('openid'));
+});
+
+test('banned or incomplete legacy profiles are excluded through every identity alias', () => {
+  const users = [
+    { _id: 'blocked-doc', _openid: 'blocked-openid', nickName: '禁用', banned: true },
+    { _id: 'blank-doc', openid: 'blank-openid', nickName: '' },
+  ];
+  const result = buildUserRankings({
+    users,
+    teams: [{ _id: 'car', openid: 'blocked-openid' }, { _id: 'other', openid: 'blank-doc' }],
+    members: [{ teamId: 'car', openid: 'blank-openid', role: 'member' }],
+    events: [{ teamId: 'other', openid: 'blocked-doc', kind: 'join' }],
+  });
+  assert.deepEqual(result, { hosted: [], joined: [] });
+});
+
+test('direct document identity wins over conflicting aliases regardless of profile order', () => {
+  const users = [
+    { _id: 'actor', nickName: '直接匹配' },
+    { _id: 'legacy-doc', _openid: 'actor', nickName: '别名冲突' },
+  ];
+  const input = { users, teams: [{ _id: 'car', openid: 'actor' }], members: [], events: [] };
+  const result = buildUserRankings(input);
+  assert.equal(result.hosted[0].nickName, '直接匹配');
+  assert.deepEqual(buildUserRankings({ ...input, users: [...users].reverse() }), result);
+});

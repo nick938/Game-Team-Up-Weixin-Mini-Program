@@ -1,17 +1,33 @@
 const { createHash } = require('node:crypto');
 function buildUserRankings({ teams, members, events, users }) {
-  const profiles = new Map(users.filter(user => user.nickName && !user.banned).map(user => [user._id || user.openid || user._openid, user]));
+  const profiles = new Map(), identities = new Map();
+  // Keep document IDs authoritative, matching getUser()'s direct lookup first.
+  for (const user of users) {
+    const id = user._id || user.openid || user._openid;
+    if (!id) continue;
+    profiles.set(id, user);
+    identities.set(id, id);
+  }
+  // Legacy profiles can have a generated document ID and a separate OpenID.
+  // Resolve every supported alias to one profile before counting unique teams.
+  for (const [id, user] of profiles) {
+    for (const alias of [user.openid, user._openid]) {
+      if (alias && !identities.has(alias)) identities.set(alias, id);
+    }
+  }
+  const profileId = uid => identities.get(uid) || '';
   const cars = new Map(teams.filter(team => !team.pendingHost && (team.openid || team._openid)).map(team => [team._id, team]));
   const hosted = new Map(), joined = new Map();
   function add(target, uid, teamId) {
-    if (!profiles.has(uid)) return;
-    if (!target.has(uid)) target.set(uid, new Set());
-    target.get(uid).add(teamId);
+    const id = profileId(uid), user = profiles.get(id);
+    if (!user?.nickName || user.banned) return;
+    if (!target.has(id)) target.set(id, new Set());
+    target.get(id).add(teamId);
   }
   for (const [id, team] of cars) add(hosted, team.openid || team._openid, id);
   for (const entry of [...members.filter(member => member.role !== 'host'), ...events.filter(event => event.kind === 'join')]) {
     const team = cars.get(entry.teamId), uid = entry.openid || entry._openid;
-    if (team && uid && uid !== (team.openid || team._openid)) add(joined, uid, entry.teamId);
+    if (team && uid && profileId(uid) !== profileId(team.openid || team._openid)) add(joined, uid, entry.teamId);
   }
   function top(counts) {
     return [...counts].map(([uid, ids]) => {

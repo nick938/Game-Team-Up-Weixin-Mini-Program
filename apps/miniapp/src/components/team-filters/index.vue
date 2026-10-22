@@ -3,7 +3,7 @@ defineOptions({ name: 'TeamFilters' });
 import { computed, reactive, ref, watch } from 'vue';
 import type { TeamSearch } from '../../types/domain';
 import { GROUP_OPTIONS } from '../../utils/profile-options';
-import { PLATFORMS, VOICES } from '../../utils/constants';
+import { VOICES } from '../../utils/constants';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
@@ -43,7 +43,6 @@ const count = computed(
     [
       ...(props.gameOptions ? [props.query.gameName] : []),
       props.query.time,
-      props.query.platform,
       props.query.server,
       props.query.voice,
       props.query.availableOnly,
@@ -70,7 +69,7 @@ function apply() {
     ...(props.gameOptions ? { gameName: draft.gameName || '' } : {}),
     groupIds: [...(draft.groupIds || [])],
     time: draft.time,
-    platform: draft.platform,
+    platform: '',
     server: draft.server,
     voice: draft.voice,
     availableOnly: draft.availableOnly,
@@ -125,14 +124,6 @@ function apply() {
           placeholder="不限群组，可多选"
         />
         <app-picker label="开局时间" v-model="draft.time" :columns="times" />
-        <app-picker
-          label="游戏平台"
-          v-model="draft.platform"
-          :columns="[
-            { label: '全部平台', value: '' },
-            ...PLATFORMS.map((value) => ({ label: value, value })),
-          ]"
-        />
         <app-input label="区服" v-model="draft.server" placeholder="不限区服" :maxlength="20" />
         <app-picker
           label="语音"

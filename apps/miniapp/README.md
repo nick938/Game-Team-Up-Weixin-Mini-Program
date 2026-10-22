@@ -76,6 +76,8 @@ VITE_API_BASE_URL=https://你的测试API域名
 
 保留 UniPages/UniManifest、UnoCSS、Pinia 与现有 `uni.request` 请求层；未引入 layouts、alova、z-paging、模板演示页及模板上传脚本。页面无需额外布局包装，工程和上传脚本由本仓库维护。DCloud、Vue、Wot UI 等依赖版本见 package.json，统一由仓库根 pnpm-lock.yaml 锁定。
 
+`dev:h5` 和各端 `build:*` 统一通过 `scripts/uni.mjs` 启动：先从 `manifest.config.ts` 生成真实配置，再运行 uni CLI，支持全新检出和发布版本、公开 AppID 的环境变量覆盖。
+
 `pages.config.ts`、`manifest.config.ts` 是配置源；生成的 `src/pages.json`、`src/manifest.json` 和页面类型不手动修改或提交。检查使用 ESLint、Prettier、Husky 与 lint-staged，安装依赖后在根目录运行 `pnpm hooks:install` 启用提交前检查。
 
 2026-10-16 整理时仍记录有工具链依赖安全告警，包括 manifest 插件经 c12/giget 引入的 tar 6.2.1；删除未使用的 layouts 插件并未消除全部告警。该记录不代表已完成当前版本的依赖安全审计。
