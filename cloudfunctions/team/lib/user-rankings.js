@@ -16,7 +16,19 @@ function buildUserRankings({ teams, members, events, users }) {
   function top(counts) {
     return [...counts].map(([uid, ids]) => {
       const user = profiles.get(uid);
-      return { userKey: createHash('sha256').update('ranking:' + uid).digest('hex'), nickName: user.nickName, avatarUrl: user.avatarUrl || '', bio: typeof user.bio === 'string' ? user.bio : '', count: ids.size };
+      return {
+        userKey: createHash('sha256').update('ranking:' + uid).digest('hex'),
+        nickName: user.nickName,
+        avatarUrl: user.avatarUrl || '',
+        bio: typeof user.bio === 'string' ? user.bio : '',
+        // Match the public fields shown in the member profile sheet; keep account fields private.
+        steamFriendCode: typeof user.steamFriendCode === 'string' ? user.steamFriendCode : '',
+        wechatId: typeof user.wechatId === 'string' ? user.wechatId : '',
+        groupIds: Array.isArray(user.groupIds) ? user.groupIds : [],
+        favoriteGames: Array.isArray(user.favoriteGames) ? user.favoriteGames : [],
+        playTimes: Array.isArray(user.playTimes) ? user.playTimes : [],
+        count: ids.size,
+      };
     }).sort((a, b) => b.count - a.count || a.userKey.localeCompare(b.userKey)).slice(0, 10);
   }
   return { hosted: top(hosted), joined: top(joined) };

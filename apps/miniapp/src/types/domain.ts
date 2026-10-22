@@ -49,8 +49,10 @@ export interface User {
   bio?: string;
 }
 export type TeamRole = 'host' | 'member';
-export interface RankingUser {
-  bio?: string;
+export interface RankingUser extends Pick<
+  User,
+  'bio' | 'steamFriendCode' | 'wechatId' | 'groupIds' | 'favoriteGames' | 'playTimes'
+> {
   userKey: string;
   nickName: string;
   avatarUrl: string;

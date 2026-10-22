@@ -23,7 +23,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
     server: '',
     voice: '',
     time: '',
-    availableOnly: true,
+    availableOnly: false,
     hasMore: false,
     loading: false,
     loadingMore: false,
@@ -125,7 +125,7 @@ export function useTeamSearch(baseQuery: () => TeamSearch = () => ({})) {
       server: '',
       voice: '',
       time: '',
-      availableOnly: true,
+      availableOnly: false,
     });
     void loadList();
   }

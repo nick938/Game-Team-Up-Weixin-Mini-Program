@@ -18,11 +18,11 @@ for (const page of ['pages/index/index', 'pages/game/game', 'pages/mine/mine', '
   test(`${page} shares the clicked card and preserves menu sharing`, () => {
     const h = harness();
     const rendered = h.page(page);
-    const { prepareCardShare } = h.load('utils/card-share');
-    prepareCardShare(team);
+    const { registerCardShare } = h.load('utils/card-share');
+    const card = registerCardShare(() => team);
     const payload = rendered.hooks.onShareAppMessage({
       from: 'button',
-      target: { id: 'team-forward-target' },
+      target: { id: card.buttonId },
     });
     assert.ok(payload.path.includes('/pages/team/detail?'));
     assert.ok(payload.path.includes('id=target'));
@@ -33,10 +33,37 @@ for (const page of ['pages/index/index', 'pages/game/game', 'pages/mine/mine', '
     assert.ok(payload.imageUrl);
     assert.ok(!JSON.stringify(payload).includes('private-room'));
     assert.ok(!JSON.stringify(payload).includes('secret'));
-    prepareCardShare(team);
+
     const menu = rendered.hooks.onShareAppMessage({ from: 'menu' });
     assert.ok(!menu.path.includes('id=target'));
     const other = rendered.hooks.onShareAppMessage({ from: 'button', target: { id: 'unrelated' } });
     assert.ok(!other.path.includes('id=target'));
+    // Sharing remains tied to the source without a preceding click, and uses fresh data.
+    const updated = { ...team, _id: 'second', memberCount: 3 };
+    const second = registerCardShare(() => updated);
+    const secondPayload = rendered.hooks.onShareAppMessage({
+      from: 'button',
+      target: { id: second.buttonId },
+    });
+    assert.ok(secondPayload.path.includes('id=second'));
+    assert.ok(secondPayload.title.includes('3/4'));
+    updated.memberCount = 4;
+    assert.ok(
+      rendered.hooks
+        .onShareAppMessage({ from: 'button', target: { id: second.buttonId } })
+        .title.includes('4/4'),
+    );
+    assert.ok(
+      rendered.hooks
+        .onShareAppMessage({ from: 'button', target: { id: card.buttonId } })
+        .path.includes('id=target'),
+    );
+    second.dispose();
+    assert.ok(
+      !rendered.hooks
+        .onShareAppMessage({ from: 'button', target: { id: second.buttonId } })
+        .path.includes('id=second'),
+    );
+    card.dispose();
   });
 }

@@ -46,7 +46,7 @@ const count = computed(
       props.query.platform,
       props.query.server,
       props.query.voice,
-      !props.query.availableOnly,
+      props.query.availableOnly,
       !!props.query.groupIds?.length,
     ].filter(Boolean).length,
 );
@@ -62,7 +62,7 @@ function reset() {
     platform: '',
     server: '',
     voice: '',
-    availableOnly: true,
+    availableOnly: false,
   });
 }
 function apply() {

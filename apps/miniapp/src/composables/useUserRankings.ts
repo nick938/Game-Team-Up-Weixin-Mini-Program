@@ -16,7 +16,17 @@ export function useUserRankings() {
   });
   const profile = ref<User | null>(null);
   function openProfile(user?: RankingUser) {
-    if (user) profile.value = { nickName: user.nickName, avatarUrl: user.avatarUrl, bio: user.bio || '' };
+    if (!user) return;
+    profile.value = {
+      nickName: user.nickName,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio || '',
+      steamFriendCode: user.steamFriendCode || '',
+      wechatId: user.wechatId || '',
+      groupIds: user.groupIds || [],
+      favoriteGames: user.favoriteGames || [],
+      playTimes: user.playTimes || [],
+    };
   }
   const rows = computed(() => state[mode.value]);
   let active = true,

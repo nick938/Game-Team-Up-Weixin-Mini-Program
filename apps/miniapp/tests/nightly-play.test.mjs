@@ -182,11 +182,21 @@ test('ranking users open the shared public profile without exposing account fiel
     nickName: '搭子',
     avatarUrl: '/avatar.png',
     bio: '今晚一起玩',
+    steamFriendCode: '123456',
+    wechatId: 'player_1',
+    groupIds: ['group'],
+    favoriteGames: ['机械狂欢'],
+    playTimes: ['evening'],
     count: 8,
     openid: 'private-id',
   });
   assert.equal(page.profile.value.nickName, '搭子');
   assert.equal(page.profile.value.bio, '今晚一起玩');
+  assert.equal(page.profile.value.steamFriendCode, '123456');
+  assert.equal(page.profile.value.wechatId, 'player_1');
+  assert.deepEqual([...page.profile.value.groupIds], ['group']);
+  assert.deepEqual([...page.profile.value.favoriteGames], ['机械狂欢']);
+  assert.deepEqual([...page.profile.value.playTimes], ['evening']);
   assert.equal(page.profile.value.openid, undefined);
   assert.equal(page.profile.value.userKey, undefined);
 });

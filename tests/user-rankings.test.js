@@ -21,12 +21,23 @@ test('returns at most ten real users, deterministic ties and no synthetic entrie
   assert.equal(first.joined.length, 0);
   assert.deepEqual(first, buildUserRankings({ ...data, users: [...users].reverse(), teams: [...data.teams].reverse() }));
 });
-test('ranking profiles expose only public nickname, avatar and bio alongside rank fields', () => {
+test('ranking profiles include all public profile fields without exposing account fields', () => {
   const result = buildUserRankings({
     teams: [{ _id: 'car', openid: 'private-openid' }], members: [], events: [],
-    users: [{ _id: 'private-openid', nickName: '搭子', avatarUrl: 'cloud://avatar', bio: '晚上一起玩', reminderPreferences: { enabled: true }, phone: 'private-phone' }],
+    users: [{ _id: 'private-openid', nickName: '搭子', avatarUrl: 'cloud://avatar', bio: '晚上一起玩', steamFriendCode: '123456', wechatId: 'player_1', groupIds: ['group'], favoriteGames: ['机械狂欢'], playTimes: ['evening'], reminderPreferences: { enabled: true }, phone: 'private-phone' }],
   });
   assert.equal(result.hosted[0].bio, '晚上一起玩');
-  assert.deepEqual(Object.keys(result.hosted[0]).sort(), ['avatarUrl', 'bio', 'count', 'nickName', 'userKey']);
+  assert.deepEqual(Object.keys(result.hosted[0]).sort(), ['avatarUrl', 'bio', 'count', 'favoriteGames', 'groupIds', 'nickName', 'playTimes', 'steamFriendCode', 'userKey', 'wechatId']);
+  for (const key of ['steamFriendCode', 'wechatId', 'groupIds', 'favoriteGames', 'playTimes']) {
+    assert.deepEqual(result.hosted[0][key], { steamFriendCode: '123456', wechatId: 'player_1', groupIds: ['group'], favoriteGames: ['机械狂欢'], playTimes: ['evening'] }[key]);
+  }
   assert.ok(!JSON.stringify(result).includes('private-'));
+});
+
+test('older profiles keep empty public field defaults', () => {
+  const result = buildUserRankings({ teams: [{ _id: 'car', openid: 'a' }], members: [], events: [], users: [{ _id: 'a', nickName: '老玩家' }] });
+  const row = result.hosted[0];
+  assert.equal(row.steamFriendCode, '');
+  assert.equal(row.wechatId, '');
+  assert.deepEqual([row.groupIds, row.favoriteGames, row.playTimes], [[], [], []]);
 });

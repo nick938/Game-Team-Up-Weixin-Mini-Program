@@ -1,9 +1,9 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamCard' });
-import { computed } from 'vue';
+import { computed, onScopeDispose } from 'vue';
 import { officialTeamLabel } from '../../utils/team-source';
 import ReactionEffect from '../reaction-effect/index.vue';
-import { prepareCardShare } from '../../utils/card-share';
+import { registerCardShare } from '../../utils/card-share';
 import type { Team } from '../../types/domain';
 import { usableTeamId } from '../../utils/team-entry';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
@@ -12,6 +12,11 @@ const props = withDefaults(
   defineProps<{ team?: Partial<Team>; teamId?: string; mark?: string; sequence?: number }>(),
   { team: () => ({}), teamId: '', mark: '', sequence: -1 },
 );
+const cardShare = registerCardShare(
+  () => props.team,
+  () => props.teamId,
+);
+onScopeDispose(cardShare.dispose);
 const view = useTeamPresentation(() => props.team);
 const reactions = useCardReactions(() => props.team);
 const views = computed(() => {
@@ -140,9 +145,9 @@ function onTap() {
           size="mini"
           variant="text"
           open-type="share"
-          :button-id="'team-forward-' + (teamId || team.id || team._id)"
+          :id="cardShare.buttonId"
+          :button-id="cardShare.buttonId"
           custom-class="room-forward"
-          @click="prepareCardShare(team, teamId)"
           ><view class="reaction-button-content"
             ><wd-icon name="share-external" size="15px" /><text>转发</text></view
           ></wd-button
