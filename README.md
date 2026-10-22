@@ -44,6 +44,10 @@ pnpm build:weixin
 
 `cloudfunctions/team/mail.local.js` 是本地 SMTP 配置，不提交；可参考 `mail.example.js`。管理员通过 `ADMIN_OPENIDS` 环境变量或 `admins` 集合配置，组局员通过 `ORGANIZER_OPENIDS` 或管理端配置。业务入口仍由服务端校验角色和封禁状态。
 
+## 管理端用户标识
+
+举报、报错、反馈中的提交人显示 `users` 集合的最新昵称；举报车头优先显示昵称，查不到时回退为 OpenID。用户管理卡片保留 OpenID，便于配置管理员或复制核对。接口仍由云函数校验管理权限。
+
 ## 头像维护
 
 - 数据库存储原始 `cloud://` fileID，`team` 云函数返回可展示的 HTTPS `avatarUrl`。前端头像直接用 Wot UI `wd-avatar` 展示，不传 fileID，也不再读取历史 base64；旧账号若只有 base64 而没有可用链接，会显示默认头像。链接到期后重新进入页面或下拉刷新。
@@ -79,7 +83,7 @@ pnpm check:matrix
 
 ## 文档导航
 
-- 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)。
+- 产品与运营：[产品需求](docs/产品需求.md)、[冷启动计划](docs/冷启动计划.md)、[推广文案](docs/推广文案.md)、[搜索排查与获客渠道](docs/搜索排查与获客渠道.md)。
 - 开发与模板：[前端说明](apps/miniapp/README.md)。
 - 部署与维护：[自动上传](docs/微信Tag自动上传.md)、本文的头像维护说明。
 - HTTP 探测：[函数说明](cloudfunctions/p0Health/README.md)。

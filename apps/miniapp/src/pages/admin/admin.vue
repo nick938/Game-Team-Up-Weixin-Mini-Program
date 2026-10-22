@@ -121,7 +121,8 @@ const page = reactive(useAdmin());
             record.errorMsg
           }}</view
           ><view class="hint my-3">{{ record.targetName || record.page }} {{ record.version }}</view
-          ><view v-if="record.hostOpenid" class="hint break-all mb-2">车头：{{ record.hostOpenid }}</view
+          ><view v-if="record.hostNickName || record.hostOpenid" class="hint break-all mb-2"
+            >车头：{{ record.hostNickName || record.hostOpenid }}</view
           ><view v-if="record.systemInfo" class="hint mb-2">{{ record.systemInfo }}</view
           ><wd-button
             size="small"

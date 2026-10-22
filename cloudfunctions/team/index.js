@@ -2127,6 +2127,16 @@ async function adminOverview(openid) {
   return ok({ stats });
 }
 
+// 管理端统一用昵称指人：提交人昵称取 users 集合里的最新值，举报里的车头也换算成昵称。
+async function nickNameMap() {
+  const users = await fetchRecent("users", 1000);
+  const map = {};
+  (users || []).forEach((u) => {
+    if (u && u._id && u.nickName) map[u._id] = u.nickName;
+  });
+  return map;
+}
+
 async function adminReports(event, openid) {
   const denied = await adminGuard(openid);
   if (denied) return denied;
@@ -2135,6 +2145,12 @@ async function adminReports(event, openid) {
   if (kind) list = list.filter((r) => r.kind === kind);
   if (event.status === "open") list = list.filter((r) => r.status !== "handled");
   list.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  const names = await nickNameMap();
+  list = list.map((r) => ({
+    ...r,
+    nickName: names[r.openid] || r.nickName || "",
+    hostNickName: names[r.hostOpenid] || "",
+  }));
   return ok({ list: list.slice(0, 200) });
 }
 
@@ -2162,6 +2178,11 @@ async function adminFeedback(event, openid) {
   let list = await fetchRecent("feedback", 500);
   if (event.status === "open") list = list.filter((f) => f.status !== "handled");
   list.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  const names = await nickNameMap();
+  list = list.map((f) => ({
+    ...f,
+    nickName: names[f.openid] || f.nickName || "",
+  }));
   return ok({ list: list.slice(0, 200) });
 }
 
