@@ -377,10 +377,10 @@ test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
   assert.equal(ok.value.endAt - ok.value.startAt, 24 * 60 * 60 * 1000);
 });
 
-test('team note supports up to 500 characters and clamps beyond', () => {
+test('team note supports up to 1000 characters and clamps beyond', () => {
   const ctx = backend();
   const startAt = Date.now() + 60 * 1000;
-  const longNote = 'A'.repeat(550);
+  const longNote = '车'.repeat(1050);
   const validated = ctx.validateTeamInput({
     gameName: 'CS2',
     roomNo: '123456',
@@ -392,7 +392,10 @@ test('team note supports up to 500 characters and clamps beyond', () => {
     note: longNote,
   }, { isCreate: true });
   assert.equal(validated.error, undefined);
-  assert.equal(validated.value.note.length, 500);
+  assert.equal(validated.value.note, '车'.repeat(1000));
+  const edited = ctx.validateTeamInput({ ...validated.value, note: '玩'.repeat(1000) }, { isCreate: false });
+  assert.equal(edited.error, undefined);
+  assert.equal(edited.value.note, '玩'.repeat(1000));
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {

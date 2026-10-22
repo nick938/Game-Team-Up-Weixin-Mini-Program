@@ -192,7 +192,6 @@ async function save() {
               custom-style="--wot-avatar-border-radius:24px"
           /></wd-button>
           <!-- #endif -->
-          <view class="hint mt-2">点击更换头像</view>
         </view>
         <app-input
           v-model="nickName"
@@ -214,7 +213,7 @@ async function save() {
           :disabled="saving"
         />
         <view class="profile-preferences">
-          <view class="text-sm font-semibold mb-2">认识一下 <text class="hint">以下均为选填</text></view>
+          <view class="text-sm font-semibold mb-2">认识一下</view>
           <wd-cell-group border>
             <app-multi-select
               v-model="groupIds"
@@ -280,10 +279,8 @@ async function save() {
             />
           </wd-cell-group>
         </view>
-        <view class="profile-preferences">
-          <view class="text-sm font-semibold mb-2"
-            >加个好友 <text class="hint">选填，填写后对其他玩家公开</text></view
-          >
+        <view class="profile-preferences mb-4">
+          <view class="text-sm font-semibold mb-2">加个好友 <text class="hint">选填 · 填写后公开</text></view>
           <app-input
             v-model="steamFriendCode"
             label="Steam 好友码"
@@ -303,10 +300,7 @@ async function save() {
             clearable
             :disabled="saving"
           />
-        </view>
-        <view class="hint my-4"
-          >头像、昵称、签名、标签和已填写的联系方式会展示在公开资料中，其他玩家可复制联系方式。群组标识不限制跨群上车。</view
-        > </scroll-view
+        </view> </scroll-view
       ><wd-button block :loading="saving" :disabled="saving" @click="save">保存资料</wd-button></view
     >
   </wd-popup>

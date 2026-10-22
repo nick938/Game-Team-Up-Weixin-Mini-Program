@@ -254,7 +254,7 @@ async function submit() {
             <app-textarea
               label="备注"
               :model-value="page.note"
-              :maxlength="500"
+              :maxlength="1000"
               auto-height
               placeholder="选填：区服、房间号、KOOK 房间地址、玩法或队友要求"
               @update:model-value="page.onNote(String($event))"
