@@ -146,6 +146,11 @@ const entries = computed(() => [
     </view>
     <profile-gate :show="page.showProfile" @done="page.onProfileDone" @close="page.onProfileClose" />
     <entry-notices />
+    <canvas
+      type="2d"
+      id="cardShareCover"
+      class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+    />
   </app-shell>
 </template>
 <style scoped>

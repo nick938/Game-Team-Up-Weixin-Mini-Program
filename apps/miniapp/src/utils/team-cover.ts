@@ -296,7 +296,12 @@ function paintCover(
 
 // 画到真实 canvas 节点上并导出成临时文件，供 onShareAppMessage 的 imageUrl 使用。
 // 任何一步失败都 reject，交给调用方回退到静态封面 —— 不能让卡片变空白。
-function renderTeamCover(canvas: ShareCanvas | null, team: Partial<Team>, dpr: number) {
+function renderTeamCover(
+  canvas: ShareCanvas | null,
+  team: Partial<Team>,
+  dpr: number,
+  canvasId = 'shareCover',
+) {
   const content = coverContent(team);
   if (!content) return Promise.reject(new Error('no team to draw'));
   if (!canvas || typeof canvas.getContext !== 'function') {
@@ -311,7 +316,7 @@ function renderTeamCover(canvas: ShareCanvas | null, team: Partial<Team>, dpr: n
 
   return new Promise<string>((resolve, reject) => {
     platform.canvasToTempFilePath({
-      canvasId: 'shareCover',
+      canvasId,
       canvas,
       fileType: 'jpg',
       quality: 0.9,

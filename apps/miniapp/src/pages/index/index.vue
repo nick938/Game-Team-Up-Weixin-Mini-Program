@@ -173,6 +173,11 @@ onPageScroll(({ scrollTop }) => {
         </template>
       </team-results>
       <entry-notices />
+      <canvas
+        type="2d"
+        id="cardShareCover"
+        class="fixed -left-[2000px] top-0 w-[375px] h-[300px] pointer-events-none"
+      />
     </app-shell>
   </view>
 </template>
