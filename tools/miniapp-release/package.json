@@ -1,0 +1,8 @@
+{
+  "name": "game-team-miniapp-release",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "miniprogram-ci": "2.1.48"
+  }
+}

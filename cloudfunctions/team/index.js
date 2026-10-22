@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const profileOptions = require("./lib/profile-options.json");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -9,7 +10,7 @@ const _ = db.command;
 
 let collectionsReady = false;
 
-const NOTE_MAX = 500;
+const NOTE_MAX = 1000;
 const ROOM_MAX = 80;
 const GAME_MAX = 40;
 const SERVER_MAX = 20;
@@ -40,6 +41,10 @@ const REPORT_REASONS = [
 const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
 // 防刷：按 (动作 + 用户) 记录时间窗内的调用次数，超限直接拒绝。写库失败不影响主流程。
 const RATE_LIMITS = {
+  createPlayOption: { windowMs: 30 * 60 * 1000, max: 15, message: "添加得太快了，稍后再试" },
+  votePlayOption: { windowMs: 60 * 1000, max: 30, message: "投票太频繁，请稍后再试" },
+  trackTeamEvent: { windowMs: 60 * 1000, max: 60, message: "操作太频繁，请稍后再试" },
+  setReaction: { windowMs: 60 * 1000, max: 30, message: "表情操作太频繁，请稍后再试" },
   createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
   joinTeam: { windowMs: 60 * 1000, max: 6, message: "上车太频繁，稍等一下再试" },
   submitFeedback: { windowMs: 30 * 60 * 1000, max: 5, message: "反馈太频繁了，先歇一歇再来" },
@@ -49,11 +54,9 @@ const RATE_LIMITS = {
 // 仅兼容历史 base64 头像；新头像使用云文件，避免多人时撑爆云函数返回体。
 const AVATAR_BASE64_MAX = 200000;
 
-// 大厅分页：一次最多返回 50 趟，默认 20。状态过滤在内存里做，
-// 所以要连续扫描原始页直到凑满一页或扫完，避免原始页里全是已取消的车时误判到底。
+// 大厅分页：服务端完成全量筛选与排序后，每次返回最多 50 趟，默认 20。
 const LOBBY_PAGE_DEFAULT = 20;
 const LOBBY_PAGE_MAX = 50;
-const LOBBY_SCAN_MAX = 200;
 
 function clampInt(value, fallback, min, max) {
   const n = Math.floor(Number(value));
@@ -177,10 +180,10 @@ async function removeCloudFiles(fileIDs) {
 }
 
 // 用户可见文本的合规检测。msgSecCheck v2 返回 result.suggest（pass/review/risky），
-// 只有 risky 直接拦下；review 不误伤正常内容。接口异常时不阻断，由平台巡检兜底。
+// 旧入口只拦 risky，review/部分异常放行；游戏投票使用 strict，仅明确 pass 才发布。
 const MSG_SEC_CHECK_MAX = 2500;
 
-async function textPassesSecurityCheck(content, openid) {
+async function textPassesSecurityCheck(content, openid, strict = false) {
   const text = String(content || "").trim();
   if (!text) return true;
   try {
@@ -191,26 +194,29 @@ async function textPassesSecurityCheck(content, openid) {
       openid,
     });
     const suggest = res && res.result && res.result.suggest;
+    if (strict) return Number(res && res.errCode) === 0 && suggest === "pass";
     if (suggest) return suggest !== "risky";
     return Number(res && res.errCode) === 0;
   } catch (e) {
     if (Number(e && e.errCode) === 87014) return false;
     console.error("msgSecCheck fail", (e && (e.errCode || e.message)) || e);
-    return true;
+    return !strict;
   }
 }
 
 // 合并多个字段一次送检，返回错误文案或 null。
-async function textSafeError(openid, texts, errorMsg) {
+async function textSafeError(openid, texts, errorMsg, strict = false) {
   const merged = (texts || []).filter(Boolean).join("\n").trim();
   if (!merged) return null;
-  const safe = await textPassesSecurityCheck(merged, openid);
+  const safe = await textPassesSecurityCheck(merged, openid, strict);
   return safe ? null : errorMsg;
 }
 
 function stripSecret(team, showPwd) {
   const copy = { ...team };
   copy.id = String((team && (team._id || team.id)) || "");
+  if (team.dailyNightId) copy.officialSource = team.officialSource || (team.dailyOptionId ? "champion" : "random");
+  delete copy.sourceGroup;
   delete copy.startRemindedOpenids;
   delete copy.startRemindedAt;
   // 不向客户端下发任何身份标识；车头身份由服务端 role 判定。
@@ -469,6 +475,13 @@ async function ensureCollections() {
     "users",
     "teams",
     "members",
+    "team_reactions",
+    "team_events",
+    "team_views",
+    "daily_play",
+    "play_options",
+    "weekly_play",
+    "play_votes",
     "feedback",
     "reports",
     "rate_limits",
@@ -684,7 +697,7 @@ function validateTeamInput(input, { isCreate }) {
   const endAt = Number(input.endAt);
 
   if (!gameName) return { error: "请填写玩什么" };
-  if (!Number.isFinite(capacity) || capacity < CAP_MIN || capacity > CAP_MAX) {
+  if (!Number.isInteger(capacity) || capacity < CAP_MIN || capacity > CAP_MAX) {
     return { error: `人数需在 ${CAP_MIN}–${CAP_MAX} 之间` };
   }
   if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) {
@@ -699,12 +712,12 @@ function validateTeamInput(input, { isCreate }) {
   if (endAt - startAt > MAX_TEAM_MS) {
     return { error: "一局最长 24 小时" };
   }
-  if (!roomNo) return { error: "请填写房间 / 加入方式" };
+  if (!roomNo) return { error: "请填写车头的好友码或联系方式" };
   const text = `${gameName}${roomNo}${roomPwd}${server}${rankReq}${note}`;
   if (BAD.test(text)) {
     return { error: "内容包含不允许发布的信息" };
   }
-  if (isCreate && startAt - nowMs() > 7 * 24 * 60 * 60 * 1000) {
+  if (startAt - nowMs() > 7 * 24 * 60 * 60 * 1000) {
     return { error: "开始时间请选 7 天内" };
   }
   return {
@@ -726,7 +739,7 @@ function validateTeamInput(input, { isCreate }) {
   };
 }
 
-// 公开资料只保留一个自由填写、上限 50 字的签名，用户可自行写入 Steam 好友码 / KOOK 等信息。
+// Optional public preferences; omitted fields preserve old-client data, [] explicitly clears.
 const PROFILE_BIO_MAX = 50;
 
 function validatePublicProfile(event) {
@@ -739,6 +752,28 @@ function validatePublicProfile(event) {
     if (BAD.test(text)) return { error: "签名包含不支持的内容" };
     value.bio = text;
   }
+  for (const [key, label, pattern] of [
+    ["steamFriendCode", "Steam 好友码", /^\d{1,20}$/],
+    ["wechatId", "微信 ID", /^[A-Za-z0-9_-]{1,32}$/],
+  ]) {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
+    if (typeof event[key] !== "string") return { error: `${label}格式不正确` };
+    const text = event[key].trim();
+    if (text && !pattern.test(text)) return { error: `${label}格式不正确` };
+    value[key] = text;
+  }
+  for (const [key, label, max, allowed] of [
+    ["groupIds", "群组标识", 10, profileOptions.groups.map(item => item.value)],
+    ["favoriteGames", "常玩游戏", 5, null],
+    ["playTimes", "常玩时间", 5, profileOptions.playTimes.map(item => item.value)],
+  ]) {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) continue;
+    const list = event[key];
+    if (!Array.isArray(list) || list.length > max || list.some(item =>
+      typeof item !== "string" || !item.trim() || item.length > 40 || BAD.test(item) ||
+      (allowed && !allowed.includes(item)))) return { error: `${label}格式不正确` };
+    value[key] = [...new Set(list.map(item => item.trim()))];
+  }
   return { value };
 }
 
@@ -749,6 +784,11 @@ function publicProfile(user, member) {
     avatarUrl: (user && user.avatarUrl) || member.avatarUrl || "",
     avatarBase64: safeAvatarBase64(user && user.avatarBase64),
     bio: (user && typeof user.bio === "string") ? user.bio : "",
+    steamFriendCode: typeof user?.steamFriendCode === "string" ? user.steamFriendCode : "",
+    wechatId: typeof user?.wechatId === "string" ? user.wechatId : "",
+    groupIds: Array.isArray(user?.groupIds) ? user.groupIds : [],
+    favoriteGames: Array.isArray(user?.favoriteGames) ? user.favoriteGames : [],
+    playTimes: Array.isArray(user?.playTimes) ? user.playTimes : [],
   };
 }
 
@@ -765,6 +805,7 @@ async function getPublicProfile(event) {
   const user = uid ? await getUser(uid, { strict: true }) : null;
   const profile = publicProfile(user, member);
   const avatarMap = await toTempAvatarUrls([profile.avatarUrl]);
+  profile.avatarFileID = typeof profile.avatarUrl === "string" && profile.avatarUrl.startsWith("cloud://") ? profile.avatarUrl : "";
   profile.avatarUrl = withTempAvatar(avatarMap, profile.avatarUrl);
   return ok({ profile });
 }
@@ -779,12 +820,12 @@ async function saveProfile(event, openid) {
   const existed = await getUser(openid);
   if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
-  const profileFields = ["bio"];
+  const profileFields = ["bio", "favoriteGames", "steamFriendCode", "wechatId"];
   const nickChanged = !existed || existed.nickName !== nickName;
   const fieldsChanged = profileFields.some(
     (key) =>
       Object.prototype.hasOwnProperty.call(checked.value, key) &&
-      checked.value[key] !== ((existed && existed[key]) || "")
+      JSON.stringify(checked.value[key]) !== JSON.stringify((existed && existed[key]) || "")
   );
   if (nickChanged || fieldsChanged) {
     const textError = await textSafeError(
@@ -849,6 +890,14 @@ async function getProfile(openid) {
   });
 }
 
+async function decorateTeamCards(teams, openid) {
+  return Promise.all(teams.map(async (team) => {
+    const own = openid ? await optionalReaction(db.collection("team_reactions").doc(reactionDocId(team._id, openid))) : null;
+    return { ...team,
+      reactions: reactionSummary(team, own) };
+  }));
+}
+
 function teamVisibleTexts(team) {
   return [team.gameName, team.roomNo, team.roomPwd, team.server, team.rankReq, team.note];
 }
@@ -883,16 +932,45 @@ async function createTeam(event, openid) {
 
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
+  if (event.team && event.team.weeklyId) return fail("每周活动已改为每日16:00人气榜首局，请返回首页查看");
   const textError = await textSafeError(
     openid,
     teamVisibleTexts(checked.value),
-    "内容包含不允许发布的信息"
+    "内容包含不允许发布的信息",
+    Boolean(event.claimTeamId)
   );
   if (textError) return fail(textError);
+
+  if (event.claimTeamId) {
+    if (event.hostOpenid) return fail("请由本人接手每日推荐局");
+    const teamId = trim(event.claimTeamId, 80);
+    if (/^(未知|待填写|待补充|待定|暂无|未填写)$/.test(checked.value.roomNo)) return fail("请填写真实房间号、Steam好友码或微信号");
+    try {
+      await db.runTransaction(async tx => {
+        const ref = tx.collection("teams").doc(teamId);
+        const latest = (await ref.get()).data;
+        if (!latest || !latest.dailyNightId) throw new Error("推荐队伍不存在，请刷新后再试");
+        if (!latest.pendingHost) {
+          if (hostUid(latest) === openid) return; // Retry after a committed claim.
+          throw new Error("已有玩家完成发车，请返回队伍详情上车");
+        }
+        if (!isOngoing(latest, nowMs())) throw new Error("这趟车已结束或已散");
+        if (["gameName", "platform", "startAt", "endAt", "capacity"].some(key => latest[key] !== checked.value[key])) throw new Error("请保留推荐局的游戏、平台、时间和人数");
+        await ref.update({ data: { ...checked.value, groupIds: Array.isArray(user.groupIds) ? [...user.groupIds] : [], pendingHost: false, openid, memberCount: 1, hostNickName: user.nickName, hostAvatarUrl: user.avatarUrl || "", claimedAt: nowMs(), updatedAt: nowMs() } });
+        await tx.collection("members").add({ data: { teamId, openid, role: "host", nickName: user.nickName, avatarUrl: user.avatarUrl || "", joinedAt: nowMs() } });
+      });
+    } catch (error) {
+      if (error.message === "已有玩家完成发车，请返回队伍详情上车") return { ok: false, code: "CLAIM_TAKEN", errMsg: error.message };
+      return fail(error.message || "接手失败，请重试");
+    }
+    await recordAction(openid, "createTeam");
+    return ok({ teamId });
+  }
 
   const teamData = {
     ...checked.value,
     openid: hostId,
+    groupIds: Array.isArray(hostUser.groupIds) ? [...hostUser.groupIds] : [],
     memberCount: 1,
     status: "recruiting",
     hostNickName: hostUser.nickName,
@@ -952,15 +1030,31 @@ async function updateTeam(event, openid) {
   );
   if (textError) return fail(textError);
 
-  const nextStatus =
-    checked.value.capacity <= team.memberCount ? "full" : "recruiting";
-
-  await db.collection("teams").doc(teamId).update({
-    data: {
-      ...checked.value,
-      status: nextStatus,
-    },
-  });
+  try {
+    await db.runTransaction(async (transaction) => {
+      const latest = (await transaction.collection("teams").doc(teamId).get()).data;
+      if (!teamExists(latest) || !isOngoing(latest, nowMs())) throw new Error("队伍已结束，不能再改");
+      if (checked.value.capacity < latest.memberCount) throw new Error("人数不能少于当前已加入人数，请刷新后重试");
+      if ((latest.dailyOptionId || latest.dailyNightId) && ["gameName", "platform", "startAt", "endAt"].some(key => latest[key] !== checked.value[key])) {
+        throw new Error("今晚榜首局的游戏、平台和21:00–23:00时间已定，请保留；其他玩法可另发普通队伍");
+      }
+      // Detect conflicting edits while content moderation was in flight.
+      if (Number(latest.updatedAt || 0) !== Number(team.updatedAt || 0)) throw new Error("队伍信息已更新，请刷新后重试");
+      const changedFields = ["startAt", "endAt", "platform", "server", "roomNo", "roomPwd"]
+        .filter((key) => String(latest[key] || "") !== String(checked.value[key] || ""));
+      await transaction.collection("teams").doc(teamId).update({
+        data: {
+          ...checked.value,
+          ...(latest.weeklyId && (latest.gameName !== checked.value.gameName || latest.startAt !== checked.value.startAt) ? { weeklyId: "" } : {}),
+          status: checked.value.capacity <= latest.memberCount ? "full" : "recruiting",
+          updatedAt: nowMs(),
+          ...(changedFields.length ? { changedFields, detailsChangedAt: nowMs() } : {}),
+        },
+      });
+    });
+  } catch (error) {
+    return fail(error.message || "保存失败，请重试");
+  }
   return ok();
 }
 
@@ -1220,6 +1314,7 @@ async function joinTeam(event, openid) {
       if (!teamExists(team)) throw new Error("队伍不存在");
       if (team.status === "cancelled") throw new Error("这趟已经散了");
       if (nowMs() >= teamEndAt(team)) throw new Error("已经结束，不能上车");
+      if (team.pendingHost) throw new Error("请先到发车页面填写联系方式并完成发车");
       if (hostUid(team) === openid) {
         throw new Error("你已经是车头，不用再上车");
       }
@@ -1255,6 +1350,7 @@ async function joinTeam(event, openid) {
   }
   // 不再发送「有人上车 / 人齐了」：一次性订阅每局只保证一条，额度留给开打提醒。
   await recordAction(openid, "joinTeam");
+  try { await recordTeamEvent(teamId, openid, "join"); } catch (e) { /* Analytics never block joining. */ }
   return ok();
 }
 
@@ -1362,6 +1458,79 @@ async function dedupeTeamMembers(teamId, team, list) {
   return { repaired: toDelete.length > 0, kept };
 }
 
+// One deterministic record per actor and team. Set the desired value so retries are idempotent.
+const REACTION_IDS = ["like", "fire", "laugh", "love", "watch", "game", "dislike", "busy", "time", "next"];
+const REACTION_GROUPS = Object.fromEntries(["like", "dislike", "love", "busy", "time", "next"].map(id => [id, REACTION_IDS]));
+function selectedReactions(own) {
+  return [...new Set((Array.isArray(own?.reactions) ? own.reactions : own?.reaction ? [own.reaction] : []).filter(id => REACTION_IDS.includes(id)))];
+}
+function reactionSummary(team, own) {
+  const selected = selectedReactions(own).slice(-1);
+  return { counts: reactionCounts(team), selected, mine: selected[selected.length - 1] || "" };
+}
+function reactionDocId(teamId, openid) {
+  return require("node:crypto").createHash("sha256").update(JSON.stringify([teamId, openid])).digest("hex");
+}
+function reactionCounts(team) {
+  const counts = {};
+  for (const id of REACTION_IDS) {
+    const n = Number(team && team.reactionCounts && team.reactionCounts[id]);
+    counts[id] = Number.isSafeInteger(n) && n >= 0 ? n : 0;
+  }
+  return counts;
+}
+async function optionalReaction(ref) {
+  try {
+    return (await ref.get()).data || null;
+  } catch (e) {
+    if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return null;
+    throw e;
+  }
+}
+async function readReactionSummary(teamId, openid) {
+  return db.runTransaction(async (tx) => {
+    const team = (await tx.collection("teams").doc(teamId).get()).data;
+    const mine = await optionalReaction(tx.collection("team_reactions").doc(reactionDocId(teamId, openid)));
+    return reactionSummary(team, mine);
+  });
+}
+async function setReaction(event, openid) {
+  await requireNotBanned(openid);
+  const teamId = trim(event.teamId, 80);
+  const reaction = event.reaction;
+  if (!teamId) return fail("缺少队伍");
+  if (reaction !== "" && !REACTION_IDS.includes(reaction)) return fail("不支持的表情");
+  if (event.enabled !== undefined && (typeof event.enabled !== "boolean" || !REACTION_GROUPS[reaction])) return fail("不支持的表情操作");
+  const limited = await rateLimitExceeded(openid, "setReaction");
+  if (limited) return fail(limited);
+  const result = await db.runTransaction(async (tx) => {
+    const teamRef = tx.collection("teams").doc(teamId);
+    let team;
+    try { team = (await teamRef.get()).data; } catch (e) {
+      if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return fail("队伍不存在");
+      throw e;
+    }
+    if (!teamExists(team)) return fail("队伍不存在");
+    const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
+    const own = await optionalReaction(ownRef);
+    const previous = selectedReactions(own);
+    // Every actor selects one reaction. A write also reconciles older multi-reaction records.
+    const next = event.enabled === undefined ? (reaction ? [reaction] : []) : event.enabled
+      ? [reaction]
+      : previous.filter(id => id !== reaction).slice(-1);
+    const counts = reactionCounts(team);
+    for (const id of REACTION_IDS) counts[id] = Math.max(0, counts[id] + Number(next.includes(id)) - Number(previous.includes(id)));
+    if (JSON.stringify(previous) !== JSON.stringify(next)) {
+      await teamRef.update({ data: { reactionCounts: counts } });
+      if (next.length) await ownRef.set({ data: { teamId, reactions: next, reaction: next[next.length - 1], updatedAt: nowMs() } });
+      else if (own) await ownRef.remove();
+    }
+    return ok({ reactions: { counts, selected: next, mine: next[next.length - 1] || "" } });
+  });
+  if (result.ok) await recordAction(openid, "setReaction");
+  return result;
+}
+
 async function getTeam(event, openid) {
   const teamId = trim(event.teamId, 80);
   if (!teamId || teamId === "undefined" || teamId === "null") return fail("缺少队伍");
@@ -1417,6 +1586,7 @@ async function getTeam(event, openid) {
   const avatarMap = await toTempAvatarUrls(rawMembers.map((m) => m.avatar));
   const members = rawMembers.map(({ avatar, ...rest }) => ({
     ...rest,
+    avatarFileID: typeof avatar === "string" && avatar.startsWith("cloud://") ? avatar : "",
     avatarUrl: withTempAvatar(avatarMap, avatar),
   }));
 
@@ -1427,75 +1597,137 @@ async function getTeam(event, openid) {
     team: stripSecret(team, showPwd),
     members,
     role,
+    reactions: await readReactionSummary(teamId, openid),
   });
 }
 
-// 取一页原始队伍（未过期），按创建时间倒序，最新的在前。
-// 缺 createdAt 索引或旧集合时退化为全量读取后内存排序分页，保证功能不中断。
-async function fetchLobbyPage(now, skip, take) {
-  try {
-    const res = await db
-      .collection("teams")
-      .where({ endAt: _.gt(now) })
-      .orderBy("createdAt", "desc")
-      .skip(skip)
-      .limit(take)
-      .get();
-    return res.data || [];
-  } catch (e) {
-    const res = await db.collection("teams").limit(LOBBY_SCAN_MAX).get();
-    const rows = (res.data || [])
-      .filter((t) => teamEndAt(t) > now)
-      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
-    return rows.slice(skip, skip + take);
+// Read in database-sized batches so filters, counts and sorting cover the whole collection.
+// Stable _id ordering avoids the old single-get 100/1000-row truncation.
+async function readAllRows(name, condition) {
+  const all = [];
+  const seen = new Set();
+  for (let offset = 0; ; offset += 100) {
+    const collection = db.collection(name);
+    const query = condition ? collection.where(condition) : collection;
+    const res = await query.orderBy("_id", "asc").skip(offset).limit(100).get();
+    const rows = res.data || [];
+    const fresh = rows.filter((row) => !seen.has(row._id));
+    fresh.forEach((row) => seen.add(row._id));
+    all.push(...fresh);
+    if (rows.length < 100 || !fresh.length) return all;
   }
 }
-
-async function listTeams(event, openid) {
+function searchText(value) {
+  return String(value || "").normalize("NFKC").trim().toLowerCase();
+}
+function matchTeamSearch(team, query, now) {
+  if (query.weeklyId && team.weeklyId !== query.weeklyId) return false;
+  if (Array.isArray(query.groupIds) && query.groupIds.length &&
+      !query.groupIds.some(id => Array.isArray(team.groupIds) && team.groupIds.includes(id))) return false;
+  const keyword = searchText(query.keyword);
+  if (keyword && ![team.gameName, team.server, team.rankReq, team.note]
+    .some((value) => searchText(value).includes(keyword))) return false;
+  const gameKey = (value) => searchText(value).replace(/\s+/g, "").replace(/[:：]/g, "");
+  const games = Array.isArray(query.gameNames) ? query.gameNames.slice(0, 30).map(gameKey) : [];
+  if (games.length && !games.includes(gameKey(team.gameName))) return false;
+  if (query.gameName && searchText(query.gameName) !== searchText(team.gameName)) return false;
+  if (query.platform && query.platform !== team.platform) return false;
+  if (query.server && !searchText(team.server).includes(searchText(query.server))) return false;
+  if (query.voice && query.voice !== (team.voice === "Discord" ? "KOOK" : team.voice)) return false;
+  if (query.availableOnly && (resolveStatus(team, now) !== "recruiting" || team.memberCount >= team.capacity)) return false;
+  if (query.time === "now" && Number(team.startAt) > now) return false;
+  if (query.time === "soon" && (Number(team.startAt) < now || Number(team.startAt) > now + 3600000)) return false;
+  if (query.time === "today" && dayKey(team.startAt) !== dayKey(now)) return false;
+  return true;
+}
+// Keep weights aligned with the optional local sorter in apps/miniapp/src/utils/lobby.ts.
+function teamHeat(team) {
+  const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  const reactions = reactionCounts(team);
+  return count(team.viewCount) + 3 * (reactions.like + reactions.love - reactions.dislike) + reactions.next;
+}
+async function listTeams(event = {}, openid) {
+  if (event.groupIds !== undefined && (!Array.isArray(event.groupIds) || event.groupIds.length > 100 ||
+    event.groupIds.some(id => typeof id !== "string" || !profileOptions.groups.some(group => group.value === id))))
+    return fail("群组筛选格式不正确");
   const now = nowMs();
-  const limit = clampInt(event && event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
-  const offset = clampInt(event && event.offset, 0, 0, 100000);
-
-  // 原始页里可能夹杂已取消/已过期的车，连续扫描直到凑满一页或扫完。
-  const found = [];
-  let consumed = 0;
-  let exhausted = false;
-  while (found.length < limit && consumed < LOBBY_SCAN_MAX) {
-    const take = Math.min(limit, LOBBY_SCAN_MAX - consumed);
-    const rows = await fetchLobbyPage(now, offset + consumed, take);
-    if (!rows.length) {
-      exhausted = true;
-      break;
+  const limit = clampInt(event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
+  const offset = clampInt(event.offset, 0, 0, 100000);
+  const activeCondition = _.or([
+    { endAt: _.gt(now) },
+    { endAt: _.exists(false), expireAt: _.gt(now) },
+    { endAt: _.exists(false), expireAt: _.exists(false), startAt: _.gt(now) },
+  ]);
+  const active = (await readAllRows("teams", activeCondition)).filter((team) => isOngoing(team, now));
+  const gameCounts = new Map();
+  active.forEach((team) => { if (team.gameName) gameCounts.set(team.gameName, (gameCounts.get(team.gameName) || 0) + 1); });
+  const filtered = active.filter((team) => matchTeamSearch(team, event, now));
+  filtered.sort((a, b) => {
+    if (event.sortMode === "hot") {
+      return teamHeat(b) - teamHeat(a) || Number(b.createdAt || 0) - Number(a.createdAt || 0) || String(a._id).localeCompare(String(b._id));
     }
-    for (const t of rows) {
-      consumed++;
-      if (!isOngoing(t, now)) continue;
-      found.push(t);
-      if (found.length >= limit) break;
-    }
-    if (rows.length < take) {
-      exhausted = true;
-      break;
-    }
-  }
-  const nextOffset = offset + consumed;
-  const hasMore = !exhausted;
-
+    const available = (t) => resolveStatus(t, now) === "recruiting" && t.memberCount < t.capacity;
+    if (available(a) !== available(b)) return available(a) ? -1 : 1;
+    if (event.sortMode === "start" && a.startAt !== b.startAt) return a.startAt - b.startAt;
+    return Number(b.createdAt || 0) - Number(a.createdAt || 0) || String(a._id).localeCompare(String(b._id));
+  });
   const mems = openid ? await findMembersByOpenid(openid) : [];
   const roleByTeam = {};
   mems.forEach((m) => {
-    if (!m.teamId) return;
-    if (m.role === "host") roleByTeam[m.teamId] = "host";
-    else if (!roleByTeam[m.teamId]) roleByTeam[m.teamId] = "member";
+    if (m.role === "host" || !roleByTeam[m.teamId]) roleByTeam[m.teamId] = m.role;
   });
-  const list = found.map((t) => {
-    const row = stripSecret(t, false);
-    const role = roleByTeam[t._id];
-    if (role === "host") row.mark = "我发的";
-    else if (role) row.mark = "已上车";
+  const page = filtered.slice(offset, offset + limit);
+  const avatarUrls = await toTempAvatarUrls(page.map((team) => team.hostAvatarUrl));
+  const list = (await decorateTeamCards(page, openid)).map((team) => {
+    const row = stripSecret(team, false);
+    row.hostAvatarUrl = withTempAvatar(avatarUrls, team.hostAvatarUrl);
+    const role = roleByTeam[team._id];
+    if (role === "host" || (openid && hostUid(team) === openid)) row.mark = "我发起的";
+    else if (role) row.mark = "已加入";
     return row;
   });
-  return ok({ list, hasMore, nextOffset });
+  return ok({ list, total: filtered.length, nextOffset: offset + list.length,
+    hasMore: offset + list.length < filtered.length,
+    games: [...gameCounts.keys()].sort((a, b) => gameCounts.get(b) - gameCounts.get(a) || a.localeCompare(b)),
+  });
+}
+
+async function getUserRankings() {
+  const [teams, members, events, users] = await Promise.all([readAllRows("teams"), readAllRows("members"), readAllRows("team_events"), readAllRows("users")]);
+  const rankings = require("./lib/user-rankings").buildUserRankings({ teams, members, events, users });
+  const avatars = await toTempAvatarUrls([...rankings.hosted, ...rankings.joined].map(row => row.avatarUrl));
+  for (const rows of [rankings.hosted, rankings.joined]) for (const row of rows) row.avatarUrl = withTempAvatar(avatars, row.avatarUrl);
+  return ok({ ...rankings, generatedAt: nowMs() });
+}
+
+// Daily unique user/team events, not page-load counts or proof of entering the actual game.
+async function recordTeamEvent(teamId, openid, kind) {
+  const id = require("node:crypto").createHash("sha256").update(`${dayKey(nowMs())}:${teamId}:${openid}:${kind}`).digest("hex");
+  await db.collection("team_events").doc(id).set({ data: { teamId, openid, kind, createdAt: nowMs() } });
+}
+// Count every successful detail entry, including repeat visitors.
+async function recordTeamView(teamId) {
+  return db.runTransaction(async tx => {
+    const teamRef = tx.collection("teams").doc(teamId);
+    const team = (await teamRef.get()).data;
+    if (!teamExists(team)) throw new Error("队伍不存在");
+    const current = Number(team.viewCount);
+    await teamRef.update({ data: { viewCount: (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1 } });
+  });
+}
+async function trackTeamEvent(event, openid) {
+  await requireNotBanned(openid);
+  const limited = await rateLimitExceeded(openid, "trackTeamEvent");
+  if (limited) return fail(limited);
+  if (!["detail_view", "share_view", "copy_room"].includes(event.kind)) return fail("无效事件");
+  const teamId = trim(event.teamId, 80);
+  if (!teamId) return fail("缺少队伍");
+  const team = (await db.collection("teams").doc(teamId).get()).data;
+  if (!teamExists(team)) return fail("队伍不存在");
+  await recordTeamEvent(teamId, openid, event.kind);
+  if (["detail_view", "share_view"].includes(event.kind)) await recordTeamView(teamId);
+  await recordAction(openid, "trackTeamEvent");
+  return ok();
 }
 
 async function myTeams(openid) {
@@ -1506,7 +1738,7 @@ async function myTeams(openid) {
   const ids = mems.map((m) => m.teamId);
   const teamList = await getTeamsByIds(ids);
   const teamMap = {};
-  teamList.forEach((t) => {
+  (await decorateTeamCards(teamList, openid)).forEach((t) => {
     teamMap[t._id] = stripSecret(t, false);
   });
   const hosted = [];
@@ -1794,17 +2026,17 @@ async function submitReport(event, openid) {
   return ok();
 }
 
-// 管理端数据统计：总量、进行中、举报/报错/反馈待办、游戏活跃度排行、平台分布与 7 天发车趋势。
+// 管理端统计全部记录；事件仅读取近 7 天。读取失败会返回错误，不伪装成零。
 async function adminOverview(openid) {
   const denied = await adminGuard(openid);
   if (denied) return denied;
   const now = nowMs();
   const [teams, users, members, reports, feedback] = await Promise.all([
-    fetchRecent("teams", 1000),
-    fetchRecent("users", 1000),
-    fetchRecent("members", 1000),
-    fetchRecent("reports", 1000),
-    fetchRecent("feedback", 1000),
+    readAllRows("teams"),
+    readAllRows("users"),
+    readAllRows("members"),
+    readAllRows("reports"),
+    readAllRows("feedback"),
   ]);
 
   const nameOf = (t) => (t && t.gameName ? String(t.gameName).trim() : "") || "未命名";
@@ -1854,7 +2086,19 @@ async function adminOverview(openid) {
     });
   }
 
+  const recentTeams = teams.filter((t) => Number(t.createdAt) >= now - 7 * dayMs);
+  const events = (await readAllRows("team_events", { createdAt: _.gte(now - 7 * dayMs) })).filter((e) => Number(e.createdAt) >= now - 7 * dayMs);
+  const sharePairs = new Set(events.filter((e) => e.kind === "share_view").map((e) => `${e.teamId}:${e.openid}`));
+  const joinedPairs = new Set(events.filter((e) => e.kind === "join").map((e) => `${e.teamId}:${e.openid}`));
   const stats = {
+    funnel: {
+      published: recentTeams.length,
+      withMembers: recentTeams.filter((t) => t.memberCount > 1).length,
+      full: recentTeams.filter((t) => t.memberCount >= t.capacity).length,
+      shareVisitors: sharePairs.size,
+      shareJoined: [...sharePairs].filter((key) => joinedPairs.has(key)).length,
+      roomCopies: events.filter((e) => e.kind === "copy_room").length,
+    },
     teams: {
       total: teams.length,
       active: teams.filter((t) => isOngoing(t, now)).length,
@@ -1964,6 +2208,7 @@ exports.main = async (event) => {
   try {
     await ensureCollections();
     if (event && (event.TriggerName === "startRemind" || event.Type === "Timer")) {
+      await require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") }).settle();
       return await remindStartingTeams();
     }
     const openid = await getOpenid();
@@ -1986,12 +2231,42 @@ exports.main = async (event) => {
         return await joinTeam(event, openid);
       case "leaveTeam":
         return await leaveTeam(event, openid);
+      case "setReaction":
+        return await setReaction(event, openid);
       case "getTeam":
         return await getTeam(event, openid);
       case "listTeams":
         return await listTeams(event, openid);
+      case "trackTeamEvent":
+        return await trackTeamEvent(event, openid);
       case "myTeams":
         return await myTeams(openid);
+      case "getUserRankings":
+        return await getUserRankings();
+      case "getDailyPlay":
+        return ok({ board: await require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") }).get(openid) });
+      case "createPlayOption":
+      case "votePlayOption": {
+        const user = await requireProfile(openid);
+        const limited = await rateLimitExceeded(openid, event.type);
+        if (limited) return fail(limited);
+        const daily = require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") });
+        let result;
+        if (event.type === "createPlayOption") {
+          const gameName = trim(event.gameName, 40).normalize("NFKC").trim().replace(/\s+/g, " ");
+          if (BAD.test(gameName)) return fail("内容包含不允许发布的信息");
+          const textError = await textSafeError(openid, [gameName], "游戏名称未通过安全检测，请修改或稍后重试", true);
+          if (textError) return fail(textError);
+          result = { board: await daily.create(openid, user, { ...event, gameName }) };
+        } else result = await daily.vote(openid, user, event);
+        await recordAction(openid, event.type);
+        return ok(result);
+      }
+      case "launchPlayOption":
+        return fail("已改为每日16:00自动发车，请到今晚一起开黑查看");
+      case "getWeeklyPlay":
+      case "votePlay":
+        return fail("每周活动已改为每日16:00人气榜首局，请更新小程序");
       case "submitFeedback":
         return await submitFeedback(event, openid);
       case "submitBug":

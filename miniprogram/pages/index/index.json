@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "开黑星球｜游戏搭子",
-  "enablePullDownRefresh": true,
-  "usingComponents": {
-    "team-card": "/components/team-card/index"
-  }
-}

@@ -1,0 +1,87 @@
+name: Miniapp CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "lint-staged.config.mjs"
+      - ".husky/**"
+      - "apps/miniapp/**"
+      - "cloudfunctions/**"
+      - "tests/**"
+      - "scripts/miniapp/**"
+      - "tools/miniapp-release/**"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "lint-staged.config.mjs"
+      - ".husky/**"
+      - "apps/miniapp/**"
+      - "cloudfunctions/**"
+      - "tests/**"
+      - "scripts/miniapp/**"
+      - "tools/miniapp-release/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniapp-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHOKIDAR_USEPOLLING: "1"
+  HUSKY: "0"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:server
+      - run: pnpm --filter game-team-miniapp test
+      - run: pnpm --filter game-team-miniapp lint
+      - run: pnpm --filter game-team-miniapp format:check
+      - run: pnpm --filter game-team-miniapp typecheck
+
+  build:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Branch and PR checks compile WeChat without upload credentials.
+      - run: pnpm run build:weixin
+      - uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-ci-weixin-${{ github.sha }}
+          path: apps/miniapp/dist/build/mp-weixin/
+          if-no-files-found: error
+          retention-days: 7

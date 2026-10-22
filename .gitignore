@@ -1,2 +1,11 @@
 cloudfunctions/team/mail.local.js
 node_modules/
+
+# Local browser verification artifacts
+.playwright-cli/
+output/playwright/
+
+# Developer-specific simulator configuration
+project.private.config.json
+
+.pnpm-store/

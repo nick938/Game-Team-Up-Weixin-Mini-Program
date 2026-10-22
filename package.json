@@ -1,0 +1,33 @@
+{
+  "name": "game-team",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=10.34.5 <11"
+  },
+  "scripts": {
+    "dev": "pnpm --filter game-team-miniapp dev:h5 --port 5196",
+    "test:server": "node --test tests/*.test.js",
+    "test": "pnpm run test:server && pnpm --filter game-team-miniapp test",
+    "lint": "pnpm --filter game-team-miniapp lint",
+    "lint:fix": "pnpm --filter game-team-miniapp lint:fix",
+    "format": "pnpm --filter game-team-miniapp format",
+    "format:check": "pnpm --filter game-team-miniapp format:check",
+    "typecheck": "pnpm --filter game-team-miniapp typecheck",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "check:matrix": "pnpm run test:server && pnpm --filter game-team-miniapp check:matrix",
+    "build:h5": "pnpm --filter game-team-miniapp build:h5",
+    "build:weixin": "pnpm --filter game-team-miniapp build:weixin",
+    "build:qq": "pnpm --filter game-team-miniapp build:qq",
+    "release:plan": "node scripts/miniapp/release.mjs plan",
+    "release:build": "node scripts/miniapp/release.mjs build",
+    "release:upload": "node scripts/miniapp/release.mjs upload",
+    "hooks:install": "husky .husky",
+    "prepare": "husky .husky"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "lint-staged": "16.4.0"
+  }
+}

@@ -1,3 +1,5 @@
+const { harness } = require('./support/miniapp.cjs');
+const loadUtility = name => harness().load('utils/' + name);
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -5,11 +7,11 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false, beforeTransaction } = {}) {
   const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
   const deleted = [];
   const db = {
-    command: { gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
+    command: { gt: () => ({}), exists: () => ({}), or: () => ({}), gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
     collection(name) {
       const rows = tables[name] || (tables[name] = []);
       // 默认忽略 skip/limit（老测试依赖全量返回）；paginate 时按真实数据库语义切片。
@@ -42,6 +44,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
       };
     },
     async runTransaction(fn) {
+      if (beforeTransaction) beforeTransaction();
       // 官方限制：事务内只支持单记录操作（collection.doc / collection.add），
       // where 等批量操作会报错。事务包装成只暴露 doc 和 add，防止代码退回旧写法。
       const self = this;
@@ -79,6 +82,10 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
   };
   const ctx = {
     require: (id) => {
+      if (id === "node:crypto") return require(id);
+      if (id === "./lib/profile-options.json") return require("../cloudfunctions/team/lib/profile-options.json");
+      if (id === "./lib/user-rankings") return require("../cloudfunctions/team/lib/user-rankings");
+      if (id === "./lib/daily-play") return require("../cloudfunctions/team/lib/daily-play");
       if (id === "nodemailer") {
         return { createTransport: () => ({ sendMail: sendMail || (async () => ({})) }) };
       }
@@ -145,144 +152,12 @@ test('expired teams do not receive start reminders', async () => {
   assert.equal(calls, 0);
 });
 
-test('joining requests authorization first and still joins after rejection', async () => {
-  let page;
-  const calls = [];
-  const ctx = {
-    Page: p => { page = p; },
-    require: name => name.endsWith('/subscribe') ? { requestTeamNotify: async () => { calls.push('authorize'); return false; } } : name.endsWith('/cloud') ? { callTeam: async () => { calls.push('join'); }, showError: e => { throw e; } } : {},
-    wx: { showLoading() {}, hideLoading() {}, showToast() {} },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.data = { teamId: 't' };
-  page.loadDetail = () => {};
-  await page.onJoin();
-  assert.deepEqual(calls, ['authorize', 'join']);
-  assert.equal(page.joining, false);
-});
-
-test('share, copy-link and scene entry all keep the team id', async () => {
-  const { resolveTeamId, teamShareQuery } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
-  assert.equal(resolveTeamId({ id: 'team-1' }), 'team-1');
-  assert.equal(resolveTeamId({ teamId: 'team-2' }), 'team-2');
-  assert.equal(resolveTeamId({ scene: 'id%3Dteam-3' }), 'team-3');
-  assert.equal(resolveTeamId({}, { enter: { query: { id: 'team-4' } } }), 'team-4');
-  assert.equal(resolveTeamId({}), '');
-  assert.equal(teamShareQuery('abc'), 'id=abc');
-
-  let page;
-  let copyHandler;
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl(fn) { copyHandler = fn; },
-      offCopyUrl() { copyHandler = null; },
-      getEnterOptionsSync: () => ({ query: {} }),
-      getLaunchOptionsSync: () => ({ query: {} }),
-      setNavigationBarTitle() {},
-      showLoading() {},
-      hideLoading() {},
-      showToast() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.loadDetail = async function () { this.setData({ loading: false }); };
-
-  page.onLoad({ scene: 'id=isaac-team' });
-  page.data.team = { gameName: '以撒的重生', displayStatus: 'recruiting', needCount: 2, startAt: Date.now() };
-  page.onShow();
-  assert.equal(page.data.teamId, 'isaac-team');
-  assert.equal(copyHandler().query, 'id=isaac-team');
-  assert.equal(copyHandler().title, '以撒的重生');
-  assert.equal(page.onShareAppMessage().path, '/pages/team/detail?id=isaac-team');
-  assert.equal(page.onShareTimeline().query, 'id=isaac-team');
-  assert.equal(page.onShareTimeline().path, undefined);
-  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
-  // 封面还没画出来（或画失败）时用静态品牌图，绝不能是空白
-  assert.equal(page.onShareAppMessage().imageUrl, SHARE_COVER);
-  assert.equal(page.onShareTimeline().imageUrl, SHARE_COVER);
-
-  // 画好之后换成这张带「这趟车」信息的图，朋友圈也一起换
-  page.shareCoverPath = 'wxfile://tmp_team_cover.jpg';
-  assert.equal(page.onShareAppMessage().imageUrl, 'wxfile://tmp_team_cover.jpg');
-  assert.equal(page.onShareTimeline().imageUrl, 'wxfile://tmp_team_cover.jpg');
-});
-
-test('plaza pages share into the lobby and timeline uses query not path', () => {
-  const share = require(path.join(root, 'miniprogram/utils/share.js'));
-  const plaza = share.plazaShare();
-  assert.equal(plaza.path, '/pages/index/index');
-  assert.equal(plaza.query, '');
-  assert.equal(plaza.title, '开黑星球｜游戏搭子');
-
-  function loadPage(rel, extraRequire) {
-    let page;
-    vm.runInNewContext(fs.readFileSync(path.join(root, rel), 'utf8'), {
-      Page: value => { page = value; },
-      getApp: () => ({ globalData: {} }),
-      require: extraRequire,
-      wx: { onCopyUrl() {}, offCopyUrl() {} },
-    });
-    return page;
-  }
-
-  const index = loadPage('miniprogram/pages/index/index.js', (name) => {
-    if (name.endsWith('/share')) return share;
-    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-    return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
-  });
-  assert.equal(index.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(index.onShareTimeline().query, '');
-  assert.equal(index.onShareTimeline().path, undefined);
-  assert.equal(index.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(index.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  const publish = loadPage('miniprogram/pages/publish/publish.js', (name) => {
-    if (name.endsWith('/share')) return share;
-    if (name.endsWith('/constants')) return { PLATFORMS: ['Steam'], VOICES: ['KOOK'], MAX_TEAM_HOURS: 24 };
-    if (name.endsWith('/format')) return { dateParts: () => ({ date: '2026-09-11', time: '21:00' }), combineDateTime: () => Date.now(), defaultStartAt: () => Date.now(), defaultEndAt: () => Date.now() };
-    if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-    if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
-    if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-    if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
-    if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
-    return {};
-  });
-  assert.equal(publish.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(publish.onShareTimeline().query, '');
-  assert.equal(publish.onShareTimeline().path, undefined);
-  assert.match(publish.onShareAppMessage().title, /发起组队/);
-  assert.equal(publish.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(publish.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  const { page: mine } = minePage();
-  assert.equal(mine.onShareAppMessage().path, '/pages/index/index');
-  assert.equal(mine.onShareTimeline().query, '');
-  assert.equal(mine.onShareTimeline().path, undefined);
-  assert.equal(mine.onShareAppMessage().imageUrl, share.SHARE_COVER);
-  assert.equal(mine.onShareTimeline().imageUrl, share.SHARE_COVER);
-
-  for (const pagePath of ['index/index', 'publish/publish', 'mine/mine', 'team/detail', 'game/game']) {
-    const json = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/pages', pagePath + '.json'), 'utf8'));
-    assert.equal(json.enableShareAppMessage, undefined);
-    assert.equal(json.enableShareTimeline, undefined);
-  }
-  const appJson = JSON.parse(fs.readFileSync(path.join(root, 'miniprogram/app.json'), 'utf8'));
-  assert.equal(appJson['mp-weixin'], undefined);
-});
-
 test('share cover is a package-local 5:4 JPEG so cards never fall back to a page screenshot', () => {
-  const { SHARE_COVER } = require(path.join(root, 'miniprogram/utils/share.js'));
+  const { SHARE_COVER } = loadUtility('share');
   // 微信只接受包内相对路径和网络地址；写成绝对路径或漏掉前导斜杠会静默退回自动截图。
-  assert.match(SHARE_COVER, /^\/images\/[A-Za-z0-9._/-]+\.jpg$/);
+  assert.match(SHARE_COVER, /^\/static\/images\/[A-Za-z0-9._/-]+\.jpg$/);
 
-  const file = path.join(root, 'miniprogram', SHARE_COVER);
+  const file = path.join(root, 'apps/miniapp/src', SHARE_COVER);
   assert.ok(fs.existsSync(file), `${SHARE_COVER} 不存在，卡片会退回页面截图`);
   const buf = fs.readFileSync(file);
   assert.equal(buf.readUInt16BE(0), 0xffd8, '封面不是 JPEG');
@@ -306,16 +181,18 @@ test('share cover is a package-local 5:4 JPEG so cards never fall back to a page
 });
 
 test('team share cover content mirrors the detail page hero card', () => {
-  const { coverContent, WIDTH, HEIGHT } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  const { coverContent, WIDTH, HEIGHT } = loadUtility('team-cover');
   assert.equal(WIDTH / HEIGHT, 5 / 4);
 
+  const startAt = new Date(Date.now() + 86400000).setHours(21, 0, 0, 0);
+  const live = { memberCount: 5, capacity: 12, startAt, endAt: startAt + 7200000 };
   const recruiting = coverContent({
     gameName: '房车（我们到了吗？）',
     displayStatus: 'recruiting',
     needCount: 7,
     memberCount: 5,
     capacity: 12,
-    startAt: new Date(2026, 8, 21, 21, 0).getTime(),
+    ...live,
     platform: 'Steam',
     server: '亚服',
     voice: '不限',
@@ -326,23 +203,27 @@ test('team share cover content mirrors the detail page hero card', () => {
   assert.equal(recruiting.needText, '还差 7 人');
   assert.equal(recruiting.countText, '5/12');
   assert.match(recruiting.timeText, /21:00/);
-  // 「不限」和空值不该占位置
-  assert.deepEqual(recruiting.tags, ['Steam', '亚服']);
+  // 平台标签不展示；「不限」和空值不占位置
+  assert.deepEqual(recruiting.tags, ['亚服']);
 
   assert.equal(coverContent(null), null);
   // 满员后不再显示「还差 N 人」，否则分享出去人数是矛盾的
-  const full = coverContent({ displayStatus: 'full', memberCount: 12, capacity: 12 });
+  const full = coverContent({ ...live, displayStatus: 'full', memberCount: 12 });
   assert.equal(full.statusText, '满员');
   assert.equal(full.needText, '');
-  assert.equal(coverContent({ displayStatus: 'cancelled' }).statusText, '已散');
-  assert.equal(coverContent({ displayStatus: 'expired' }).statusText, '已结束');
+  assert.equal(coverContent({ ...live, displayStatus: 'cancelled' }).statusText, '已散');
+  assert.equal(coverContent({ ...live, displayStatus: 'expired' }).statusText, '已结束');
   // 缺 capacity 时退化成纯人数；缺游戏名也要有东西可画
   assert.equal(coverContent({ memberCount: 3 }).countText, '3 人');
   assert.equal(coverContent({}).gameName, '开黑');
+  assert.equal(coverContent({}).statusText, '状态待确认');
+  const stale = coverContent({ ...live, startAt: Date.now() - 7200000, endAt: Date.now() - 1, displayStatus: 'recruiting' });
+  assert.equal(stale.statusText, '已结束');
+  assert.equal(stale.needText, '');
 });
 
 test('team share cover wraps long game names and clamps to two lines', () => {
-  const { wrapText } = require(path.join(root, 'miniprogram/utils/team-cover.js'));
+  const { wrapText } = loadUtility('team-cover');
   // 汉字算 10、拉丁字母算 5，所以 maxWidth=100 刚好放下 10 个汉字
   const ctx = {
     measureText(text) {
@@ -387,119 +268,10 @@ test('team share cover wraps long game names and clamps to two lines', () => {
 });
 
 test('decorateTeam keeps shareable team fields and coerces null mark to empty string', () => {
-  const { decorateTeam } = require(path.join(root, 'miniprogram/utils/format.js'));
+  const { decorateTeam } = loadUtility('format');
   assert.equal(decorateTeam({ gameName: '以撒', mark: null }).mark, '');
   assert.equal(decorateTeam({ gameName: '以撒' }).mark, '');
   assert.equal(decorateTeam({ gameName: '以撒', mark: '我发的' }).mark, '我发的');
-});
-
-test('lobby cards open with a real team id even if component objects drop _id', async () => {
-  const { usableTeamId, teamDetailPath, resolveTeamId } = require(path.join(root, 'miniprogram/utils/team-entry.js'));
-  assert.equal(usableTeamId('undefined'), '');
-  assert.equal(usableTeamId('null'), '');
-  assert.equal(resolveTeamId({ id: 'undefined' }), '');
-  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /teamId=abc/);
-  assert.match(teamDetailPath('abc', { gameName: '以撒' }), /name=/);
-  assert.equal(teamDetailPath('undefined'), '');
-
-  let card;
-  const events = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/team-card/index.js'), 'utf8'), {
-    Component: value => { card = value; },
-    require: (name) => name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js')) : {},
-  });
-  card.data = { team: { gameName: '以撒' }, teamId: 'real-team', mark: '' };
-  card.triggerEvent = (name, detail) => events.push([name, detail]);
-  Object.assign(card, card.methods);
-  card.onTap();
-  assert.equal(events.length, 1);
-  assert.equal(events[0][0], 'open');
-  assert.equal(events[0][1].id, 'real-team');
-  assert.equal(events[0][1].gameName, '以撒');
-
-  card.data.teamId = '';
-  card.data.team = { gameName: '以撒' };
-  card.onTap();
-  assert.equal(events.length, 1);
-
-  let page;
-  const urls = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: (name) => {
-      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
-      return { decorateTeam: (t) => t, callTeam: async () => ({}), showError() {} };
-    },
-    wx: { navigateTo: ({ url }) => urls.push(url), onCopyUrl() {}, offCopyUrl() {} },
-  });
-  page.onOpen({ detail: { x: 10, y: 20 } });
-  page.onOpen({ detail: { id: 'undefined' } });
-  page.onOpen({ detail: { id: 'real-team', gameName: '以撒' } });
-  assert.equal(urls.length, 1);
-  assert.match(urls[0], /id=real-team/);
-  assert.match(urls[0], /teamId=real-team/);
-
-  const ctx = backend({ teams: [{ _id: 't', gameName: '以撒', startAt: 1, endAt: Date.now() + 3600000, status: 'recruiting' }] });
-  assert.equal(ctx.stripSecret({ _id: 't', gameName: '以撒', startAt: 1 }, false).id, 't');
-  assert.match((await ctx.getTeam({ teamId: 'undefined' }, 'u')).errMsg, /缺少/);
-  assert.equal((await ctx.getTeam({ teamId: 't' }, 'u')).ok, true);
-});
-
-test('empty team id does not query the cloud', async () => {
-  let page;
-  const cloudCalls = [];
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return {
-        callTeam: async (type, data) => { cloudCalls.push([type, data]); return { ok: true }; },
-        showError() {},
-      };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl() {},
-      offCopyUrl() {},
-      getEnterOptionsSync: () => ({ query: {} }),
-      getLaunchOptionsSync: () => ({ query: {} }),
-      setNavigationBarTitle() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.onLoad({});
-  page.onShow();
-  await page.loadDetail();
-  assert.equal(page.data.teamId, '');
-  assert.equal(cloudCalls.length, 0);
-  assert.equal(page.data.loading, false);
-});
-
-test('team detail prefers the current page query over the launch query', () => {
-  let page;
-  const ctx = {
-    Page: p => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => false };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({}), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/team', name));
-    },
-    wx: {
-      onCopyUrl() {},
-      offCopyUrl() {},
-      getEnterOptionsSync: () => ({ query: { id: 'from-launch' } }),
-      getLaunchOptionsSync: () => ({ query: { id: 'from-launch' } }),
-      setNavigationBarTitle() {},
-    },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-  page.loadDetail = function () {};
-  page.options = { id: 'from-page' };
-  page.onShow();
-  assert.equal(page.data.teamId, 'from-page');
 });
 
 test('reminder query covers ten minutes ahead and five minutes past, timer runs every minute', async () => {
@@ -515,30 +287,6 @@ test('reminder query covers ten minutes ahead and five minutes past, timer runs 
   assert.ok(lower <= before - 290000 && lower >= before - 310000);
   const config = JSON.parse(fs.readFileSync(path.join(root, 'cloudfunctions/team/config.json')));
   assert.equal(config.triggers[0].config, '0 */1 * * * * *');
-});
-
-test('parallel identical reads share a request; completed reads and writes are fresh', async () => {
-  let count = 0;
-  let finish;
-  const ctx = { module: { exports: {} }, wx: { cloud: { callFunction() {
-    count++;
-    return new Promise(resolve => { finish = () => resolve({ result: { ok: true } }); });
-  } } } };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/cloud.js'), 'utf8'), ctx);
-  const call = ctx.module.exports.callTeam;
-  const a = call('getTeam', { teamId: 't' });
-  const b = call('getTeam', { teamId: 't' });
-  assert.equal(a, b);
-  assert.equal(count, 1);
-  finish(); await a;
-  const c = call('getTeam', { teamId: 't' });
-  assert.equal(count, 2);
-  finish(); await c;
-  const d = call('joinTeam', { teamId: 't' });
-  const finishD = finish;
-  const e = call('joinTeam', { teamId: 't' });
-  assert.equal(count, 4);
-  finishD(); finish(); await Promise.all([d, e]);
 });
 
 test('there is no preference endpoint and sends go out unconditionally', async () => {
@@ -561,131 +309,6 @@ test('profile can be read back without any preference record', async () => {
   assert.equal(users.length, 1);
   assert.equal(users[0].notifyEnabled, undefined);
   assert.equal((await ctx.getProfile('new')).user.nickName, 'new player');
-});
-
-test('requestTeamNotify always asks the native panel and only trusts accept', async () => {
-  let calls = 0;
-  let answer = 'accept';
-  const ctx = {
-    module: { exports: {} }, require: () => ({ SUBSCRIBE_TMPL_ID: 'template' }),
-    wx: { requestSubscribeMessage({ success }) { calls++; success({ template: answer }); } },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/subscribe.js'), 'utf8'), ctx);
-  const request = ctx.module.exports.requestTeamNotify;
-  assert.equal(await request(), true);
-  assert.equal(calls, 1);
-  answer = 'reject';
-  assert.equal(await request(), false);
-  assert.equal(calls, 2);
-  assert.equal(ctx.module.exports.notifyPreferenceEnabled, undefined);
-});
-
-function minePage({ profile, teams } = {}) {
-  let page;
-  const app = { globalData: { user: {} } };
-  const callTeam = async (type) => {
-    if (type === 'getProfile') return profile || { user: null };
-    if (type === 'myTeams') return teams || { hosted: [], joined: [] };
-    return {};
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/mine/mine.js'), 'utf8'), {
-    Page: value => { page = value; }, getApp: () => app,
-    require: name => name.endsWith('/format') ? { decorateTeam: (team) => team }
-      : name.endsWith('/runtime') ? { isSinglePage: () => false }
-      : name.endsWith('/cloud') ? { showError() {}, callTeam }
-      : name.endsWith('/version') ? { getAppVersion: () => ({ text: 'v0.6.0' }) }
-      : name.endsWith('/share') ? require(path.join(root, 'miniprogram/utils/share.js'))
-      : name.endsWith('/team-entry') ? require(path.join(root, 'miniprogram/utils/team-entry.js'))
-      : {},
-    wx: {},
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  return { page, app };
-}
-
-test('mine page no longer exposes notification preference controls', () => {
-  const { page } = minePage();
-  assert.equal(page.onNotifyChange, undefined);
-  assert.equal(page.toggleSettings, undefined);
-  assert.equal(page.refreshWechatNotify, undefined);
-  assert.equal(page.openWechatNotifySettings, undefined);
-});
-
-test('mine profile card shows the signature and tab counts', async () => {
-  const { page } = minePage({
-    profile: { user: { nickName: '阿乐', bio: 'Steam 12345，晚上在线' }, isAdmin: false, isOrganizer: true },
-    teams: {
-      hosted: [{ _id: 'h1', ongoing: true }, { _id: 'h2', ongoing: false }],
-      joined: [{ _id: 'j1', ongoing: true }],
-    },
-  });
-  await page.load();
-  assert.equal(page.data.profileHint, 'Steam 12345，晚上在线');
-  assert.equal(page.data.hostedCount, 2);
-  assert.equal(page.data.joinedCount, 1);
-  assert.equal(page.data.isOrganizer, true);
-  // 没填签名时给引导文案。
-  const { page: bare } = minePage({ profile: { user: { nickName: '新玩家' } } });
-  await bare.load();
-  assert.equal(bare.data.profileHint, '写个签名，把 Steam 好友码放进去，队友加你好友');
-});
-
-test('legal page merges three docs into one entry that switches in place', () => {
-  let page;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/legal/legal.js'), 'utf8'), {
-    Page: value => { page = value; },
-    wx: { setNavigationBarTitle() {} },
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.onLoad({ type: 'agreement' });
-  assert.equal(page.data.activeType, 'agreement');
-  assert.deepEqual([...page.data.docs.map(d => d.key)], ['agreement', 'privacy', 'community']);
-  page.pickDoc({ currentTarget: { dataset: { type: 'community' } } });
-  assert.equal(page.data.activeType, 'community');
-  assert.equal(page.data.title, '社区公约');
-  // 未知类型回退到隐私政策。
-  page.onLoad({ type: 'nope' });
-  assert.equal(page.data.activeType, 'privacy');
-});
-
-test('mine tabs keep hosted/joined and ongoing/history lists separate', () => {
-  const { page } = minePage();
-  Object.assign(page.data, { hostedOngoing: ['h-now'], hostedPast: ['h-old'], joinedOngoing: ['j-now'], joinedPast: ['j-old'] });
-  page.updateVisibleTeams();
-  assert.deepEqual(page.data.visibleTeams, ['h-now']);
-  page.pickTeamTab({ currentTarget: { dataset: { tab: 'joined' } } });
-  assert.deepEqual(page.data.visibleTeams, ['j-now']);
-  page.pickPhase({ currentTarget: { dataset: { phase: 'Past' } } });
-  assert.deepEqual(page.data.visibleTeams, ['j-old']);
-  page.pickTeamTab({ currentTarget: { dataset: { tab: 'hosted' } } });
-  assert.deepEqual(page.data.visibleTeams, ['h-old']);
-});
-
-test('manage menu is host-only, drops republish, and dispatches edit/cancel', () => {
-  let page;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; }, require: () => ({}),
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.data.role = 'member';
-  page.onManage();
-  assert.equal(page.data.showManage, false);
-  page.data.role = 'host';
-  page.onManage();
-  assert.equal(page.data.showManage, true);
-  let selected;
-  page.onEdit = () => { selected = 'edit'; };
-  page.onCancel = () => { selected = 'cancel'; };
-  let republished = false;
-  page.onRepublish = () => { republished = true; };
-  page.onManageAction({ currentTarget: { dataset: { action: 'edit' } } });
-  assert.equal(selected, 'edit');
-  assert.equal(page.data.showManage, false);
-  // 「再发一趟」已从管理菜单移除，不会再被派发。
-  page.data.showManage = true;
-  page.onManageAction({ currentTarget: { dataset: { action: 'republish' } } });
-  assert.equal(republished, false);
-  assert.equal(selected, 'edit');
 });
 
 test('public profile saves the signature, preserves it when omitted and allows clearing', async () => {
@@ -717,7 +340,7 @@ test('room profile returns only nickName/avatar/bio and rejects unrelated member
   const ctx = backend({ teams: [{ _id: 't', gameName: 'CS2' }], members: [{ _id: 'm', teamId: 't', openid: 'u', nickName: '旧昵称' }, { _id: 'other', teamId: 'another', openid: 'u' }], users });
   const result = await ctx.getPublicProfile({ teamId: 't', memberId: 'm' });
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarBase64', 'bio', 'nickName'].sort());
+  assert.deepEqual(Object.keys(result.profile).sort(), ['avatarUrl', 'avatarFileID', 'avatarBase64', 'bio', 'nickName', 'groupIds', 'favoriteGames', 'playTimes', 'steamFriendCode', 'wechatId'].sort());
   assert.equal(result.profile.nickName, '最新昵称');
   assert.equal(result.profile.bio, 'Steam 00123');
   assert.equal(result.profile.privateField, undefined);
@@ -726,33 +349,6 @@ test('room profile returns only nickName/avatar/bio and rejects unrelated member
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'm' })).profile.bio, '');
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'other' })).ok, false);
   assert.equal((await ctx.getPublicProfile({ teamId: 't', memberId: 'missing' })).ok, false);
-});
-
-test('switching or closing member card ignores stale responses', async () => {
-  let page;
-  const pending = [];
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: () => ({ callTeam: () => new Promise(resolve => pending.push(resolve)) }),
-    wx: {},
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-  page.data.selectedMemberId = 'first';
-  const first = page.loadMemberProfile();
-  page.data.selectedMemberId = 'second';
-  const second = page.loadMemberProfile();
-  pending[1]({ profile: { nickName: 'second', bio: 'Steam 00123' } });
-  await second;
-  pending[0]({ profile: { nickName: 'first' } });
-  await first;
-  assert.equal(page.data.memberProfile.nickName, 'second');
-  assert.equal(page.data.memberProfile.bio, 'Steam 00123');
-  const closed = page.loadMemberProfile();
-  page.closeMemberProfile();
-  pending[2]({ profile: { nickName: 'late' } });
-  await closed;
-  assert.equal(page.data.memberProfile, null);
-  assert.equal(page.data.showMemberProfile, false);
 });
 
 test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
@@ -781,10 +377,10 @@ test('team duration cannot exceed 24 hours and allows exactly 24 hours', () => {
   assert.equal(ok.value.endAt - ok.value.startAt, 24 * 60 * 60 * 1000);
 });
 
-test('team note supports up to 500 characters and clamps beyond', () => {
+test('team note supports up to 1000 characters and clamps beyond', () => {
   const ctx = backend();
   const startAt = Date.now() + 60 * 1000;
-  const longNote = 'A'.repeat(550);
+  const longNote = '车'.repeat(1050);
   const validated = ctx.validateTeamInput({
     gameName: 'CS2',
     roomNo: '123456',
@@ -796,222 +392,10 @@ test('team note supports up to 500 characters and clamps beyond', () => {
     note: longNote,
   }, { isCreate: true });
   assert.equal(validated.error, undefined);
-  assert.equal(validated.value.note.length, 500);
-});
-
-test('detail note collapses when long or multi-line and can toggle expand', async () => {
-  let page;
-  let pageTeam;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/team/detail.js'), 'utf8'), {
-    Page: value => { page = value; },
-    require: () => ({
-      isSinglePage: () => false,
-      decorateTeam: (t) => t,
-      callTeam: async () => ({ team: pageTeam, members: [], role: 'member' }),
-      showError: () => {},
-      requestTeamNotify: async () => {},
-      resolveTeamId: (opts) => opts.id,
-      teamShareQuery: () => '',
-      usableTeamId: (id) => id,
-      bindCopyUrl: () => {},
-      unbindCopyUrl: () => {},
-    }),
-    wx: { setNavigationBarTitle() {} },
-  });
-  page.setData = patch => Object.assign(page.data, patch);
-
-  // 1. 短备注（<=80 字且 <=3 行）：不需要折叠
-  page.data.teamId = 't1';
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '短备注，无需折叠' };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, false);
-  assert.equal(page.data.noteExpanded, false);
-
-  // 2. 超长备注（>80 字）：折叠并支持展开/收起切换
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '这是超长的队伍说明备注，'.repeat(10) };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, true);
-  assert.equal(page.data.noteExpanded, false);
-  page.toggleNoteExpand();
-  assert.equal(page.data.noteExpanded, true);
-  page.toggleNoteExpand();
-  assert.equal(page.data.noteExpanded, false);
-
-  // 3. 多行备注（换行 > 3 行）：哪怕字数少也支持折叠
-  pageTeam = { _id: 't1', gameName: 'CS2', capacity: 5, note: '1. 规则一\n2. 规则二\n3. 规则三\n4. 规则四' };
-  await page.loadDetail();
-  assert.equal(page.data.noteCanFold, true);
-  assert.equal(page.data.noteExpanded, false);
-});
-
-test('welcome letter shows once then stays dismissed', () => {
-  const store = {};
-  const navigated = [];
-  const tabBar = [];
-  let comp;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
-    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
-    Component: value => { comp = value; },
-    wx: {
-      getStorageSync: key => store[key],
-      setStorageSync: (key, value) => { store[key] = value; },
-      navigateTo: ({ url }) => navigated.push(url),
-      hideTabBar: () => tabBar.push('hide'),
-      showTabBar: () => tabBar.push('show'),
-    },
-  });
-  comp.data = { show: false };
-  comp.setData = patch => Object.assign(comp.data, patch);
-  Object.assign(comp, comp.methods);
-  comp.lifetimes.attached.call(comp);
-  assert.equal(comp.data.show, true);
-  assert.deepEqual(tabBar, ['hide']);
-  comp.openRules();
-  assert.equal(store.welcomeLetterV2, 1);
-  assert.equal(comp.data.show, false);
-  assert.deepEqual(navigated, ['/pages/legal/legal?type=community']);
-  assert.deepEqual(tabBar, ['hide', 'show']);
-  comp.lifetimes.attached.call(comp);
-  assert.equal(comp.data.show, false);
-  const other = { data: { show: true }, setData: patch => Object.assign(other.data, patch) };
-  Object.assign(other, comp.methods, { lifetimes: comp.lifetimes, pageLifetimes: comp.pageLifetimes });
-  other.pageLifetimes.show.call(other);
-  assert.equal(other.data.show, false);
-});
-
-test('welcome letter can open feedback', () => {
-  const store = {};
-  const navigated = [];
-  let comp;
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/components/welcome-letter/index.js'), 'utf8'), {
-    require: () => require(path.join(root, "miniprogram/utils/runtime.js")),
-    Component: value => { comp = value; },
-    wx: {
-      getStorageSync: key => store[key],
-      setStorageSync: (key, value) => { store[key] = value; },
-      navigateTo: ({ url }) => navigated.push(url),
-      hideTabBar() {},
-      showTabBar() {},
-    },
-  });
-  comp.data = { show: true };
-  comp.setData = patch => Object.assign(comp.data, patch);
-  Object.assign(comp, comp.methods);
-  comp.openFeedback();
-  assert.equal(store.welcomeLetterV2, 1);
-  assert.equal(comp.data.show, false);
-  assert.deepEqual(navigated, ['/pages/feedback/feedback']);
-});
-
-function publishPage(searchUsers) {
-  let page;
-  const app = { globalData: { editingTeamId: null, republishTeam: null } };
-  const calls = [];
-  const toasts = [];
-  const now = Date.now();
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/publish/publish.js'), 'utf8'), {
-    setTimeout,
-    clearTimeout,
-    Page: value => { page = value; },
-    getApp: () => app,
-    require: (name) => {
-      if (name.endsWith('/runtime')) return require(path.join(root, 'miniprogram/utils/runtime.js'));
-      if (name.endsWith('/constants')) return { PLATFORMS: ['Steam', '手游'], VOICES: ['KOOK', '开麦'], MAX_TEAM_HOURS: 24 };
-      if (name.endsWith('/format')) {
-        return {
-          dateParts: (ts) => {
-            const t = Number(ts) || now;
-            return { date: '2026-09-09', time: t > now + 1800000 ? '22:00' : '21:00' };
-          },
-          combineDateTime: (date, time) => time === '22:00' ? now + 7200000 : now + 3600000,
-          defaultStartAt: () => now + 60000,
-          defaultEndAt: (start) => start + 3600000,
-        };
-      }
-      if (name.endsWith('/cloud')) {
-        return {
-          callTeam: async (type, data) => {
-            calls.push([type, data]);
-            if (type === 'searchProxyUsers' && searchUsers) return searchUsers(data);
-            if (type === 'getTeam') {
-              return {
-                team: {
-                  gameName: 'CS2',
-                  startAt: now + 60000,
-                  endAt: now + 7200000,
-                  capacity: 5,
-                  platform: 'Steam',
-                  voice: 'KOOK',
-                  roomNo: '123456',
-                  roomPwd: '',
-                  server: '',
-                  rankReq: '',
-                  note: '',
-                },
-              };
-            }
-            return { teamId: 'created' };
-          },
-          showError() {},
-        };
-      }
-      if (name.endsWith('/subscribe')) return { requestTeamNotify: async () => true };
-      if (name.endsWith('/share')) return require(path.join(root, 'miniprogram/utils/share.js'));
-      if (name.endsWith('/team-entry')) return require(path.join(root, 'miniprogram/utils/team-entry.js'));
-      if (name.endsWith('/games')) return require(path.join(root, 'miniprogram/utils/games.js'));
-      if (name.endsWith('/publish-form')) return require(path.join(root, 'miniprogram/utils/publish-form.js'));
-      return {};
-    },
-    wx: {
-      showLoading() {},
-      hideLoading() {},
-      showToast({ title }) { toasts.push(title); },
-      navigateTo() {},
-    },
-  });
-  page.setData = (patch) => Object.assign(page.data, patch);
-  return { page, app, calls, toasts };
-}
-
-test('editing a team survives a second onShow and updates instead of creating', async () => {
-  const { page, app, calls } = publishPage();
-  app.globalData.editingTeamId = 'team-1';
-  await page.onShow();
-  assert.equal(page.data.editingId, 'team-1');
-  app.globalData.editingTeamId = null;
-  await page.onShow();
-  assert.equal(page.data.editingId, 'team-1');
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.deepEqual(calls.map((item) => item[0]), ['getTeam', 'updateTeam']);
-  assert.equal(calls[1][1].teamId, 'team-1');
-  assert.equal(page.data.editingId, '');
-});
-
-test('successful create clears the form so a second submit does not post again', async () => {
-  const { page, calls } = publishPage();
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  assert.equal(page.data.gameName, '');
-  await page.onSubmit();
-  assert.equal(calls.length, 1);
-});
-
-test('publish prefills a game from the landing page and suggested chips', async () => {
-  const { page, app } = publishPage();
-  app.globalData.prefillGame = { name: '三角洲行动', platform: 'Steam' };
-  await page.onShow();
-  assert.equal(page.data.gameName, '三角洲行动');
-  assert.equal(page.data.platform, 'Steam');
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'naraka' } } });
-  assert.equal(page.data.gameName, '永劫无间');
-  assert.equal(page.data.platform, 'Steam');
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
-  assert.equal(page.data.gameName, '王者荣耀');
-  assert.equal(page.data.platform, '手游');
+  assert.equal(validated.value.note, '车'.repeat(1000));
+  const edited = ctx.validateTeamInput({ ...validated.value, note: '玩'.repeat(1000) }, { isCreate: false });
+  assert.equal(edited.error, undefined);
+  assert.equal(edited.value.note, '玩'.repeat(1000));
 });
 
 test('feedback rejects blank template, emails when SMTP is set, and cools down', async () => {
@@ -1147,8 +531,8 @@ test('lobby paginates by createdAt desc and reports hasMore/nextOffset', async (
   const page = await ctx2.listTeams({ offset: 0, limit: 2 }, '');
   assert.deepEqual([...page.list.map(t => t._id)], ['live3', 'live2']);
   assert.equal(page.hasMore, true);
-  // 凑满一页即停，nextOffset 指向下一条未消费的原始记录（已取消项会被跳过）。
-  assert.equal(page.nextOffset, 3);
+  // offset counts filtered results, not discarded raw database rows.
+  assert.equal(page.nextOffset, 2);
   const rest = await ctx2.listTeams({ offset: page.nextOffset, limit: 5 }, '');
   assert.deepEqual([...rest.list.map(t => t._id)], ['live1']);
   assert.equal(rest.hasMore, false);
@@ -1159,35 +543,8 @@ test('lobby paginates by createdAt desc and reports hasMore/nextOffset', async (
   assert.equal(capped.hasMore, true);
 });
 
-test('app version reads the backend on release and local APP_VERSION elsewhere', () => {
-  const load = info => {
-    const mod = { exports: {} };
-    vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/version.js'), 'utf8'), {
-      require: () => ({ APP_VERSION: '1.6.1' }),
-      module: mod,
-      wx: { getAccountInfoSync: () => ({ miniProgram: info }) },
-    });
-    return mod.exports;
-  };
-  // 开发版/体验版取本地 APP_VERSION，带环境标注。
-  let ver = load({ envVersion: 'develop', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 开发版');
-  assert.equal(ver.version, '1.6.1');
-  ver = load({ envVersion: 'trial', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 体验版');
-  // 正式版取微信后台上传的版本号，允许与本地不同，且不显示环境标注。
-  ver = load({ envVersion: 'release', version: '1.6.1' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1');
-  ver = load({ envVersion: 'release', version: '1.5.0' }).getAppVersion();
-  assert.equal(ver.text, 'v1.5.0');
-  assert.equal(ver.version, '1.5.0');
-  // 正式版拿不到后台版本号时回退到本地 APP_VERSION，并补上标注。
-  ver = load({ envVersion: 'release', version: '' }).getAppVersion();
-  assert.equal(ver.text, 'v1.6.1 · 正式版');
-});
-
 test('lobby sorts by creation or heat, defaulting to newest first', () => {
-  const { SORT_MODES, sortTeams } = require(path.join(root, 'miniprogram/utils/lobby.js'));
+  const { SORT_MODES, sortTeams } = loadUtility('lobby');
   const ids = list => list.map(t => t._id);
   const now = Date.now();
   const teams = [
@@ -1199,11 +556,11 @@ test('lobby sorts by creation or heat, defaulting to newest first', () => {
   assert.equal(sortTeams(teams)[0]._id, 'new');
   assert.deepEqual(ids(sortTeams(teams, 'latest')), ['new', 'mid', 'old']);
   assert.equal(sortTeams(teams, 'not-a-mode')[0]._id, 'new');
-  // 热度按上车人数；人数相同再按最新创建。
+  // 浏览和互动决定热度，同热度再按最新创建；上车人数不参与。
   const tie = [
-    { _id: 'a', createdAt: now - 1000, memberCount: 3 },
-    { _id: 'b', createdAt: now - 90000, memberCount: 3 },
-    { _id: 'c', createdAt: now - 5000, memberCount: 4 },
+    { _id: 'a', createdAt: now - 1000, memberCount: 3, viewCount: 3 },
+    { _id: 'b', createdAt: now - 90000, memberCount: 5, viewCount: 3 },
+    { _id: 'c', createdAt: now - 5000, memberCount: 1, reactions: { counts: { like: 2 } } },
   ];
   assert.deepEqual(ids(sortTeams(tie, 'hot')), ['c', 'a', 'b']);
   // 目前只提供最新 / 最热两档。
@@ -1215,7 +572,7 @@ test('lobby sorts by creation or heat, defaulting to newest first', () => {
 });
 
 test('lobby search matches game, server, rank and note, and composes with filters', () => {
-  const { matchKeyword, buildLobbyView } = require(path.join(root, 'miniprogram/utils/lobby.js'));
+  const { matchKeyword, buildLobbyView } = loadUtility('lobby');
   const teams = [
     { _id: 'a', gameName: 'CS2', server: '国服', rankReq: '上分', note: '萌新友好', createdAt: 300 },
     { _id: 'b', gameName: '永劫无间', server: '亚服', rankReq: '', note: '', createdAt: 200 },
@@ -1233,45 +590,9 @@ test('lobby search matches game, server, rank and note, and composes with filter
   assert.equal(matchKeyword(teams[1], '不存在'), false);
   // 搜索 + 游戏筛选 + 排序叠加：先搜「服」→ 三条都中，再筛 CS2 → a、c，再按最新在前 → a、c。
   assert.deepEqual(buildLobbyView(teams, { keyword: '服', gameFilter: 'CS2', sortMode: 'latest' }).map(t => t._id), ['a', 'c']);
-  // 只搜索不筛选，按最热（人数缺省为 0，回落到创建时间）排序。
+  // 只搜索不筛选，默认仍按创建时间排序。
   assert.deepEqual(buildLobbyView(teams, { keyword: 'CS2' }).map(t => t._id), ['a', 'c']);
   assert.deepEqual(buildLobbyView(teams, { keyword: '不存在' }), []);
-});
-
-test('returning to the lobby resets the game filter back to 全部', async () => {
-  let page;
-  const teams = [
-    { _id: 'a', gameName: 'CS2', createdAt: 200 },
-    { _id: 'b', gameName: '永劫无间', createdAt: 100 },
-  ];
-  const ctx = {
-    Page: (p) => { page = p; },
-    require: (name) => {
-      if (name.endsWith('/runtime')) return { isSinglePage: () => false };
-      if (name.endsWith('/share')) return { plazaShare: () => ({ title: 't', path: '/pages/index/index', query: '' }), bindCopyUrl() {}, unbindCopyUrl() {} };
-      if (name.endsWith('/cloud')) return { callTeam: async () => ({ list: teams, hasMore: false, nextOffset: teams.length }), showError() {} };
-      return require(path.resolve(root, 'miniprogram/pages/index', name));
-    },
-    wx: { onCopyUrl() {}, offCopyUrl() {} },
-  };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/pages/index/index.js'), 'utf8'), ctx);
-  page.setData = function (patch) { Object.assign(this.data, patch); };
-
-  page.onShow();
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(page.data.gameFilter, '全部');
-  assert.equal(page.data.filtered.length, 2);
-
-  page.pickGame({ currentTarget: { dataset: { name: 'CS2' } } });
-  assert.equal(page.data.gameFilter, 'CS2');
-  // filtered 数组来自 vm 上下文，原型不同不能直接 deepEqual，用 join 比较。
-  assert.equal(page.data.filtered.map((t) => t._id).join(','), 'a');
-
-  // 模拟切到别的页面再回来：onShow 重跑，筛选必须回到默认的「全部」。
-  page.onShow();
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(page.data.gameFilter, '全部');
-  assert.equal(page.data.filtered.length, 2);
 });
 
 test('permanent subscribe errors stop retrying inside the reminder window', async () => {
@@ -1837,124 +1158,11 @@ test('ORGANIZER_OPENIDS env grants proxy access and cannot be toggled in admin',
   assert.equal(blocked.ok, false);
 });
 
-
-test('proxy search ignores results after switch off, input clear, or host change', async () => {
-  for (const action of [
-    page => page.toggleProxy({ detail: { value: false } }),
-    page => page.onProxyKeyword({ detail: { value: '' } }),
-    page => page.clearProxyHost(),
-    page => page.pickProxyHost({ currentTarget: { dataset: { host: { userId: 'chosen', nickName: '选中的群友' } } } }),
-  ]) {
-    let resolve;
-    const { page } = publishPage(() => new Promise(done => { resolve = done; }));
-    page.setData({ canProxy: true, proxyMode: true, proxyKeyword: '旧昵称' });
-    const pending = page.searchProxyUsers('旧昵称');
-    action(page);
-    resolve({ list: [{ userId: 'stale', nickName: '旧昵称' }] });
-    await pending;
-    assert.equal(page.data.proxyResults.length, 0);
-    assert.equal(page.data.proxySearching, false);
-  }
-});
-
-test('proxy switch uses checked value and more settings preserve entered fields', () => {
-  const { page } = publishPage();
-  page.setData({ canProxy: true, roomNo: '123', note: '娱乐局' });
-  page.toggleProxy({ detail: { value: true } });
-  assert.equal(page.data.proxyMode, true);
-  page.toggleProxy({ detail: { value: false } });
-  assert.equal(page.data.proxyMode, false);
-  page.toggleMore();
-  page.toggleMore();
-  assert.equal(page.data.showMore, false);
-  assert.equal(page.data.roomNo, '123');
-  assert.equal(page.data.note, '娱乐局');
-});
-
-test('publish form starts collapsed and time presets still submit startAt/endAt', async () => {
-  const { page, calls, toasts } = publishPage();
-  assert.equal(page.data.showMore, false);
-  assert.equal(page.data.startPreset, 'custom');
-  page.pickStartPreset({ currentTarget: { dataset: { key: 'now' } } });
-  assert.equal(page.data.startPreset, 'now');
-  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
-  assert.equal(page.data.durationHours, 3);
-  page.pickStartPreset({ currentTarget: { dataset: { key: 'custom' } } });
-  assert.equal(page.data.startPreset, 'custom');
-  const team = page.buildTeam();
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startAt'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'endAt'), true);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'startPreset'), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(team, 'durationHours'), false);
-  await page.onSubmit();
-  assert.equal(toasts[0], '请选择游戏');
-  assert.equal(calls.length, 0);
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  assert.deepEqual(Object.keys(calls[0][1].team).sort(), [
-    'capacity', 'endAt', 'gameName', 'note', 'platform', 'rankReq', 'roomNo', 'roomPwd', 'server', 'startAt', 'voice',
-  ]);
-});
-
-test('picking a mobile game only reorders existing platform values', () => {
-  const { page } = publishPage();
-  page.pickSuggestedGame({ currentTarget: { dataset: { slug: 'wangzhe' } } });
-  assert.equal(page.data.gameName, '王者荣耀');
-  assert.equal(page.data.platform, '手游');
-  assert.deepEqual(page.data.platforms, ['手游', 'Steam']);
-});
-
-test('custom duration picker sets minutes and recomputes endAt, never exceeds 24h', () => {
-  const { page } = publishPage();
-  // 默认时长来自 defaultEndAt（mock 里 +1h → 60 分钟）
-  assert.equal(page.data.durationMinutes, 60);
-  // 选 30 分钟
-  page.pickCustomDuration({ detail: { value: 0 } });
-  assert.equal(page.data.durationMinutes, 30);
-  assert.equal(page.data.durationHours, 0);
-  assert.equal(page.data.durationLabel, '30分钟');
-  // 选 24 小时（最后一项）
-  const last = page.data.durationPickerLabels.length - 1;
-  page.pickCustomDuration({ detail: { value: last } });
-  assert.equal(page.data.durationMinutes, 1440);
-  assert.equal(page.data.durationLabel, '24小时');
-  // 越界 index 不生效
-  page.pickCustomDuration({ detail: { value: 999 } });
-  assert.equal(page.data.durationMinutes, 1440);
-});
-
-test('changing start time auto-recomputes endAt from current duration', () => {
-  const { page } = publishPage();
-  page.pickDuration({ currentTarget: { dataset: { hours: 3 } } });
-  assert.equal(page.data.durationMinutes, 180);
-  const before = page.buildTeam().endAt;
-  // 改开始时间，结束时间应跟随（mock 的 combineDateTime 让 endAt 随 startTime 变化）
-  page.onStartTime({ detail: { value: '22:00' } });
-  const after = page.buildTeam().endAt;
-  assert.ok(after >= before - 60 * 60 * 1000);
-  assert.equal(page.data.durationMinutes, 180);
-});
-
-test('durationMinutes and durationLabel never enter the submit payload', async () => {
-  const { page, calls } = publishPage();
-  page.pickCustomDuration({ detail: { value: 2 } }); // 1小时
-  page.data.gameName = 'CS2';
-  page.data.roomNo = '123456';
-  await page.onSubmit();
-  assert.equal(calls[0][0], 'createTeam');
-  const keys = Object.keys(calls[0][1].team);
-  assert.equal(keys.indexOf('durationMinutes'), -1);
-  assert.equal(keys.indexOf('durationLabel'), -1);
-  assert.equal(keys.indexOf('durationHours'), -1);
-});
-
 test('cloud requires a room / join method for creating and editing', () => {
   const ctx = backend();
   for (const isCreate of [true, false]) {
     for (const roomNo of [undefined, '', '   ', '\t\n']) {
-      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写房间 / 加入方式');
+      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写车头的好友码或联系方式');
     }
     const valid = ctx.validateTeamInput({ ...teamPayload(), roomNo: '  Steam 好友代码 123456  ' }, { isCreate });
     assert.equal(valid.error, undefined);
@@ -1963,24 +1171,447 @@ test('cloud requires a room / join method for creating and editing', () => {
   }
 });
 
-test('publish blocks empty room / join method before creating or updating', async () => {
-  for (const editing of [false, true]) {
-    const { page, app, calls, toasts } = publishPage();
-    if (editing) {
-      app.globalData.editingTeamId = 'team-1';
-      await page.onShow();
-      calls.length = 0;
-    }
-    page.setData({ gameName: 'CS2', roomNo: '   ' });
-    let anchor;
-    page.scrollToField = (id) => { anchor = id; };
-    await page.onSubmit();
-    assert.equal(calls.length, 0);
-    assert.equal(toasts[0], '请填写房间 / 加入方式');
-    assert.equal(anchor, 'field-room');
-    page.setData({ roomNo: '  123456  ' });
-    await page.onSubmit();
-    assert.equal(calls[0][0], editing ? 'updateTeam' : 'createTeam');
-    assert.equal(calls[0][1].team.roomNo, '123456');
+test('reaction retries, switches and cancellations maintain one vote per actor, even on ended teams', async () => {
+  const team = { _id: 't', gameName: 'CS2', status: 'recruiting', endAt: Date.now() - 1000 };
+  const ctx = backend({ teams: [team] });
+  const vote = (reaction, actor = 'a') => ctx.setReaction({ teamId: 't', reaction }, actor);
+  assert.equal((await vote('like')).reactions.counts.like, 1);
+  assert.equal((await vote('like')).reactions.counts.like, 1);
+  assert.equal((await vote('like', 'b')).reactions.counts.like, 2);
+  const changed = await vote('fire');
+  assert.equal(changed.reactions.counts.like, 1);
+  assert.equal(changed.reactions.counts.fire, 1);
+  assert.equal(changed.reactions.mine, 'fire');
+  const cancel = await vote('');
+  assert.equal(cancel.reactions.counts.fire, 0);
+  assert.equal(cancel.reactions.counts.like, 1);
+  assert.equal((await vote('')).reactions.counts.like, 1);
+  const summary = await ctx.readReactionSummary('t', 'b');
+  assert.equal(summary.mine, 'like');
+  assert.deepEqual(Object.keys(summary).sort(), ['counts', 'mine', 'selected']);
+  assert.equal(JSON.stringify(summary).includes('openid'), false);
+});
+test('reaction rejects invalid values, missing teams, banned users and rate limits without changing counts', async () => {
+  const team = { _id: 't', gameName: 'CS2', status: 'recruiting' };
+  const ctx = backend({ teams: [team] });
+  assert.equal((await ctx.setReaction({ teamId: 't', reaction: 'custom' }, 'a')).ok, false);
+  assert.equal((await ctx.setReaction({ teamId: 'missing', reaction: 'like' }, 'a')).ok, false);
+  const banned = backend({ teams: [team], users: [{ _id: 'bad', banned: true }] });
+  await assert.rejects(banned.setReaction({ teamId: 't', reaction: 'like' }, 'bad'), { code: 'BANNED' });
+  const limited = backend({ teams: [team], rateLimits: [{ _id: 'setReaction_a', hits: Array(30).fill(Date.now()) }] });
+  assert.equal((await limited.setReaction({ teamId: 't', reaction: 'like' }, 'a')).ok, false);
+  assert.equal(team.reactionCounts, undefined);
+});
+
+test('server search covers later database batches before filtering, sorting and paging', async () => {
+  const now = Date.now();
+  const teams = Array.from({ length: 240 }, (_, i) => ({
+    _id: 'row-' + i, gameName: i >= 220 ? 'CS2' : '王者荣耀', platform: 'Steam',
+    server: '国服', voice: 'KOOK', rankReq: '娱乐',
+    roomPwd: 'secret', capacity: 5, memberCount: 2, status: 'recruiting',
+    startAt: now + 600000, endAt: now + 3600000, createdAt: i,
+  }));
+  teams[239].memberCount = 5;
+  const ctx = backend({ teams, paginate: true });
+  const query = { keyword: '娱乐', gameName: 'CS2', availableOnly: true, limit: 3 };
+  const first = await ctx.listTeams(query, '');
+  assert.equal(first.total, 19);
+  assert.deepEqual([...first.list.map(t => t._id)], ['row-238', 'row-237', 'row-236']);
+  assert.equal(first.list[0].roomPwd, '');
+  assert.equal(first.list[0].mark, undefined, 'anonymous readers never inherit host marks');
+  const next = await ctx.listTeams({ ...query, offset: first.nextOffset }, '');
+  assert.deepEqual([...next.list.map(t => t._id)], ['row-235', 'row-234', 'row-233']);
+  assert.equal(new Set([...first.list, ...next.list].map(t => t._id)).size, 6);
+  assert.equal((await ctx.listTeams({ ...query, platform: '手游' }, '')).total, 0);
+  assert.equal((await ctx.listTeams({ ...query, keyword: 'does not exist' }, '')).hasMore, false);
+});
+
+test('server game aliases, time filters, full teams and global sorting compose', async () => {
+  const now = Date.now();
+  const base = { ...teamPayload(), platform: 'Steam', memberCount: 2, status: 'recruiting', createdAt: 1 };
+  const teams = [
+    { ...base, _id: 'a', gameName: 'CS:GO', startAt: now - 1000, endAt: now + 3600000 },
+    { ...base, _id: 'b', gameName: 'cs 2', startAt: now + 600000, memberCount: 4, viewCount: 8 },
+    { ...base, _id: 'c', gameName: 'CS2', startAt: now + 600000, memberCount: 5, createdAt: 999 },
+    { ...base, _id: 'd', gameName: 'CS2', startAt: now + 7200000, endAt: now + 10800000 },
+  ];
+  const ctx = backend({ teams });
+  const query = { gameNames: ['CS2', 'csgo'], availableOnly: true };
+  assert.deepEqual([...(await ctx.listTeams({ ...query, time: 'now' }, '')).list.map(t => t._id)], ['a']);
+  assert.deepEqual([...(await ctx.listTeams({ ...query, time: 'soon' }, '')).list.map(t => t._id)], ['b']);
+  const all = await ctx.listTeams({ ...query, availableOnly: false, sortMode: 'hot' }, '');
+  assert.equal(all.total, 4);
+  assert.equal(all.list[0]._id, 'b');
+  assert.equal(all.list[1]._id, 'c', 'equal heat falls back to creation time even for full teams');
+});
+
+test('editing revalidates current member count and cancellation inside its transaction', async () => {
+  for (const mutate of [t => { t.memberCount = 5; }, t => { t.status = 'cancelled'; }]) {
+    const team = { _id: 't', ...teamPayload(), openid: 'host', memberCount: 2, status: 'recruiting' };
+    const ctx = backend({ teams: [team], users: [{ _id: 'host', nickName: '车头' }], beforeTransaction: () => mutate(team) });
+    const res = await ctx.updateTeam({ teamId: 't', team: { ...teamPayload(), capacity: 3 } }, 'host');
+    assert.equal(res.ok, false);
+    assert.equal(team.capacity, 5);
+  }
+});
+
+test('editing records only changed field names and keeps private values out of the public payload', async () => {
+  const team = { _id: 't', ...teamPayload(), openid: 'host', memberCount: 2, status: 'recruiting' };
+  const ctx = backend({ teams: [team], users: [{ _id: 'host', nickName: '车头' }] });
+  const res = await ctx.updateTeam({ teamId: 't', team: { roomPwd: 'new-secret', server: '欧服' } }, 'host');
+  assert.equal(res.ok, true);
+  assert.ok(team.detailsChangedAt);
+  assert.ok(team.changedFields.includes('server'));
+  assert.ok(team.changedFields.includes('roomPwd'));
+  assert.equal(ctx.stripSecret(team, false).roomPwd, '');
+  assert.equal(ctx.validateTeamInput({ ...teamPayload(), capacity: 2.5 }, { isCreate: true }).error, '人数需在 2–20 之间');
+});
+
+test('behavior events deduplicate per user/team/day and admin statistics do not treat copies as attendance', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, createdAt: Date.now(), status: 'recruiting' };
+  const ctx = backend({ teams: [team], env: { ADMIN_OPENIDS: 'admin' } });
+  for (const kind of ['share_view', 'copy_room', 'copy_room']) await ctx.trackTeamEvent({ teamId: 't', kind }, 'visitor');
+  await ctx.recordTeamEvent('t', 'visitor', 'join');
+  const stats = (await ctx.adminOverview('admin')).stats;
+  assert.equal(stats.funnel.shareVisitors, 1);
+  assert.equal(stats.funnel.shareJoined, 1);
+  assert.equal(stats.funnel.roomCopies, 1);
+  assert.equal(stats.funnel.withMembers, 1);
+  assert.equal(stats.funnel.full, 0);
+  assert.equal((await ctx.trackTeamEvent({ teamId: 't', kind: 'fake' }, 'visitor')).ok, false);
+  assert.equal((await ctx.adminOverview('visitor')).ok, false);
+});
+
+
+
+
+test('team lists return each viewer reaction without leaking identity', async () => {
+  const team = { ...teamPayload(), _id: 't', openid: 'host', memberCount: 1, status: 'recruiting' };
+  const ctx = backend({ teams: [team], members: [{ _id: 'm', teamId: 't', openid: 'host', role: 'host' }] });
+  await ctx.setReaction({ teamId: 't', reaction: 'fire' }, 'visitor');
+  const visitor = (await ctx.listTeams({}, 'visitor')).list[0];
+  assert.equal(visitor.reactions.mine, 'fire');
+  assert.equal(visitor.reactions.counts.fire, 1);
+  assert.equal(visitor.openid, undefined);
+  assert.equal((await ctx.listTeams({}, 'host')).list[0].reactions.mine, '');
+  assert.equal((await ctx.myTeams('host')).hosted[0].reactions.counts.fire, 1);
+});
+
+test('retired weekly and manual daily departures cannot create a second activity car', async () => {
+  const teams = [], members = [];
+  const ctx = backend({ teams, members, users: [{ _id: 'u', nickName: '玩家' }] });
+  ctx.getOpenid = async () => 'u';
+  assert.equal((await ctx.createTeam({ team: { ...teamPayload(), weeklyId: '2026-10-23' } }, 'u')).ok, false);
+  for (const type of ['getWeeklyPlay', 'votePlay', 'launchPlayOption']) {
+    const result = await ctx.exports.main({ type });
+    assert.equal(result.ok, false);
+    assert.match(result.errMsg, /每日16:00/);
+  }
+  assert.equal(teams.length, 0);
+  assert.equal(members.length, 0);
+});
+
+test('editing weekly game or start time detaches the team from the activity without cancelling it', async () => {
+  const teams=[{_id:'w',...teamPayload(),weeklyId:'2026-10-23',openid:'u',memberCount:1,status:'recruiting'}];
+  const ctx=backend({teams,users:[{_id:'u',nickName:'玩家'}]});
+  assert.equal((await ctx.updateTeam({teamId:'w',team:{gameName:'DOTA2'}},'u')).ok,true);
+  assert.equal(teams[0].weeklyId,'');
+  assert.equal(teams[0].status,'recruiting');
+});
+
+test('daily cars remain visible in the lobby and personal teams; room info can change while the agreed game/time stays fixed', async () => {
+  const teams = [{ _id: 'daily', ...teamPayload(), platform: 'Steam', dailyOptionId: 'choice', openid: 'host', memberCount: 2, status: 'recruiting' }];
+  const members = [{ _id: 'host-member', teamId: 'daily', openid: 'host', role: 'host' }, { _id: 'member', teamId: 'daily', openid: 'voter', role: 'member' }];
+  const ctx = backend({ teams, members, users: [{ _id: 'host', nickName: '车头' }] });
+  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, 'daily');
+  assert.equal((await ctx.myTeams('voter')).joined[0]._id, 'daily');
+  assert.equal((await ctx.updateTeam({ teamId: 'daily', team: { roomNo: 'Steam 好友加入' } }, 'host')).ok, true);
+  assert.equal(teams[0].roomNo, 'Steam 好友加入');
+  for (const patch of [{ gameName: '双人成行' }, { startAt: teams[0].startAt + 60000 }, { endAt: teams[0].endAt + 60000 }, { platform: '手游' }]) {
+    assert.equal((await ctx.updateTeam({ teamId: 'daily', team: patch }, 'host')).ok, false);
+  }
+});
+
+test('real timer creates an unowned car; claiming requires full form and then normal passengers can join', async () => {
+  const teams = [], members = [];
+  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }, { _id: 'blocked', nickName: '封禁', banned: true }] });
+  let at = Date.parse('2026-10-20T15:00:00+08:00');
+  ctx.nowMs = () => at;
+  let actor = 'a';
+  ctx.getOpenid = async () => actor;
+  const input = { type: 'createPlayOption', gameName: '饥荒联机版', platform: 'Steam', requestId: 'integration-key' };
+  const created = await ctx.exports.main(input);
+  assert.equal(created.ok, true);
+  const optionId = created.board.options[0].id;
+  actor = 'blocked';
+  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true })).ok, false);
+  actor = 'b';
+  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true, openid: 'forged-user' })).ok, true);
+  assert.equal(teams.length, 0);
+  at = Date.parse('2026-10-20T16:00:00+08:00');
+  const tick = await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
+  assert.equal(tick.ok, true);
+  const board = (await ctx.exports.main({ type: 'getDailyPlay' })).board;
+  assert.equal(teams.length, 1);
+  assert.equal(teams[0].openid, undefined);
+  assert.equal(teams[0].memberCount, 0);
+  assert.equal(members.length, 0);
+  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, board.teamId);
+  assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'b')).ok, false);
+  const teamInput = { gameName: teams[0].gameName, platform: teams[0].platform, startAt: teams[0].startAt, endAt: teams[0].endAt, capacity: teams[0].capacity, roomNo: '' };
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
+  teamInput.roomNo = '待填写';
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
+  teamInput.roomNo = 'Steam好友码123';
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: { ...teamInput, gameName: '改名' } }, 'b')).ok, false);
+  const claimed = await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b');
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.teamId, board.teamId);
+  assert.equal(teams[0].openid, 'b');
+  assert.equal(teams[0].memberCount, 1);
+  assert.equal(teams[0].pendingHost, false);
+  assert.deepEqual(members.map(m => m.openid), ['b']);
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, true);
+  assert.equal(members.length, 1);
+  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'a')).ok, false);
+  assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'a')).ok, true);
+  assert.equal(teams[0].memberCount, 2);
+  assert.equal((await ctx.myTeams('b')).hosted[0]._id, board.teamId);
+  await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
+  assert.equal(teams.length, 1);
+});
+
+test('custom game names require an explicit security pass; review, risky, malformed and outages never publish', async () => {
+  const cases = [
+    async () => ({ errCode: 0, result: { suggest: 'review' } }),
+    async () => ({ errCode: 0, result: { suggest: 'risky' } }),
+    async () => ({ errCode: 0 }),
+    async () => { throw new Error('security offline'); },
+  ];
+  for (const msgCheck of cases) {
+    const ctx = backend({ users: [{ _id: 'a', nickName: 'A' }], msgCheck });
+    ctx.nowMs = () => Date.parse('2026-10-20T15:00:00+08:00');
+    ctx.getOpenid = async () => 'a';
+    const result = await ctx.exports.main({ type: 'createPlayOption', gameName: '自定义游戏', platform: 'Steam', requestId: 'secure-key' });
+    assert.equal(result.ok, false);
+    assert.match(result.errMsg, /安全检测/);
+    assert.equal((await ctx.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+  }
+});
+
+test('all four reactions are mutually exclusive, switching updates counts and retries remain idempotent', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting' };
+  const ctx = backend({ teams: [team] });
+  const react = (reaction, enabled = true, actor = 'a') => ctx.setReaction({ teamId: 't', reaction, enabled }, actor);
+  await ctx.setReaction({ teamId: 't', reaction: 'watch' }, 'a');
+  for (const reaction of ['like', 'dislike', 'love', 'next', 'like']) {
+    const result = await react(reaction);
+    assert.deepEqual(Array.from(result.reactions.selected), [reaction]);
+    for (const id of ['like', 'dislike', 'love', 'next', 'watch'])
+      assert.equal(result.reactions.counts[id], id === reaction ? 1 : 0);
+  }
+  await react('like');
+  assert.equal(team.reactionCounts.like, 1);
+  await react('love', true, 'b');
+  const staleCancel = await react('next', false);
+  assert.equal(staleCancel.reactions.mine, 'like');
+  await react('like', false);
+  const cancelled = await react('like', false);
+  assert.deepEqual(Array.from(cancelled.reactions.selected), []);
+  assert.equal(cancelled.reactions.counts.like, 0);
+  assert.equal(cancelled.reactions.counts.love, 1);
+  assert.equal((await react('watch')).ok, false);
+});
+test('a new reaction reconciles legacy combined selections and their aggregate counts', async () => {
+  const key = require('node:crypto').createHash('sha256').update(JSON.stringify(['t', 'a'])).digest('hex');
+  const team = { _id: 't', ...teamPayload(), reactionCounts: {like: 2, love: 1, next: 1} };
+  const ctx = backend({teams: [team]});
+  await ctx.require('wx-server-sdk').database().collection('team_reactions').doc(key).set({
+    data: {teamId:'t',reactions:['like','love','next'],reaction:'next'}
+  });
+  const result = await ctx.setReaction({teamId:'t',reaction:'dislike',enabled:true}, 'a');
+  assert.deepEqual(Array.from(result.reactions.selected), ['dislike']);
+  assert.equal(result.reactions.counts.like, 1);
+  assert.equal(result.reactions.counts.love, 0);
+  assert.equal(result.reactions.counts.next, 0);
+  assert.equal(result.reactions.counts.dislike, 1);
+});
+test('every detail/share entry increments views including repeat users, with old watch votes untouched', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting', reactionCounts: { watch: 99 } };
+  const ctx = backend({ teams: [team] });
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'a');
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'detail_view' }, 'a');
+  assert.equal(team.viewCount, 3);
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'copy_room' }, 'b');
+  assert.equal(team.viewCount, 3);
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'b');
+  assert.equal(team.viewCount, 4);
+  assert.equal(team.reactionCounts.watch, 99);
+  const card = (await ctx.listTeams({}, 'visitor')).list[0];
+  assert.equal(card.viewCount, 4);
+  assert.equal(card.openid, undefined);
+});
+
+
+test('hot ranking uses views and current reactions globally before pagination and matches local sorting', async () => {
+  const now = Date.now();
+  const base = { ...teamPayload(), memberCount: 1, status: 'recruiting', startAt: now + 600000, endAt: now + 3600000, createdAt: 1 };
+  const teams = [
+    { ...base, _id: 'views', viewCount: 12 },
+    { ...base, _id: 'likes', viewCount: 1, reactionCounts: { like: 5 } },
+    { ...base, _id: 'love', viewCount: 2, reactionCounts: { love: 4, next: 4 }, memberCount: 5, status: 'full' },
+    { ...base, _id: 'down', viewCount: 20, reactionCounts: { dislike: 10 } },
+    { ...base, _id: 'legacy', viewCount: -1, reactionCounts: { watch: 999, like: -3 } },
+    { ...base, _id: 'new-tie', viewCount: 12, createdAt: 2 },
+    { ...base, _id: 'missing', viewCount: 'invalid' },
+  ];
+  const ctx = backend({ teams });
+  const first = await ctx.listTeams({ sortMode: 'hot', limit: 2 }, '');
+  const second = await ctx.listTeams({ sortMode: 'hot', offset: first.nextOffset, limit: 50 }, '');
+  const ordered = [...first.list, ...second.list];
+  const expected = ['love', 'likes', 'new-tie', 'views', 'legacy', 'missing', 'down'];
+  assert.deepEqual(ordered.map(t => t._id), expected);
+  assert.deepEqual(loadUtility('lobby').sortTeams(ordered.reverse(), 'hot').map(t => t._id), expected);
+  await ctx.setReaction({ teamId: 'likes', reaction: 'like', enabled: true }, 'visitor');
+  assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'likes');
+  await ctx.setReaction({ teamId: 'likes', reaction: 'like', enabled: false }, 'visitor');
+  assert.equal((await ctx.listTeams({ sortMode: 'hot' }, '')).list[0]._id, 'love');
+});
+
+test('concurrent complete-form claims elect one host without adding a second car or member', async () => {
+  const team = { _id: 'night_test', ...teamPayload(), platform: 'Steam', dailyNightId: 'test', pendingHost: true, memberCount: 0, roomNo: '', status: 'recruiting' };
+  const members = [], teams = [team];
+  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }] });
+  const input = { claimTeamId: team._id, team: { ...team, roomNo: '好友码123' } };
+  const results = await Promise.all(['a', 'b'].map(uid => ctx.createTeam(input, uid)));
+  assert.equal(results.filter(result => result.ok).length, 1);
+  assert.equal(results.find(result => !result.ok).code, "CLAIM_TAKEN");
+  assert.equal(teams.length, 1);
+  assert.equal(members.length, 1);
+  assert.equal(team.memberCount, 1);
+  assert.equal(team.pendingHost, false);
+  assert.equal(members[0].openid, team.openid);
+});
+test('user ranking endpoint scans past the first page and returns public profiles only', async () => {
+  const users = [{ _id: 'top', nickName: '榜首', avatarUrl: 'cloud://env/avatar.png', bio: '公开签名' }, { _id: 'other', nickName: '其他' }];
+  const teams = Array.from({ length: 130 }, (_, i) => ({ _id: 't' + i, ...teamPayload(), openid: i < 100 ? 'other' : 'top' }));
+  const ctx = backend({ teams, users, paginate: true });
+  const result = await ctx.getUserRankings();
+  assert.equal(result.ok, true);
+  assert.deepEqual(Array.from(result.hosted, row => row.count), [100, 30]);
+  assert.ok(result.hosted[1].avatarUrl.startsWith('https://tmp.example/'));
+  assert.equal(result.hosted[1].bio, '公开签名');
+  assert.equal(result.hosted[0].bio, '');
+  assert.ok(!JSON.stringify(result).includes('reminderPreferences'));
+  assert.ok(!JSON.stringify(result).includes('openid'));
+  assert.equal(result.hosted[0]._id, undefined);
+});
+
+test('official car labels survive API projection and claiming; normal publishers cannot forge official metadata', async () => {
+  const ctx = backend({ users: [{ _id: 'u', nickName: '用户' }] });
+  const champion = ctx.stripSecret({ _id: 'c', ...teamPayload(), dailyNightId: 'today', dailyOptionId: 'vote' }, false);
+  assert.equal(champion.officialSource, 'champion');
+  const random = ctx.stripSecret({ _id: 'r', ...teamPayload(), dailyNightId: 'today', officialSource: 'random' }, false);
+  assert.equal(random.officialSource, 'random');
+  const created = await ctx.createTeam({ team: { ...teamPayload(), dailyNightId: 'forged', officialSource: 'champion' } }, 'u');
+  assert.equal(created.ok, true);
+  const result = await ctx.getTeam({ teamId: created.teamId }, 'u');
+  assert.equal(result.team.dailyNightId, undefined);
+  assert.equal(result.team.officialSource, undefined);
+});
+
+test('optional profile preferences validate, preserve omitted fields and explicitly clear', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({ users });
+  const selected = { groupIds: ['underground-gaming'], favoriteGames: ['CS2'], playTimes: ['weekend'] };
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', ...selected }, 'u')).ok, true);
+  await ctx.saveProfile({ nickName: '改名' }, 'u');
+  for (const key of Object.keys(selected)) assert.deepEqual([...users[0][key]], selected[key]);
+  for (const invalid of [
+    { groupIds: ['invented-group'] }, { groupIds: 'underground-gaming' },
+    { favoriteGames: Array(6).fill('CS2') }, { favoriteGames: [42] },
+    { playTimes: ['invented-time'] }, { playTimes: null },
+  ]) {
+    assert.equal((await ctx.saveProfile({ nickName: '不应保存', ...invalid }, 'u')).ok, false);
+    assert.equal(users[0].nickName, '改名');
+  }
+  assert.equal((await ctx.saveProfile({ nickName: '改名', groupIds: [], favoriteGames: [], playTimes: [] }, 'u')).ok, true);
+  for (const key of Object.keys(selected)) assert.equal(users[0][key].length, 0);
+});
+
+test('favorite game text is moderated before persistence and public preferences exclude account data', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', groupIds: ['underground-gaming'], favoriteGames: ['CS2'], playTimes: ['weekend'], privateField: 'secret' }];
+  const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'risky' } }) });
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', favoriteGames: ['不安全游戏'] }, 'u')).ok, false);
+  assert.deepEqual(users[0].favoriteGames, ['CS2']);
+  const profile = ctx.publicProfile(users[0], {});
+  assert.deepEqual([...profile.groupIds], ['underground-gaming']);
+  assert.deepEqual([...profile.favoriteGames], ['CS2']);
+  assert.deepEqual([...profile.playTimes], ['weekend']);
+  assert.equal(profile.privateField, undefined);
+});
+
+test('group filter uses OR semantics, excludes untagged teams only when selected and paginates after filtering', async () => {
+  const base = { ...teamPayload(), memberCount: 1, status: 'recruiting' };
+  const teams = Array.from({ length: 130 }, (_, i) => ({ ...base, _id: 'group-' + i, createdAt: i, ...(i >= 120 ? { groupIds: ['underground-gaming'] } : {}) }));
+  const ctx = backend({ teams, paginate: true });
+  assert.equal((await ctx.listTeams({}, '')).total, 130);
+  assert.equal((await ctx.listTeams({ groupIds: [] }, '')).total, 130);
+  const query = { groupIds: ['underground-gaming'], limit: 3 };
+  const first = await ctx.listTeams(query, '');
+  assert.equal(first.total, 10);
+  assert.equal(first.hasMore, true);
+  assert.deepEqual([...first.list.map(t => t._id)], ['group-129', 'group-128', 'group-127']);
+  const next = await ctx.listTeams({ ...query, offset: first.nextOffset }, '');
+  assert.deepEqual([...next.list.map(t => t._id)], ['group-126', 'group-125', 'group-124']);
+  assert.equal(ctx.matchTeamSearch({ groupIds: ['b'] }, { groupIds: ['a', 'b'] }, Date.now()), true);
+  assert.equal(ctx.matchTeamSearch({}, { groupIds: ['a', 'b'] }, Date.now()), false);
+  assert.equal((await ctx.listTeams({ groupIds: 'underground-gaming' }, '')).ok, false);
+});
+
+test('normal and proxy publication snapshot actual host group and ignore client supplied groups', async () => {
+  const users = [
+    { _id: 'host', nickName: '车头', groupIds: ['underground-gaming'] },
+    { _id: 'helper', nickName: '代开', groupIds: [] },
+  ];
+  const teams = [];
+  const ctx = backend({ users, teams, organizers: [{ _id: 'helper' }] });
+  const payload = { team: { ...teamPayload(), groupIds: ['fake'] } };
+  assert.equal((await ctx.createTeam(payload, 'host')).ok, true);
+  assert.deepEqual([...teams[0].groupIds], ['underground-gaming']);
+  assert.equal((await ctx.createTeam({ ...payload, hostOpenid: 'host' }, 'helper')).ok, true);
+  assert.deepEqual([...teams[1].groupIds], ['underground-gaming']);
+  await ctx.saveProfile({ nickName: '车头', groupIds: [] }, 'host');
+  assert.deepEqual([...teams[0].groupIds], ['underground-gaming']);
+  assert.deepEqual([...teams[1].groupIds], ['underground-gaming']);
+});
+
+test('contact fields preserve leading zeros, round trip publicly, survive older clients and clear explicitly', async () => {
+  const users = [{ _id: 'u', nickName: '玩家', privateField: 'secret' }];
+  const ctx = backend({ users });
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', steamFriendCode: ' 00123456 ', wechatId: ' Player_123 ', favoriteGames: ['自己写的游戏'] }, 'u')).ok, true);
+  assert.equal(users[0].steamFriendCode, '00123456');
+  assert.equal(users[0].wechatId, 'Player_123');
+  await ctx.saveProfile({ nickName: '改名' }, 'u');
+  const profile = ctx.publicProfile(users[0], {});
+  assert.equal(profile.steamFriendCode, '00123456');
+  assert.equal(profile.wechatId, 'Player_123');
+  assert.deepEqual([...profile.favoriteGames], ['自己写的游戏']);
+  assert.equal(profile.privateField, undefined);
+  await ctx.saveProfile({ nickName: '改名', steamFriendCode: '', wechatId: '' }, 'u');
+  assert.equal(ctx.publicProfile(users[0], {}).steamFriendCode, '');
+  assert.equal(users[0].wechatId, '');
+});
+
+test('invalid contact payloads fail before any profile write', async () => {
+  const users = [{ _id: 'u', nickName: '玩家' }];
+  const ctx = backend({ users });
+  for (const invalid of [
+    { steamFriendCode: 123456 }, { steamFriendCode: 'not-a-code' }, { steamFriendCode: '1'.repeat(21) },
+    { wechatId: [] }, { wechatId: 'id with spaces' }, { wechatId: 'a'.repeat(33) },
+  ]) {
+    assert.equal((await ctx.saveProfile({ nickName: '不应保存', ...invalid }, 'u')).ok, false);
+    assert.equal(users[0].nickName, '玩家');
   }
 });

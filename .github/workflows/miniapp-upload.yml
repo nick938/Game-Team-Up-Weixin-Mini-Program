@@ -1,0 +1,109 @@
+name: WeChat Upload
+run-name: WeChat upload · ${{ github.ref_name }} · ${{ inputs.version || 'tag/package version' }}
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "上传版本 x.y.z，须与 package.json 和最新更新日志一致；留空使用代码版本"
+        required: false
+        type: string
+      description:
+        description: "本次更新说明"
+        required: false
+        default: "开黑星球版本更新"
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: "0"
+  CHOKIDAR_USEPOLLING: "1"
+  MINIAPP_TARGETS: weixin
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Validate tag, package and changelog versions
+        id: plan
+        run: node scripts/miniapp/wechat-plan.mjs
+        env:
+          MINIAPP_VERSION: ${{ inputs.version }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:server
+      - run: pnpm --filter game-team-miniapp test
+      - run: pnpm --filter game-team-miniapp lint
+      - run: pnpm --filter game-team-miniapp format:check
+      - run: pnpm --filter game-team-miniapp typecheck
+
+  upload:
+    needs: prepare
+    runs-on: ${{ fromJSON(vars.MINIAPP_UPLOAD_RUNNER || '"ubuntu-latest"') }}
+    environment: miniapp-weixin
+    timeout-minutes: 30
+    concurrency:
+      group: miniapp-upload-weixin
+      cancel-in-progress: false
+    env:
+      MINIAPP_VERSION: ${{ needs.prepare.outputs.version }}
+      MINIAPP_DESCRIPTION: ${{ inputs.description || format('开黑星球 v{0}', needs.prepare.outputs.version) }}
+      MINIAPP_APP_ID: ${{ vars.APP_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Check WeChat configuration and credentials
+        run: node scripts/miniapp/release.mjs preflight
+        env:
+          WEIXIN_UPLOAD_PRIVATE_KEY: ${{ secrets.WEIXIN_UPLOAD_PRIVATE_KEY }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build WeChat package
+        run: node scripts/miniapp/release.mjs build
+      - name: Store the exact upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-weixin-${{ needs.prepare.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/miniapp/dist/build/mp-weixin/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload developer version
+        run: node scripts/miniapp/release.mjs upload
+        env:
+          WEIXIN_UPLOAD_PRIVATE_KEY: ${{ secrets.WEIXIN_UPLOAD_PRIVATE_KEY }}
+      - name: Summarize result and manual review step
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          printf '\n### WeChat upload\n\nVersion: %s\n\nJob: %s\n\n本工作流仅上传微信开发版本，尚未提交审核或正式上线。上传成功后，请在微信公众平台版本管理中确认对应版本并提交审核。云函数仍需单独部署。\n' "$MINIAPP_VERSION" "$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
+      - name: Store upload receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: miniapp-weixin-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/miniapp/dist/release/*.json
+          if-no-files-found: ignore
+          retention-days: 14

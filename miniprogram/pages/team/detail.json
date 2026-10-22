@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "组队详情",
-  "usingComponents": {
-    "profile-gate": "/components/profile-gate/index"
-  },
-  "enablePullDownRefresh": true
-}

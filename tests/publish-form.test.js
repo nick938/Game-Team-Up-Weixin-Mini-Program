@@ -19,7 +19,7 @@ const {
   buildDurationPicker,
   buildTimeSummary,
   validatePublishTeam,
-} = require("../miniprogram/utils/publish-form.js");
+} = require('./support/miniapp.cjs').harness().load('utils/publish-form');
 
 const ALL = ["Steam", "手游", "端游", "主机"];
 
@@ -96,6 +96,7 @@ test("publish validation keeps required fields and the 24 hour cap", () => {
   const now = new Date(2026, 8, 18, 15, 0, 0).getTime();
   const startAt = new Date(2026, 8, 18, 20, 0, 0).getTime();
   const base = {
+    capacity: 5,
     gameName: "CS2",
     roomNo: "123456",
     platform: "Steam",
@@ -119,6 +120,7 @@ test("frontend validation mirrors cloud rules: 7-day start cap and end > now", (
   const now = new Date(2026, 8, 18, 15, 0, 0).getTime();
   const startAt = now + 2 * HOUR_MS;
   const base = {
+    capacity: 5,
     gameName: "CS2",
     roomNo: "123456",
     platform: "Steam",
@@ -236,11 +238,19 @@ test("editing an old team maps duration onto a preset or custom", () => {
 
 test("room / join method rejects missing or blank values", () => {
   const now = Date.now();
-  const base = { gameName: "CS2", platform: "Steam", startAt: now + HOUR_MS, endAt: now + 2 * HOUR_MS };
+  const base = { capacity: 5, gameName: "CS2", platform: "Steam", startAt: now + HOUR_MS, endAt: now + 2 * HOUR_MS };
   for (const roomNo of [undefined, "", "   ", "\t\n"]) {
     assert.deepEqual(validatePublishTeam({ ...base, roomNo }, { now }), {
-      message: "请填写房间 / 加入方式", anchor: "field-room",
+      message: "请填写车头的好友码或联系方式", anchor: "field-room",
     });
   }
   assert.equal(validatePublishTeam({ ...base, roomNo: "  Steam 好友代码 123456  " }, { now }), null);
+});
+
+
+test("publish requires a whole number of members including the host", () => {
+  const now = Date.now();
+  const base = { gameName: "CS2", platform: "Steam", roomNo: "123", startAt: now + HOUR_MS, endAt: now + 2 * HOUR_MS };
+  for (const capacity of [undefined, 1, 2.5, 21]) assert.equal(validatePublishTeam({ ...base, capacity }, { now }).anchor, "field-capacity");
+  assert.equal(validatePublishTeam({ ...base, capacity: 2 }, { now }), null);
 });

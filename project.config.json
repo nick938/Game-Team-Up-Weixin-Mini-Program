@@ -1,5 +1,5 @@
 {
-  "miniprogramRoot": "miniprogram/",
+  "miniprogramRoot": "apps/miniapp/dist/build/mp-weixin/",
   "cloudfunctionRoot": "cloudfunctions/",
   "setting": {
     "urlCheck": true,
@@ -47,46 +47,19 @@
     "ignoreUploadUnusedFiles": false
   },
   "appid": "wxa1af4fb6a4c66334",
-  "projectname": "quickstart-wx-cloud",
-  "libVersion": "2.20.1",
+  "projectname": "game-team-miniapp",
+  "libVersion": "3.17.3",
   "cloudfunctionTemplateRoot": "cloudfunctionTemplate/",
   "condition": {
-    "search": {
-      "list": []
-    },
-    "conversation": {
-      "list": []
-    },
-    "plugin": {
-      "list": []
-    },
-    "game": {
-      "list": []
-    },
     "miniprogram": {
-      "list": [
-        {
-          "id": -1,
-          "name": "db guide",
-          "pathName": "pages/databaseGuide/databaseGuide"
-        }
-      ]
+      "list": []
     }
   },
   "compileType": "miniprogram",
-  "srcMiniprogramRoot": "miniprogram/",
+  "srcMiniprogramRoot": "apps/miniapp/dist/build/mp-weixin/",
   "packOptions": {
     "ignore": [],
-    "include": [
-      {
-        "type": "glob",
-        "value": "images/tab-*.png"
-      },
-      {
-        "type": "glob",
-        "value": "miniprogram/images/tab-*.png"
-      }
-    ]
+    "include": []
   },
   "editorSetting": {
     "tabIndent": "insertSpaces",

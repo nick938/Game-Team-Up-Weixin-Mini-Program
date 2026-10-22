@@ -1,7 +1,7 @@
 // 小程序分享卡片封面（5:4，微信官方推荐比例）生成脚本。
 // 微信在 onShareAppMessage/onShareTimeline 未返回 imageUrl 时回退到「页面自动截图」，
 // 那条路径不可靠（详情页数据没到时整页是空背景，截出来就是一块浅灰），所以固定用这张图。
-// 输出：miniprogram/images/share/cover-v1.jpg
+// 输出：apps/miniapp/src/static/images/share/cover-v1.jpg
 //
 // 用法：node share-cover.js   （内部调用无头 Chrome 渲染 HTML，再缩到目标尺寸）
 const fs = require("fs");
@@ -10,8 +10,8 @@ const os = require("os");
 const { execFileSync } = require("child_process");
 
 const buildDir = __dirname;
-const outDir = path.resolve(buildDir, "../../../miniprogram/images/share");
-const imgDir = path.resolve(buildDir, "../../../miniprogram/images/brand");
+const outDir = path.resolve(buildDir, "../../../apps/miniapp/src/static/images/share");
+const imgDir = path.resolve(buildDir, "../../../apps/miniapp/src/static/images/brand");
 
 // 750×600 正好是 5:4。2 倍渲染后缩回来，文字边缘更干净。
 const W = 750;

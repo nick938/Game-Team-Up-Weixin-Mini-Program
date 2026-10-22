@@ -6,7 +6,7 @@ const path = require("path");
 const BRAND = "开黑星球｜游戏搭子";
 const buildDir = __dirname;
 const outDir = path.resolve(buildDir, "..");
-const imgDir = path.resolve(buildDir, "../../../miniprogram/images/brand");
+const imgDir = path.resolve(buildDir, "../../../apps/miniapp/src/static/images/brand");
 
 function dataUri(file) {
   const b = fs.readFileSync(path.join(imgDir, file));
