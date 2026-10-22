@@ -1158,11 +1158,11 @@ test('ORGANIZER_OPENIDS env grants proxy access and cannot be toggled in admin',
   assert.equal(blocked.ok, false);
 });
 
-test('cloud requires a room / join method for creating and editing', () => {
+test('cloud accepts empty contact for creating and editing', () => {
   const ctx = backend();
   for (const isCreate of [true, false]) {
     for (const roomNo of [undefined, '', '   ', '\t\n']) {
-      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).error, '请填写车头的好友码或联系方式');
+      assert.equal(ctx.validateTeamInput({ ...teamPayload(), roomNo }, { isCreate }).value.roomNo, '');
     }
     const valid = ctx.validateTeamInput({ ...teamPayload(), roomNo: '  Steam 好友代码 123456  ' }, { isCreate });
     assert.equal(valid.error, undefined);
@@ -1359,10 +1359,9 @@ test('real timer creates an unowned car; claiming requires full form and then no
   assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, board.teamId);
   assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'b')).ok, false);
   const teamInput = { gameName: teams[0].gameName, platform: teams[0].platform, startAt: teams[0].startAt, endAt: teams[0].endAt, capacity: teams[0].capacity, roomNo: '' };
-  assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
   teamInput.roomNo = '待填写';
   assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
-  teamInput.roomNo = 'Steam好友码123';
+  teamInput.roomNo = '';
   assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: { ...teamInput, gameName: '改名' } }, 'b')).ok, false);
   const claimed = await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b');
   assert.equal(claimed.ok, true);

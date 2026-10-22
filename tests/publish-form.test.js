@@ -236,13 +236,11 @@ test("editing an old team maps duration onto a preset or custom", () => {
   assert.equal(formatDurationLabel(m240), "4小时");
 });
 
-test("room / join method rejects missing or blank values", () => {
+test("publish accepts empty contact after its input is removed", () => {
   const now = Date.now();
   const base = { capacity: 5, gameName: "CS2", platform: "Steam", startAt: now + HOUR_MS, endAt: now + 2 * HOUR_MS };
   for (const roomNo of [undefined, "", "   ", "\t\n"]) {
-    assert.deepEqual(validatePublishTeam({ ...base, roomNo }, { now }), {
-      message: "请填写车头的好友码或联系方式", anchor: "field-room",
-    });
+    assert.equal(validatePublishTeam({ ...base, roomNo }, { now }), null);
   }
   assert.equal(validatePublishTeam({ ...base, roomNo: "  Steam 好友代码 123456  " }, { now }), null);
 });

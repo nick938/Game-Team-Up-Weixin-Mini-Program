@@ -712,7 +712,6 @@ function validateTeamInput(input, { isCreate }) {
   if (endAt - startAt > MAX_TEAM_MS) {
     return { error: "一局最长 24 小时" };
   }
-  if (!roomNo) return { error: "请填写车头的好友码或联系方式" };
   const text = `${gameName}${roomNo}${roomPwd}${server}${rankReq}${note}`;
   if (BAD.test(text)) {
     return { error: "内容包含不允许发布的信息" };

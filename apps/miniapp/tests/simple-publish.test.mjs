@@ -32,9 +32,13 @@ test('editing migrates legacy server and teammate requirements into the note wit
   assert.equal(page.state.roomNo, '好友码 123');
   assert.equal(page.state.roomPwd, 'secret');
   assert.equal(page.state.minimumCapacity, 3);
+  const payload = page.buildTeam();
+  for (const field of ['roomNo', 'roomPwd', 'note', 'server', 'rankReq']) {
+    assert.equal(payload[field], '', `hidden edit field ${field} must not be submitted`);
+  }
 });
 
-test('unfinished draft survives remount with a future date, duration, note and contact, without restoring a password', async () => {
+test('unfinished draft retains schedule but discards removed contact, password and note fields', async () => {
   const storage = new Map();
   const platform = {
     getStorageSync: (key) => storage.get(key),
@@ -52,9 +56,9 @@ test('unfinished draft survives remount with a future date, duration, note and c
   const second = harness({ platform }).page('pages/publish/publish');
   await second.hooks.onShow();
   assert.equal(second.state.gameName, '我的游戏');
-  assert.equal(second.state.roomNo, '微信：player');
+  assert.equal(second.state.roomNo, '');
   assert.equal(second.state.roomPwd, '');
-  assert.equal(second.state.note, first.state.note);
+  assert.equal(second.state.note, '');
   assert.equal(second.state.capacity, 6);
   assert.equal(second.state.durationMinutes, 90);
   assert.equal(second.state.startDate, first.state.startDate);
@@ -96,7 +100,7 @@ test('successful publish remembers per-game settings, clears its draft and reuse
   assert.equal(page.state.capacity, 6);
   assert.equal(page.state.durationMinutes, 90);
   const write = h.calls.find((item) => item.action === 'createTeam');
-  assert.equal(write.input.team.roomNo, 'Steam 123456');
+  assert.equal(write.input.team.roomNo, '');
   assert.equal(write.input.team.note, '');
 });
 
@@ -202,6 +206,9 @@ test('reusing a launch copies its configuration, renews the date at the same clo
   assert.equal(page.state.roomPwd, '');
   assert.equal(page.state.voice, 'KOOK');
   assert.equal(page.state.note, '区服：国服\n娱乐局');
+  for (const field of ['roomNo', 'roomPwd', 'note', 'server', 'rankReq']) {
+    assert.equal(page.buildTeam()[field], '', `hidden reused field ${field} must not be submitted`);
+  }
   assert.equal(page.state.selectedHistoryId, 'previous');
   assert.equal(page.state.editingId, '');
   assert.equal(page.state.weeklyId, '');

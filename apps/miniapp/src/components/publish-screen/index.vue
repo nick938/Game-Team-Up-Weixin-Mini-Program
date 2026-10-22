@@ -36,13 +36,13 @@ onPageScroll(({ scrollTop }) => {
   scrolled.value = scrollTop > 24;
 });
 const schema: FormSchema = {
-  isRequired: (path) => ['gameName', 'roomNo'].includes(path),
+  isRequired: (path) => ['gameName'].includes(path),
   validate: (model) =>
-    ['gameName', 'roomNo']
+    ['gameName']
       .filter((key) => !String(model[key] || '').trim())
       .map((key) => ({
         path: [key],
-        message: key === 'gameName' ? '请选择或输入游戏' : '请填写车头的好友码或联系方式',
+        message: '请选择或输入游戏',
       })),
 };
 function errorFor(anchor: string) {
@@ -219,45 +219,11 @@ async function submit() {
             </view>
           </view>
           <view class="form-section">
-            <view id="field-room">
-              <app-input
-                prop="roomNo"
-                label="联系车头"
-                layout="horizontal"
-                :model-value="page.roomNo"
-                :maxlength="80"
-                clearable
-                required
-                hide-asterisk
-                placeholder="必填：好友码 / 游戏 ID / 微信号"
-                :error="errorFor('field-room')"
-                @update:model-value="page.onRoomNo(String($event))"
-              />
-            </view>
-            <app-input
-              label="房间密码"
-              :model-value="page.roomPwd"
-              :maxlength="32"
-              placeholder="选填，仅队伍成员可见"
-              @update:model-value="page.onRoomPwd(String($event))"
-            />
-          </view>
-          <view class="form-section">
             <app-picker
               label="语音"
               :model-value="page.voice"
               :columns="page.voices"
               @confirm="page.pickVoice(String($event.value))"
-            />
-          </view>
-          <view class="form-section">
-            <app-textarea
-              label="备注"
-              :model-value="page.note"
-              :maxlength="1000"
-              auto-height
-              placeholder="选填：区服、房间号、KOOK 房间地址、玩法或队友要求"
-              @update:model-value="page.onNote(String($event))"
             />
           </view>
         </wd-form>

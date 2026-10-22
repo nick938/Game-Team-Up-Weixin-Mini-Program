@@ -229,9 +229,6 @@ function validatePublishTeam(team: Partial<TeamDraft>, extra: PublishOptions) {
   if (team.endAt <= now) {
     return { message: '结束时间必须晚于现在', anchor: 'field-end' };
   }
-  if (!String(team.roomNo || '').trim()) {
-    return { message: '请填写车头的好友码或联系方式', anchor: 'field-room' };
-  }
   if (!Number.isInteger(team.capacity) || Number(team.capacity) < 2 || Number(team.capacity) > 20) {
     return { message: '人数需在 2–20 之间', anchor: 'field-capacity' };
   }

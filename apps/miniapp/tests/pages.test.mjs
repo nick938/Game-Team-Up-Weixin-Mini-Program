@@ -4,13 +4,14 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { harness } = require('../../../tests/support/miniapp.cjs');
 
-test('publish blocks empty join method before any write', async () => {
+test('publish allows empty contact after removing its input', async () => {
   const h = harness(),
     page = h.page('pages/publish/publish');
   Object.assign(page.state, { gameName: 'CS2', roomNo: '   ' });
   await page.onSubmit();
-  assert.equal(h.calls.length, 0);
-  assert.ok(h.toasts.includes('请填写车头的好友码或联系方式'));
+  const request = h.calls.find((call) => call.action === 'createTeam');
+  assert.ok(request);
+  assert.equal(request.input.team.roomNo, '');
 });
 
 test('mine switches hosted/joined and ongoing/history independently', () => {

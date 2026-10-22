@@ -677,18 +677,19 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     });
   }
   function buildTeam() {
+    // These inputs are removed; never publish hidden values from drafts or reused teams.
     return {
       gameName: (state.gameName || '').trim(),
       startAt: combineDateTime(state.startDate, state.startTime),
       endAt: combineDateTime(state.endDate, state.endTime),
       capacity: state.capacity,
-      roomNo: (state.roomNo || '').trim(),
-      roomPwd: (state.roomPwd || '').trim(),
+      roomNo: '',
+      roomPwd: '',
       platform: state.platform,
-      server: (state.server || '').trim(),
+      server: '',
       voice: state.voice,
-      rankReq: (state.rankReq || '').trim(),
-      note: (state.note || '').trim(),
+      rankReq: '',
+      note: '',
     };
   }
   function scrollToField(id?: string) {

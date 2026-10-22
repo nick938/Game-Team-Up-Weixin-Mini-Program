@@ -100,17 +100,15 @@ test('independent claim form fetches the authoritative car and leaves ordinary p
   assert.equal(page.state.capacity, 6);
   assert.equal(page.state.roomNo, '');
   assert.equal(page.buildTeam().startAt, team.startAt);
-  await page.onSubmit();
-  assert.equal(h.calls.filter((call) => call.action === 'createTeam').length, 0);
   await page.hooks.onHide();
   await page.hooks.onUnload();
   assert.deepEqual(h.storage.get('publish-draft-v2'), draft);
   await ordinary.hooks.onShow();
   assert.equal(ordinary.state.claimTeamId, '');
   assert.equal(ordinary.state.gameName, '自己的游戏');
-  page.onRoomNo('Steam好友码123');
   await page.onSubmit();
   const request = h.calls.find((call) => call.action === 'createTeam');
+  assert.equal(request.input.team.roomNo, '');
   assert.equal(request.input.claimTeamId, 'night_test');
   assert.equal(request.input.team.capacity, 6);
   assert.equal(request.input.team.endAt, team.endAt);
