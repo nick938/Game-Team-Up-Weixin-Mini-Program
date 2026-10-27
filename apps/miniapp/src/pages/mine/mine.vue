@@ -110,6 +110,24 @@ onShareTimeline(page.shareTimeline);
             <wd-cell title="更新公告" prefix-icon="notification" is-link center @click="page.openUpdates" />
           </wd-cell-group>
         </view>
+        <view class="mine-menu-group">
+          <wd-cell-group border>
+            <wd-cell
+              title="固定车"
+              label="每天固定开黑，联系作者帮你配置"
+              is-link
+              center
+              @click="page.openAuthor('fixed')"
+            />
+            <wd-cell
+              title="添加群组标识"
+              label="让发车信息展示你的群组，联系作者添加"
+              is-link
+              center
+              @click="page.openAuthor('group')"
+            />
+          </wd-cell-group>
+        </view>
         <view v-if="page.isAdmin || page.isOrganizer" class="mine-menu-group">
           <wd-cell-group border>
             <wd-cell

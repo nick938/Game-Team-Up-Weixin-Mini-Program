@@ -59,6 +59,7 @@ export interface RankingUser extends Pick<
   count: number;
 }
 export interface Team {
+  fixedPlanId?: string;
   groupIds?: string[];
   pendingHost?: boolean;
   dailyNightId?: string;
@@ -133,6 +134,7 @@ export interface LegalSection {
   body: string;
 }
 export interface AdminRow extends Partial<Team>, User {
+  profileReady?: boolean;
   _id: string;
   openid?: string;
   banned?: boolean;
@@ -189,7 +191,22 @@ export interface AdminStats {
   trend: { date: string; count: number; pct?: number }[];
   platforms: { platform: string; count: number; pct?: number }[];
 }
+export interface FixedTeamPlan {
+  id: string;
+  gameName: string;
+  hostOpenid: string;
+  hostNickName?: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  platform: string;
+  voice: string;
+  enabled: boolean;
+}
 export interface TeamResults {
+  adminFixedTeams: { list: FixedTeamPlan[] };
+  adminSaveFixedTeam: { generationErrors: { id: string; message: string }[] };
+  adminSetFixedTeamEnabled: { generationErrors: { id: string; message: string }[] };
   getUserRankings: { hosted: RankingUser[]; joined: RankingUser[]; generatedAt: number };
   getDailyPlay: { board: DailyBoard };
   createPlayOption: { board: DailyBoard | null };
@@ -236,6 +253,9 @@ export interface VersionInput {
   envVersion: string;
 }
 export interface TeamRequests {
+  adminFixedTeams: undefined;
+  adminSaveFixedTeam: { plan: FixedTeamPlan };
+  adminSetFixedTeamEnabled: { id: string; enabled: boolean };
   getUserRankings: undefined;
   getDailyPlay: undefined;
   createPlayOption: { gameName: string; platform: string; requestId: string };

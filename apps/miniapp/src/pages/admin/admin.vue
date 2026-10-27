@@ -3,6 +3,7 @@ import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'AdminAdminPage' });
 import { reactive } from 'vue';
+import AdminFixedTeams from '../../components/admin-fixed-teams/index.vue';
 import { useAdmin } from '../../composables/useAdmin';
 const page = reactive(useAdmin());
 </script>
@@ -21,6 +22,7 @@ const page = reactive(useAdmin());
             v-for="tab in [
               { key: 'overview', label: '概览' },
               { key: 'teams', label: '组队' },
+              { key: 'fixed', label: '固定车' },
               { key: 'users', label: '用户' },
               { key: 'report', label: '举报' },
               { key: 'bug', label: '报错' },
@@ -30,6 +32,7 @@ const page = reactive(useAdmin());
             :name="tab.key"
             :title="tab.label" /></wd-tabs
       ></view>
+      <admin-fixed-teams v-if="page.tab === 'fixed'" />
       <wd-loading v-if="page.loading" />
       <admin-overview v-else-if="page.tab === 'overview' && page.stats" :stats="page.stats" />
       <template v-else-if="page.tab === 'users'"
@@ -102,7 +105,7 @@ const page = reactive(useAdmin());
           ></wd-card
         ></template
       >
-      <template v-else-if="page.tab !== 'overview'"
+      <template v-else-if="page.tab !== 'overview' && page.tab !== 'fixed'"
         ><wd-cell
           title="只看未处理"
           :value="page.onlyOpen ? '是' : '否'"
@@ -132,7 +135,9 @@ const page = reactive(useAdmin());
           ></wd-card
         ></template
       >
-      <wd-empty v-if="!page.loading && page.tab !== 'overview' && !page.list.length" tip="没有符合条件的记录"
+      <wd-empty
+        v-if="!page.loading && page.tab !== 'overview' && page.tab !== 'fixed' && !page.list.length"
+        tip="没有符合条件的记录"
     /></template>
   </app-shell>
 </template>

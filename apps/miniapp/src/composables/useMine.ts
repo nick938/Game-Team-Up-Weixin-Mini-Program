@@ -181,9 +181,20 @@ export function useMine() {
   function openFeedback() {
     hostPlatform.navigateTo({ url: '/pages/feedback/feedback' });
   }
-  function openAuthor() {
+  function openAuthor(kind?: 'fixed' | 'group') {
+    const title = kind === 'fixed' ? '申请固定车' : kind === 'group' ? '添加群组标识' : '联系作者';
+    const description =
+      kind === 'fixed'
+        ? '有每天固定发车的需求？添加小程序作者微信，告诉作者游戏、时间、人数和车头，作者会帮你配置固定车。'
+        : kind === 'group'
+          ? '想在发车信息里展示你的群组？添加小程序作者微信，提供群组名称，作者会协助添加群组标识。配置后，在个人资料中选择群组，新发的车就会展示。'
+          : '';
     void dialog
-      .confirm({ title: '联系作者', msg: '作者微信号：Louisville_k', confirmButtonText: '复制微信号' })
+      .confirm({
+        title,
+        msg: `${description}${description ? '\n\n' : ''}作者微信号：Louisville_k`,
+        confirmButtonText: '复制作者微信',
+      })
       .then(() => {
         hostPlatform.setClipboardData({
           data: 'Louisville_k',

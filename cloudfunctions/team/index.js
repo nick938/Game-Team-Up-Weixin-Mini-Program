@@ -478,6 +478,7 @@ async function ensureCollections() {
     "team_reactions",
     "team_events",
     "team_views",
+    "fixed_team_plans",
     "daily_play",
     "play_options",
     "weekly_play",
@@ -1138,7 +1139,9 @@ async function adminUsers(event, openid) {
     .map((u) => ({
       _id: u._id,
       openid: u._id,
+      ...publicProfile(u, {}),
       nickName: u.nickName || "未填写昵称",
+      profileReady: !!u.nickName,
       banned: !!u.banned,
       banReason: u.banReason || "",
       bannedAt: u.bannedAt || 0,
@@ -1159,7 +1162,9 @@ async function adminUsers(event, openid) {
       if (a.banned !== b.banned) return a.banned ? -1 : 1;
       return (b.updatedAt || 0) - (a.updatedAt || 0);
     });
-  return ok({ list: list.slice(0, 200), total: users.length });
+  const page = list.slice(0, 200);
+  const avatars = await toTempAvatarUrls(page.map(user => user.avatarUrl));
+  return ok({ list: page.map(user => ({ ...user, avatarUrl: withTempAvatar(avatars, user.avatarUrl) })), total: users.length });
 }
 
 // 封禁 / 解封。封禁只影响写操作，浏览仍然可用，避免彻底锁死账号。
@@ -1646,6 +1651,8 @@ function teamHeat(team) {
   return count(team.viewCount) + 3 * (reactions.like + reactions.love - reactions.dislike) + reactions.next;
 }
 async function listTeams(event = {}, openid) {
+  try { await fixedTeamsService().generate(); }
+  catch (error) { console.error("fixed car recovery failed", error.message); }
   if (event.groupIds !== undefined && (!Array.isArray(event.groupIds) || event.groupIds.length > 100 ||
     event.groupIds.some(id => typeof id !== "string" || !profileOptions.groups.some(group => group.value === id))))
     return fail("群组筛选格式不正确");
@@ -2203,10 +2210,45 @@ async function adminHandleFeedback(event, openid) {
   return ok({ status });
 }
 
+function fixedTeamsService() {
+  return require("./lib/fixed-teams").createFixedTeams(db, {
+    now: nowMs, readPlans: () => readAllRows("fixed_team_plans"), requireHost: requireProfile,
+  });
+}
+async function adminFixedTeams(event, openid) {
+  const denied = await adminGuard(openid);
+  if (denied) return denied;
+  const service = fixedTeamsService();
+  if (event.type === "adminSaveFixedTeam") {
+    const plan = require("./lib/fixed-teams").validatePlan(event.plan);
+    const textError = await textSafeError(openid, [plan.gameName], "游戏名称未通过安全检测，请修改或稍后重试", true);
+    if (textError) return fail(textError);
+    await service.save(plan, openid);
+    // Saving is committed even if today's generation fails; report this separately.
+    let generationErrors;
+    try { generationErrors = await service.generate(); }
+    catch (error) { generationErrors = [{ id: plan.id, message: error.message }]; }
+    return ok({ generationErrors });
+  }
+  if (event.type === "adminSetFixedTeamEnabled") {
+    await service.setEnabled(event.id, event.enabled, openid);
+    let generationErrors = [];
+    if (event.enabled) {
+      try { generationErrors = await service.generate(); }
+      catch (error) { generationErrors = [{ id: event.id, message: error.message }]; }
+    }
+    return ok({ generationErrors });
+  }
+  const list = (await readAllRows("fixed_team_plans")).map(({ updatedBy, ...plan }) => plan);
+  return ok({ list });
+}
+
 exports.main = async (event) => {
   try {
     await ensureCollections();
     if (event && (event.TriggerName === "startRemind" || event.Type === "Timer")) {
+      try { await fixedTeamsService().generate(); }
+      catch (error) { console.error("fixed car timer failed", error.message); }
       await require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") }).settle();
       return await remindStartingTeams();
     }
@@ -2272,6 +2314,10 @@ exports.main = async (event) => {
         return await submitBug(event, openid);
       case "submitReport":
         return await submitReport(event, openid);
+      case "adminFixedTeams":
+      case "adminSaveFixedTeam":
+      case "adminSetFixedTeamEnabled":
+        return await adminFixedTeams(event, openid);
       case "adminOverview":
         return await adminOverview(openid);
       case "adminReports":

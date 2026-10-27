@@ -85,6 +85,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
       if (id === "node:crypto") return require(id);
       if (id === "./lib/profile-options.json") return require("../cloudfunctions/team/lib/profile-options.json");
       if (id === "./lib/user-rankings") return require("../cloudfunctions/team/lib/user-rankings");
+      if (id === "./lib/fixed-teams") return require("../cloudfunctions/team/lib/fixed-teams");
       if (id === "./lib/daily-play") return require("../cloudfunctions/team/lib/daily-play");
       if (id === "nodemailer") {
         return { createTransport: () => ({ sendMail: sendMail || (async () => ({})) }) };
@@ -1613,4 +1614,57 @@ test('invalid contact payloads fail before any profile write', async () => {
     assert.equal((await ctx.saveProfile({ nickName: '不应保存', ...invalid }, 'u')).ok, false);
     assert.equal(users[0].nickName, '玩家');
   }
+});
+
+test('fixed plan management is admin-only; timer and lobby create real joinable cars with host groups', async () => {
+  const teams = [], members = [];
+  const ctx = backend({ teams, members, users: [{ _id: 'host', nickName: '固定车头', groupIds: ['underground-gaming'] }], env: { ADMIN_OPENIDS: 'boss' } });
+  ctx.nowMs = () => Date.parse('2026-10-27T12:00:00+08:00');
+  const start = '21:00', end = '23:00';
+  const plan = { id: 'plan-integration', gameName: 'CS2', hostOpenid: 'host', startTime: start, endTime: end, capacity: 4, platform: 'Steam', voice: '不限', enabled: true };
+  for (const type of ['adminFixedTeams', 'adminSaveFixedTeam', 'adminSetFixedTeamEnabled']) {
+    assert.equal((await ctx.adminFixedTeams({ type, plan, id: plan.id, enabled: true }, 'ordinary')).ok, false);
+  }
+  assert.equal((await ctx.adminFixedTeams({ type: 'adminSaveFixedTeam', plan }, 'boss')).ok, true);
+  await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
+  const service = ctx.fixedTeamsService();
+  await service.generate(); await service.generate();
+  const current = teams.filter(t => t.fixedPlanId);
+  assert.equal(current.length, 1);
+  if (current.length) {
+    assert.deepEqual([...current[0].groupIds], ['underground-gaming']);
+    assert.equal(current[0].openid, 'host');
+    assert.equal(members.length, 1);
+    assert.equal(current[0].memberCount, 1);
+    const lobby = await ctx.listTeams({}, 'visitor');
+    assert.equal(lobby.list.find(t => t.id === current[0]._id).fixedPlanId, plan.id);
+    assert.equal(lobby.list.find(t => t.id === current[0]._id).openid, undefined);
+  }
+  const list = await ctx.adminFixedTeams({ type: 'adminFixedTeams' }, 'boss');
+  assert.equal(list.list.length, 1);
+  assert.equal(list.list[0].updatedBy, undefined);
+  assert.equal((await ctx.adminFixedTeams({ type: 'adminSetFixedTeamEnabled', id: plan.id, enabled: false }, 'boss')).ok, true);
+});
+
+test('ordinary publishers cannot forge recurring metadata', async () => {
+  const teams = [];
+  const ctx = backend({ teams, users: [{ _id: 'u', nickName: '玩家' }] });
+  const result = await ctx.createTeam({ team: { ...teamPayload(), fixedPlanId: 'forged', fixedDayId: '2026-10-27' } }, 'u');
+  assert.equal(result.ok, true);
+  assert.equal(teams[0].fixedPlanId, undefined);
+});
+
+test('admin user selection includes current public host profile with usable avatar URLs and no private preferences', async () => {
+  const ctx = backend({ env: { ADMIN_OPENIDS: 'boss' }, users: [{ _id: 'host', nickName: '车头', avatarUrl: 'cloud://host-avatar', bio: '一起玩', steamFriendCode: '001234', wechatId: 'game_host', groupIds: ['underground-gaming'], subscribePrefs: { secret: true } }, { _id: 'empty' }] });
+  const result = await ctx.adminUsers({}, 'boss');
+  const host = result.list.find(user => user._id === 'host');
+  assert.equal(host.steamFriendCode, '001234');
+  assert.equal(host.wechatId, 'game_host');
+  assert.equal(host.bio, '一起玩');
+  assert.deepEqual([...host.groupIds], ['underground-gaming']);
+  assert.match(host.avatarUrl, /^https:\/\/tmp.example\//);
+  assert.equal(host.profileReady, true);
+  assert.equal(host.subscribePrefs, undefined);
+  assert.equal(result.list.find(user => user._id === 'empty').profileReady, false);
+  assert.equal((await ctx.adminUsers({}, 'ordinary')).ok, false);
 });
