@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/app';
 import { isSinglePage } from '../utils/runtime';
 import { decorateTeam } from '../utils/format';
 import { loadMyProfile } from '../utils/my-profile';
+import { profileForView, profileString } from '../utils/profile-data';
 import { callTeam } from '../api/team';
 import { getAppVersion } from '../utils/version';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
@@ -26,7 +27,7 @@ export function useMine() {
     return { ongoing, past };
   }
   function getProfileHint(user: User | undefined) {
-    const bio = ((user && user.bio) || '').trim();
+    const bio = profileString(user?.bio).trim();
     return bio || '写个签名，把 Steam 好友码放进去，队友加你好友';
   }
   const cachedProfile = useAppStore();
@@ -38,7 +39,7 @@ export function useMine() {
     teamsLoaded: false,
     singlePage: false,
     ...{
-      user: cachedProfile.user || ({} as User),
+      user: profileForView(cachedProfile.user),
       teamTab: 'hosted',
       phase: 'Ongoing',
       visibleTeams: [] as Team[],
@@ -58,7 +59,7 @@ export function useMine() {
   watch(
     () => cachedProfile.user,
     (user) => {
-      state.user = user || {};
+      state.user = profileForView(user);
       state.profileHint = getProfileHint(user || undefined);
     },
   );
@@ -99,7 +100,7 @@ export function useMine() {
         // Bootstrap helper owns profile freshness; a save can complete while teams are loading.
         const app = useAppStore();
         patchState({
-          user: app.user || {},
+          user: profileForView(app.user),
           profileHint: getProfileHint(app.user || undefined),
           isAdmin: app.isAdmin,
           isOrganizer: app.isOrganizer,
@@ -158,7 +159,7 @@ export function useMine() {
     patchState({ showProfile: false, pendingAction: '' });
   }
   function onProfileDone(input: { user: User }) {
-    const user = input.user || {};
+    const user = profileForView(input.user);
     if (user.nickName) {
       patchState({ showProfile: false, user });
     } else {

@@ -9,6 +9,7 @@ import { usePageFeedback } from '../../composables/usePageFeedback';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { ref, watch } from 'vue';
 import { GROUP_OPTIONS, PLAY_TIME_OPTIONS } from '../../utils/profile-options';
+import { profileForView } from '../../utils/profile-data';
 const gameDraft = ref('');
 const steamFriendCode = ref('');
 const wechatId = ref('');
@@ -33,7 +34,7 @@ watch(
   () => props.show,
   (visible) => {
     if (!visible) return;
-    const user = store.user || {};
+    const user = profileForView(store.user);
     avatarUrl.value = user.avatarUrl || '';
     avatarFileID.value = user.avatarFileID || '';
     nickName.value = user.nickName || '';
