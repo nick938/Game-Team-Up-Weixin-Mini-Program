@@ -20,9 +20,9 @@ test('profile editor saves optional preferences, publishes current user and allo
   editor.view.favoriteGames = [];
   editor.view.playTimes = [];
   await editor.save();
-  assert.deepEqual(h.calls[0].input.groupIds, []);
-  assert.deepEqual(h.calls[0].input.favoriteGames, []);
-  assert.deepEqual(h.calls[0].input.playTimes, []);
+  assert.deepEqual(h.calls.find((call) => call.action === 'saveProfile').input.groupIds, []);
+  assert.deepEqual(h.calls.find((call) => call.action === 'saveProfile').input.favoriteGames, []);
+  assert.deepEqual(h.calls.find((call) => call.action === 'saveProfile').input.playTimes, []);
   assert.equal(h.emitted[0].name, 'done');
   assert.deepEqual(h.store.user.groupIds, []);
 });
@@ -83,9 +83,12 @@ test('custom games support adding, deduplication, removal and saving a pending n
   editor.view.steamFriendCode = ' 00123456 ';
   editor.view.wechatId = ' player_123 ';
   await editor.save();
-  assert.deepEqual(h.calls[0].input.favoriteGames, ['星际露营模拟器', '另一个自定义游戏']);
-  assert.equal(h.calls[0].input.steamFriendCode, '00123456');
-  assert.equal(h.calls[0].input.wechatId, 'player_123');
+  assert.deepEqual(h.calls.find((call) => call.action === 'saveProfile').input.favoriteGames, [
+    '星际露营模拟器',
+    '另一个自定义游戏',
+  ]);
+  assert.equal(h.calls.find((call) => call.action === 'saveProfile').input.steamFriendCode, '00123456');
+  assert.equal(h.calls.find((call) => call.action === 'saveProfile').input.wechatId, 'player_123');
 });
 
 test('custom game limits and invalid contacts prevent profile saving', async () => {
@@ -93,16 +96,16 @@ test('custom game limits and invalid contacts prevent profile saving', async () 
   const editor = h.page('components/profile-gate/index', { show: true });
   editor.view.gameDraft = '6';
   await editor.save();
-  assert.equal(h.calls.length, 0);
+  assert.equal(h.calls.filter((call) => call.action === 'saveProfile').length, 0);
   assert.equal(editor.view.gameDraft, '6');
   editor.view.gameDraft = '';
   editor.view.steamFriendCode = 'invalid';
   await editor.save();
-  assert.equal(h.calls.length, 0);
+  assert.equal(h.calls.filter((call) => call.action === 'saveProfile').length, 0);
   editor.view.steamFriendCode = '';
   editor.view.wechatId = '含空格 ID';
   await editor.save();
-  assert.equal(h.calls.length, 0);
+  assert.equal(h.calls.filter((call) => call.action === 'saveProfile').length, 0);
 });
 
 test('contact copy preserves strings and shows success only after clipboard succeeds', () => {

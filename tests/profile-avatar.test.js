@@ -6,7 +6,7 @@ function editor({ uploadFails = false } = {}) {
   const h = harness({
     store: { user: { nickName: '玩家', avatarUrl: 'https://images.example/old.png', avatarFileID: 'cloud://env/old.png' } },
     uploadAvatar: async path => { uploads.push(path); if (uploadFails) throw new Error('头像上传失败'); return 'cloud://env/new.png'; },
-    callTeam: async (action, input) => { saves.push(input); return { user: { ...input, avatarFileID: input.avatarUrl, avatarUrl: 'https://images.example/new.png' } }; },
+    callTeam: async (action, input) => { if (action === 'getGroupOptions') return { groups: [], revision: 0 }; saves.push(input); return { user: { ...input, avatarFileID: input.avatarUrl, avatarUrl: 'https://images.example/new.png' } }; },
   });
   const page = h.page('components/profile-gate/index', { show: true });
   return { ...h, page, uploads, saves };

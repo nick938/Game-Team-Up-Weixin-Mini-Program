@@ -20,6 +20,7 @@ export interface Session {
 }
 export type SessionState = { session: Session | null };
 const READS = new Set([
+  'getGroupOptions',
   'getDailyPlay',
   'getUserRankings',
   'getProfile',

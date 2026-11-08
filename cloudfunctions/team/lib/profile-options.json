@@ -1,5 +1,8 @@
 {
-  "groups": [{ "value": "underground-gaming", "label": "不知名地下组织游戏群" }],
+  "groups": [
+    { "value": "underground-gaming", "label": "不知名地下组织游戏群" },
+    { "value": "huyao-diguo", "label": "狐妖帝国" }
+  ],
   "playTimes": [
     { "value": "weekday-evening", "label": "工作日晚间" },
     { "value": "weekday-daytime", "label": "工作日白天" },

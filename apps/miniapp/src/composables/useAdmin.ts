@@ -79,7 +79,10 @@ export function useAdmin() {
   async function load() {
     patchState({ loading: true });
     try {
-      if (state.tab === 'fixed') {
+      if (state.tab === 'groups') {
+        await callTeam('adminGroups');
+        patchState({ denied: false, loading: false });
+      } else if (state.tab === 'fixed') {
         await callTeam('adminFixedTeams');
         patchState({ denied: false, loading: false });
       } else if (state.tab === 'overview') {

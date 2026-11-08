@@ -6,6 +6,7 @@ cloud.init({
 });
 
 const db = cloud.database();
+const groupsService = require('./lib/groups').createGroups(db);
 const _ = db.command;
 
 let collectionsReady = false;
@@ -472,6 +473,7 @@ async function findMembersByOpenid(openid) {
 async function ensureCollections() {
   if (collectionsReady) return;
   for (const name of [
+    "app_config",
     "users",
     "teams",
     "members",
@@ -742,7 +744,7 @@ function validateTeamInput(input, { isCreate }) {
 // Optional public preferences; omitted fields preserve old-client data, [] explicitly clears.
 const PROFILE_BIO_MAX = 50;
 
-function validatePublicProfile(event) {
+function validatePublicProfile(event, groups = profileOptions.groups, previous = []) {
   const value = {};
   // 老版本只保存昵称头像时，保留已填写的签名；空字符串表示主动清空。
   if (Object.prototype.hasOwnProperty.call(event, "bio")) {
@@ -763,7 +765,7 @@ function validatePublicProfile(event) {
     value[key] = text;
   }
   for (const [key, label, max, allowed] of [
-    ["groupIds", "群组标识", 10, profileOptions.groups.map(item => item.value)],
+    ["groupIds", "群组标识", 10, groups.filter(item => item.enabled !== false || previous.includes(item.value)).map(item => item.value)],
     ["favoriteGames", "常玩游戏", 5, null],
     ["playTimes", "常玩时间", 5, profileOptions.playTimes.map(item => item.value)],
   ]) {
@@ -815,9 +817,10 @@ async function saveProfile(event, openid) {
   const avatarUrl = trim(event.avatarUrl, 1000);
   const avatarBase64 = typeof event.avatarBase64 === "string" ? event.avatarBase64 : "";
   if (!nickName) return fail("请填写昵称");
-  const checked = validatePublicProfile(event);
-  if (checked.error) return fail(checked.error);
   const existed = await getUser(openid);
+  const { groups } = await groupsService.read();
+  const checked = validatePublicProfile(event, groups, Array.isArray(existed?.groupIds) ? existed.groupIds : []);
+  if (checked.error) return fail(checked.error);
   if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
   const profileFields = ["bio", "favoriteGames", "steamFriendCode", "wechatId"];
@@ -1653,8 +1656,9 @@ function teamHeat(team) {
 async function listTeams(event = {}, openid) {
   try { await fixedTeamsService().generate(); }
   catch (error) { console.error("fixed car recovery failed", error.message); }
-  if (event.groupIds !== undefined && (!Array.isArray(event.groupIds) || event.groupIds.length > 100 ||
-    event.groupIds.some(id => typeof id !== "string" || !profileOptions.groups.some(group => group.value === id))))
+  const { groups } = await groupsService.read();
+  if (event.groupIds !== undefined && (!Array.isArray(event.groupIds) || event.groupIds.length > 200 ||
+    event.groupIds.some(id => typeof id !== "string" || !groups.some(group => group.value === id))))
     return fail("群组筛选格式不正确");
   const now = nowMs();
   const limit = clampInt(event.limit, LOBBY_PAGE_DEFAULT, 1, LOBBY_PAGE_MAX);
@@ -2314,6 +2318,15 @@ exports.main = async (event) => {
         return await submitBug(event, openid);
       case "submitReport":
         return await submitReport(event, openid);
+      case "getGroupOptions":
+        return ok(await groupsService.read());
+      case "adminGroups":
+      case "adminSaveGroup": {
+        const denied = await adminGuard(openid);
+        if (denied) return denied;
+        if (event.type === "adminGroups") return ok(await groupsService.read());
+        return ok(await groupsService.save(event.group, openid));
+      }
       case "adminFixedTeams":
       case "adminSaveFixedTeam":
       case "adminSetFixedTeamEnabled":

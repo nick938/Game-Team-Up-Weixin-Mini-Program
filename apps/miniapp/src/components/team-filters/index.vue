@@ -2,7 +2,7 @@
 defineOptions({ name: 'TeamFilters' });
 import { computed, reactive, ref, watch } from 'vue';
 import type { TeamSearch } from '../../types/domain';
-import { GROUP_OPTIONS } from '../../utils/profile-options';
+import { ALL_GROUP_OPTIONS, loadGroupOptions } from '../../utils/profile-options';
 import { VOICES } from '../../utils/constants';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { useAppTheme } from '../../composables/useAppTheme';
@@ -50,6 +50,7 @@ const count = computed(
     ].filter(Boolean).length,
 );
 function open() {
+  void loadGroupOptions(true).catch(() => {});
   Object.assign(draft, props.query);
   expanded.value = true;
 }
@@ -119,7 +120,7 @@ function apply() {
         <app-multi-select
           v-model="draft.groupIds"
           label="群组标识"
-          :columns="GROUP_OPTIONS"
+          :columns="ALL_GROUP_OPTIONS"
           :active="expanded && active !== false"
           placeholder="不限群组，可多选"
         />

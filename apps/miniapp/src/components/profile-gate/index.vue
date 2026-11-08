@@ -7,13 +7,16 @@ defineOptions({ name: 'ProfileGate' });
 import { usePageFeedback } from '../../composables/usePageFeedback';
 
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
-import { ref, watch } from 'vue';
-import { GROUP_OPTIONS, PLAY_TIME_OPTIONS } from '../../utils/profile-options';
+import { computed, ref, watch } from 'vue';
+import { ALL_GROUP_OPTIONS, PLAY_TIME_OPTIONS, loadGroupOptions } from '../../utils/profile-options';
 import { profileForView } from '../../utils/profile-data';
 const gameDraft = ref('');
 const steamFriendCode = ref('');
 const wechatId = ref('');
 const groupIds = ref<string[]>([]);
+const groupColumns = computed(() =>
+  ALL_GROUP_OPTIONS.value.filter((group) => group.enabled || groupIds.value.includes(group.value)),
+);
 const favoriteGames = ref<string[]>([]);
 const playTimes = ref<string[]>([]);
 import { callTeam, uploadAvatar } from '../../api/team';
@@ -34,6 +37,7 @@ watch(
   () => props.show,
   (visible) => {
     if (!visible) return;
+    void loadGroupOptions().catch(showError);
     const user = profileForView(store.user);
     avatarUrl.value = user.avatarUrl || '';
     avatarFileID.value = user.avatarFileID || '';
@@ -221,7 +225,7 @@ async function save() {
               label="群组标识"
               inline-tags
               :title-width="96"
-              :columns="GROUP_OPTIONS"
+              :columns="groupColumns"
               :max="10"
               :disabled="saving"
               :active="show"

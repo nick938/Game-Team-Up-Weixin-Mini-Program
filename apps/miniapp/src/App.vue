@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onLaunch, onError } from '@dcloudio/uni-app';
+import { onLaunch, onError, onShow } from '@dcloudio/uni-app';
+import { loadGroupOptions } from './utils/profile-options';
 import { useAppStore } from './stores/app';
 import { loadMyProfile } from './utils/my-profile';
 import { capabilities } from './platform/host';
@@ -17,5 +18,8 @@ onLaunch((options) => {
 });
 onError((error) => {
   useAppStore().lastError = String(error || '').slice(0, 500);
+});
+onShow(() => {
+  if (!isSinglePage()) void loadGroupOptions().catch(() => {});
 });
 </script>

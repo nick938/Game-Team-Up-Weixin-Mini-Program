@@ -83,6 +83,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
   const ctx = {
     require: (id) => {
       if (id === "node:crypto") return require(id);
+      if (id === "./lib/groups") return require("../cloudfunctions/team/lib/groups");
       if (id === "./lib/profile-options.json") return require("../cloudfunctions/team/lib/profile-options.json");
       if (id === "./lib/user-rankings") return require("../cloudfunctions/team/lib/user-rankings");
       if (id === "./lib/fixed-teams") return require("../cloudfunctions/team/lib/fixed-teams");
@@ -1667,4 +1668,34 @@ test('admin user selection includes current public host profile with usable avat
   assert.equal(host.subscribePrefs, undefined);
   assert.equal(result.list.find(user => user._id === 'empty').profileReady, false);
   assert.equal((await ctx.adminUsers({}, 'ordinary')).ok, false);
+});
+
+test('cloud group management guards writes and supports profile selection, rename, disable and stale edits', async () => {
+  const ctx = backend({ users: [{ _id: 'member', _openid: 'member', nickName: '玩家' }, { _id: 'other', _openid: 'other', nickName: '其他' }], env: { ADMIN_OPENIDS: 'boss' } });
+  ctx.getOpenid = async () => 'member';
+  const invoke = event => ctx.exports.main(event);
+  const seed = await invoke({ type: 'getGroupOptions' });
+  assert.equal(seed.ok, true);
+  assert.ok(seed.groups.some(group => group.value === 'huyao-diguo'));
+  const group = { value: 'group-new', label: '新群', enabled: true, revision: 0 };
+  assert.equal((await invoke({ type: 'adminGroups' })).ok, false);
+  assert.equal((await invoke({ type: 'adminSaveGroup', group })).ok, false);
+  ctx.getOpenid = async () => 'boss';
+  const saved = await invoke({ type: 'adminSaveGroup', group });
+  assert.equal(saved.revision, 1);
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', groupIds: ['group-new'] }, 'member')).ok, true);
+  assert.equal((await ctx.listTeams({ groupIds: ['group-new'] }, 'member')).ok, true);
+  assert.equal((await invoke({ type: 'adminSaveGroup', group })).ok, false);
+  const renamed = await invoke({ type: 'adminSaveGroup', group: { ...group, revision: 1, label: '新群名称', enabled: false } });
+  assert.equal(renamed.revision, 2);
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', groupIds: ['group-new'] }, 'member')).ok, true);
+  assert.equal((await ctx.saveProfile({ nickName: '其他', groupIds: ['group-new'] }, 'other')).ok, false);
+  assert.equal((await ctx.listTeams({ groupIds: ['group-new'] }, 'member')).ok, true);
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', groupIds: [] }, 'member')).ok, true);
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', groupIds: ['group-new'] }, 'member')).ok, false);
+  assert.equal((await invoke({ type: 'adminSaveGroup', group: { ...group, value: 'another', label: '新群名称', revision: 2 } })).ok, false);
+  assert.equal((await invoke({ type: 'adminSaveGroup', group: { ...group, revision: 2, label: '' } })).ok, false);
+  const restored = await invoke({ type: 'adminSaveGroup', group: { ...group, revision: 2 } });
+  assert.equal(restored.revision, 3);
+  assert.equal((await ctx.saveProfile({ nickName: '玩家', groupIds: ['group-new'] }, 'member')).ok, true);
 });

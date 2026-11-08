@@ -203,7 +203,19 @@ export interface FixedTeamPlan {
   voice: string;
   enabled: boolean;
 }
+export interface GroupOption {
+  value: string;
+  label: string;
+  enabled: boolean;
+}
+export interface GroupCatalog {
+  groups: GroupOption[];
+  revision: number;
+}
 export interface TeamResults {
+  getGroupOptions: GroupCatalog;
+  adminGroups: GroupCatalog;
+  adminSaveGroup: GroupCatalog;
   adminFixedTeams: { list: FixedTeamPlan[] };
   adminSaveFixedTeam: { generationErrors: { id: string; message: string }[] };
   adminSetFixedTeamEnabled: { generationErrors: { id: string; message: string }[] };
@@ -253,6 +265,9 @@ export interface VersionInput {
   envVersion: string;
 }
 export interface TeamRequests {
+  getGroupOptions: undefined;
+  adminGroups: undefined;
+  adminSaveGroup: { group: GroupOption & { revision: number } };
   adminFixedTeams: undefined;
   adminSaveFixedTeam: { plan: FixedTeamPlan };
   adminSetFixedTeamEnabled: { id: string; enabled: boolean };
