@@ -1,9 +1,15 @@
 cloudfunctions/team/mail.local.js
 node_modules/
 
-# Local browser verification artifacts
+# macOS metadata
+.DS_Store
+
+# Local browser verification and generated artifacts
 .playwright-cli/
-output/playwright/
+output/
+
+# Local promo material bundles
+开黑星球-四平台投稿素材/
 
 # Developer-specific simulator configuration
 project.private.config.json
