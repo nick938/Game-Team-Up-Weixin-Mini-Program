@@ -7,9 +7,10 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 
-function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false, beforeTransaction } = {}) {
+function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false, beforeTransaction, transactionConflicts = 0 } = {}) {
   const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
   const deleted = [];
+  let remainingConflicts = transactionConflicts;
   const db = {
     command: { gt: () => ({}), exists: () => ({}), or: () => ({}), gte: () => ({ and: () => ({}) }), lte: () => ({}), in: () => ({}) },
     collection(name) {
@@ -45,6 +46,14 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
     },
     async runTransaction(fn) {
       if (beforeTransaction) beforeTransaction();
+      if (remainingConflicts > 0) {
+        remainingConflicts -= 1;
+        // 与 wx-server-sdk 云函数里看到的形状一致：普通 Error，只有 errCode/errMsg。
+        const conflict = new Error('document.update:fail -501001 resource system error. [ResourceUnavailable.TransactionConflict] Transaction is conflict, maybe resource operated by others.');
+        conflict.errCode = -501001;
+        conflict.errMsg = conflict.message;
+        throw conflict;
+      }
       // 官方限制：事务内只支持单记录操作（collection.doc / collection.add），
       // where 等批量操作会报错。事务包装成只暴露 doc 和 add，防止代码退回旧写法。
       const self = this;
@@ -97,6 +106,7 @@ function backend({ teams = [], members = [], users = [], feedback = [], reports 
     exports: {},
     console: { error() {} },
     process: { env: env || {} },
+    setTimeout: (callback, ms) => setTimeout(callback, ms),
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'cloudfunctions/team/index.js'), 'utf8'), ctx);
@@ -816,6 +826,31 @@ test('joinTeam is rate limited independently of creates', async () => {
   assert.equal(outcomes.slice(0, limit).every((r) => r.ok), true);
   assert.equal(outcomes[limit].ok, false);
   assert.match(outcomes[limit].errMsg, /频繁/);
+});
+
+test('joining retries transaction conflicts instead of surfacing the raw database error', async () => {
+  const now = Date.now();
+  const teams = [{ _id: 't', gameName: 'CS2', capacity: 5, memberCount: 1, status: 'recruiting', openid: 'host', startAt: now, endAt: now + 3600000 }];
+  const members = [];
+  const ctx = backend({ users: [{ _id: 'u', nickName: '玩家' }], teams, members, transactionConflicts: 2 });
+  const res = await ctx.joinTeam({ teamId: 't' }, 'u');
+  assert.equal(res.ok, true);
+  assert.equal(teams[0].memberCount, 2);
+  assert.deepEqual(members.map((m) => m.openid), ['u']);
+});
+
+test('persistent transaction conflicts return a retryable Chinese error and keep the roster unchanged', async () => {
+  const now = Date.now();
+  const teams = [{ _id: 't', gameName: 'CS2', capacity: 5, memberCount: 2, status: 'recruiting', openid: 'host', startAt: now, endAt: now + 3600000 }];
+  const members = [{ _id: 'm1', teamId: 't', openid: 'host', role: 'host' }];
+  const ctx = backend({ users: [{ _id: 'u', nickName: '玩家' }], teams, members, transactionConflicts: 10 });
+  const res = await ctx.joinTeam({ teamId: 't' }, 'u');
+  assert.equal(res.ok, false);
+  assert.equal(res.code, 'BUSY');
+  assert.match(res.errMsg, /再试一次/);
+  assert.doesNotMatch(res.errMsg, /TransactionConflict|document\.update|-501001/);
+  assert.equal(teams[0].memberCount, 2);
+  assert.equal(members.length, 1);
 });
 
 test('bug reports are stored, validated and limited', async () => {

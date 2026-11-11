@@ -6,7 +6,7 @@ const source = fs.readFileSync(new URL('../src/api/client.ts', import.meta.url),
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },
 }).outputText;
-const { createTeamClient, ApiError } = await import(
+const { createTeamClient, ApiError, readableError } = await import(
   'data:text/javascript;base64,' + Buffer.from(compiled).toString('base64')
 );
 
@@ -136,5 +136,50 @@ test('unsupported hosts cannot log in or reuse an existing QQ session', async ()
       await assert.rejects(client.call('joinTeam', { teamId: 't' }), { code: 'PLATFORM_UNAVAILABLE' });
       assert.equal(requests, 0);
     }
+  }
+});
+
+test('raw cloud database errors become readable text while business messages pass through', async () => {
+  assert.equal(
+    readableError(
+      'document.update:fail -501001 resource system error. [ResourceUnavailable.TransactionConflict] Transaction is conflict.',
+    ),
+    '当前操作的人较多，请稍后再试',
+  );
+  assert.equal(readableError('cloud.callFunction:fail -504003 timeout'), '服务开小差了，请稍后重试');
+  assert.equal(readableError('请填写资料'), '请填写资料');
+  assert.equal(readableError(''), '请求失败，请稍后重试');
+  const client = createTeamClient({
+    target: 'mp-weixin',
+    state: { session: null },
+    nativeCall: async () => ({
+      ok: false,
+      code: 'BUSY',
+      errMsg:
+        'document.update:fail -501001 resource system error. [ResourceUnavailable.TransactionConflict] Transaction is conflict.',
+    }),
+  });
+  await assert.rejects(client.call('joinTeam', { teamId: 't' }), {
+    code: 'BUSY',
+    message: '当前操作的人较多，请稍后再试',
+  });
+});
+
+test('native cloud call rejections do not leak raw SDK text', async () => {
+  // wx.cloud.callFunction 可能抛 Error，也可能抛只带 errMsg 的对象。
+  for (const failure of [
+    new Error('cloud.callFunction:fail timeout'),
+    { errMsg: 'cloud.callFunction:fail timeout' },
+  ]) {
+    const client = createTeamClient({
+      target: 'mp-weixin',
+      state: { session: null },
+      nativeCall: async () => {
+        throw failure;
+      },
+    });
+    await assert.rejects(client.call('getTeam', { teamId: 't' }), {
+      message: '服务开小差了，请稍后重试',
+    });
   }
 });

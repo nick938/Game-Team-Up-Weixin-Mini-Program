@@ -80,6 +80,44 @@ function fail(errMsg) {
   return { ok: false, errMsg };
 }
 
+// 云开发事务是乐观锁：事务窗口内同一条记录被其他写入改动过，整个事务就会以
+// [ResourceUnavailable.TransactionConflict] 回滚。wx-server-sdk 的 runTransaction 自带重试
+// 只认 error.code，而事务内 document.update 的错误在 SDK 包装层已被转成只有 errCode/errMsg
+// 的普通 Error，code 丢失后不会再重试；这里补一层带退避的业务重试，避免多人同时上车时直接失败。
+const TRANSACTION_CONFLICT = /TransactionConflict|Transaction is conflict|DATABASE_TRANSACTION_CONFLICT/i;
+const BUSY_MESSAGE = "同时操作的人有点多，请再试一次";
+
+function isTransactionConflict(error) {
+  if (!error) return false;
+  if (error.code === "DATABASE_TRANSACTION_CONFLICT") return true;
+  return TRANSACTION_CONFLICT.test(String(error.errMsg || error.message || error));
+}
+
+// 重试后仍冲突时返回可重试的业务错误，不透传英文数据库报错。
+function conflictFail() {
+  return { ok: false, code: "BUSY", errMsg: BUSY_MESSAGE };
+}
+
+async function runTransactionWithRetry(callback, label, attempts = 5) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await db.runTransaction(callback);
+    } catch (error) {
+      if (!isTransactionConflict(error)) throw error;
+      // 云端日志可确认冲突是否仍在发生、重试是否成功；用户侧只见中文提示。
+      const detail = String(error.errMsg || error.message || "").slice(0, 200);
+      if (attempt + 1 >= attempts) {
+        console.error("transaction conflict exhausted", label, attempt + 1, detail);
+        throw error;
+      }
+      console.error("transaction conflict retry", label, attempt + 1, detail);
+      // 退避加少量抖动，避免两个同时操作的人按同一节奏再次撞车。
+      const delay = 80 * 2 ** attempt + Math.floor(Math.random() * 60);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 function teamExists(team) {
   return !!(team && (team.gameName || team.startAt));
 }
@@ -949,7 +987,7 @@ async function createTeam(event, openid) {
     const teamId = trim(event.claimTeamId, 80);
     if (/^(未知|待填写|待补充|待定|暂无|未填写)$/.test(checked.value.roomNo)) return fail("请填写真实房间号、Steam好友码或微信号");
     try {
-      await db.runTransaction(async tx => {
+      await runTransactionWithRetry(async tx => {
         const ref = tx.collection("teams").doc(teamId);
         const latest = (await ref.get()).data;
         if (!latest || !latest.dailyNightId) throw new Error("推荐队伍不存在，请刷新后再试");
@@ -961,8 +999,9 @@ async function createTeam(event, openid) {
         if (["gameName", "platform", "startAt", "endAt", "capacity"].some(key => latest[key] !== checked.value[key])) throw new Error("请保留推荐局的游戏、平台、时间和人数");
         await ref.update({ data: { ...checked.value, groupIds: Array.isArray(user.groupIds) ? [...user.groupIds] : [], pendingHost: false, openid, memberCount: 1, hostNickName: user.nickName, hostAvatarUrl: user.avatarUrl || "", claimedAt: nowMs(), updatedAt: nowMs() } });
         await tx.collection("members").add({ data: { teamId, openid, role: "host", nickName: user.nickName, avatarUrl: user.avatarUrl || "", joinedAt: nowMs() } });
-      });
+      }, "claim");
     } catch (error) {
+      if (isTransactionConflict(error)) return conflictFail();
       if (error.message === "已有玩家完成发车，请返回队伍详情上车") return { ok: false, code: "CLAIM_TAKEN", errMsg: error.message };
       return fail(error.message || "接手失败，请重试");
     }
@@ -987,20 +1026,25 @@ async function createTeam(event, openid) {
 
   // 建车队与建车头成员放同一事务，避免成员写入失败留下没有车头的脏队伍。
   let teamId = "";
-  await db.runTransaction(async (transaction) => {
-    const addRes = await transaction.collection("teams").add({ data: teamData });
-    teamId = addRes._id;
-    await transaction.collection("members").add({
-      data: {
-        teamId,
-        openid: hostId,
-        role: "host",
-        nickName: hostUser.nickName,
-        avatarUrl: hostUser.avatarUrl || "",
-        joinedAt: nowMs(),
-      },
-    });
-  });
+  try {
+    await runTransactionWithRetry(async (transaction) => {
+      const addRes = await transaction.collection("teams").add({ data: teamData });
+      teamId = addRes._id;
+      await transaction.collection("members").add({
+        data: {
+          teamId,
+          openid: hostId,
+          role: "host",
+          nickName: hostUser.nickName,
+          avatarUrl: hostUser.avatarUrl || "",
+          joinedAt: nowMs(),
+        },
+      });
+    }, "create");
+  } catch (error) {
+    if (isTransactionConflict(error)) return conflictFail();
+    throw error;
+  }
 
   await recordAction(openid, "createTeam");
   return ok({ teamId });
@@ -1034,7 +1078,7 @@ async function updateTeam(event, openid) {
   if (textError) return fail(textError);
 
   try {
-    await db.runTransaction(async (transaction) => {
+    await runTransactionWithRetry(async (transaction) => {
       const latest = (await transaction.collection("teams").doc(teamId).get()).data;
       if (!teamExists(latest) || !isOngoing(latest, nowMs())) throw new Error("队伍已结束，不能再改");
       if (checked.value.capacity < latest.memberCount) throw new Error("人数不能少于当前已加入人数，请刷新后重试");
@@ -1054,8 +1098,9 @@ async function updateTeam(event, openid) {
           ...(changedFields.length ? { changedFields, detailsChangedAt: nowMs() } : {}),
         },
       });
-    });
+    }, "update");
   } catch (error) {
+    if (isTransactionConflict(error)) return conflictFail();
     return fail(error.message || "保存失败，请重试");
   }
   return ok();
@@ -1315,7 +1360,7 @@ async function joinTeam(event, openid) {
   }
 
   try {
-    await db.runTransaction(async (transaction) => {
+    await runTransactionWithRetry(async (transaction) => {
       const teamRes = await transaction.collection("teams").doc(teamId).get();
       const team = teamRes.data;
       if (!teamExists(team)) throw new Error("队伍不存在");
@@ -1325,8 +1370,8 @@ async function joinTeam(event, openid) {
       if (hostUid(team) === openid) {
         throw new Error("你已经是车头，不用再上车");
       }
-      // 事务内只支持单记录操作（官方不支持 where）；改用非事务连接查重，
-      // 冲突自动重试会重跑整个回调，仍能查到其他事务刚提交的成员。
+      // 事务内只支持单记录操作（官方不支持 where）；查重走非事务连接，
+      // runTransactionWithRetry 重跑整个回调时会重新查到其他事务刚提交的成员。
       const exist = await db.collection("members").where({ teamId }).get();
       if (exist.data.some((m) => memberUid(m) === openid)) {
         throw new Error("你已经在车上了");
@@ -1351,8 +1396,9 @@ async function joinTeam(event, openid) {
           status: nextStatus,
         },
       });
-    });
+    }, "join");
   } catch (e) {
+    if (isTransactionConflict(e)) return conflictFail();
     return fail(e.message || "上车失败");
   }
   // 不再发送「有人上车 / 人齐了」：一次性订阅每局只保证一条，额度留给开打提醒。
@@ -1372,7 +1418,7 @@ async function leaveTeam(event, openid) {
     // 事务里会再校验
   }
   try {
-    await db.runTransaction(async (transaction) => {
+    await runTransactionWithRetry(async (transaction) => {
       const teamRes = await transaction.collection("teams").doc(teamId).get();
       const team = teamRes.data;
       if (!teamExists(team)) throw new Error("队伍不存在");
@@ -1397,8 +1443,9 @@ async function leaveTeam(event, openid) {
           status: nextCount >= team.capacity ? "full" : "recruiting",
         },
       });
-    });
+    }, "leave");
   } catch (e) {
+    if (isTransactionConflict(e)) return conflictFail();
     return fail(e.message || "下车失败");
   }
   return ok();
@@ -1510,30 +1557,36 @@ async function setReaction(event, openid) {
   if (event.enabled !== undefined && (typeof event.enabled !== "boolean" || !REACTION_GROUPS[reaction])) return fail("不支持的表情操作");
   const limited = await rateLimitExceeded(openid, "setReaction");
   if (limited) return fail(limited);
-  const result = await db.runTransaction(async (tx) => {
-    const teamRef = tx.collection("teams").doc(teamId);
-    let team;
-    try { team = (await teamRef.get()).data; } catch (e) {
-      if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return fail("队伍不存在");
-      throw e;
-    }
-    if (!teamExists(team)) return fail("队伍不存在");
-    const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
-    const own = await optionalReaction(ownRef);
-    const previous = selectedReactions(own);
-    // Every actor selects one reaction. A write also reconciles older multi-reaction records.
-    const next = event.enabled === undefined ? (reaction ? [reaction] : []) : event.enabled
-      ? [reaction]
-      : previous.filter(id => id !== reaction).slice(-1);
-    const counts = reactionCounts(team);
-    for (const id of REACTION_IDS) counts[id] = Math.max(0, counts[id] + Number(next.includes(id)) - Number(previous.includes(id)));
-    if (JSON.stringify(previous) !== JSON.stringify(next)) {
-      await teamRef.update({ data: { reactionCounts: counts } });
-      if (next.length) await ownRef.set({ data: { teamId, reactions: next, reaction: next[next.length - 1], updatedAt: nowMs() } });
-      else if (own) await ownRef.remove();
-    }
-    return ok({ reactions: { counts, selected: next, mine: next[next.length - 1] || "" } });
-  });
+  let result;
+  try {
+    result = await runTransactionWithRetry(async (tx) => {
+      const teamRef = tx.collection("teams").doc(teamId);
+      let team;
+      try { team = (await teamRef.get()).data; } catch (e) {
+        if (/not exist|not found|不存在/i.test(String(e && (e.errMsg || e.message)))) return fail("队伍不存在");
+        throw e;
+      }
+      if (!teamExists(team)) return fail("队伍不存在");
+      const ownRef = tx.collection("team_reactions").doc(reactionDocId(teamId, openid));
+      const own = await optionalReaction(ownRef);
+      const previous = selectedReactions(own);
+      // Every actor selects one reaction. A write also reconciles older multi-reaction records.
+      const next = event.enabled === undefined ? (reaction ? [reaction] : []) : event.enabled
+        ? [reaction]
+        : previous.filter(id => id !== reaction).slice(-1);
+      const counts = reactionCounts(team);
+      for (const id of REACTION_IDS) counts[id] = Math.max(0, counts[id] + Number(next.includes(id)) - Number(previous.includes(id)));
+      if (JSON.stringify(previous) !== JSON.stringify(next)) {
+        await teamRef.update({ data: { reactionCounts: counts } });
+        if (next.length) await ownRef.set({ data: { teamId, reactions: next, reaction: next[next.length - 1], updatedAt: nowMs() } });
+        else if (own) await ownRef.remove();
+      }
+      return ok({ reactions: { counts, selected: next, mine: next[next.length - 1] || "" } });
+    }, "reaction");
+  } catch (error) {
+    if (isTransactionConflict(error)) return conflictFail();
+    throw error;
+  }
   if (result.ok) await recordAction(openid, "setReaction");
   return result;
 }

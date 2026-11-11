@@ -31,9 +31,29 @@ const READS = new Set([
   'searchProxyUsers',
 ]);
 
+// 云函数把云开发 SDK 的原始报错放进 errMsg 时，界面只展示可读提示，不暴露英文数据库细节。
+const RAW_CLOUD_ERROR = /\b[\w.]+:fail\b|-\d{6}\b|\[ResourceUnavailable\.[^\]]+\]|DATABASE_[A-Z_]+/;
+export function readableError(message?: string): string {
+  const text = (message || '').trim();
+  if (!text) return '请求失败，请稍后重试';
+  if (!RAW_CLOUD_ERROR.test(text)) return text;
+  return /TransactionConflict|Transaction is conflict|DATABASE_TRANSACTION_CONFLICT/i.test(text)
+    ? '当前操作的人较多，请稍后再试'
+    : '服务开小差了，请稍后重试';
+}
+
+// wx.cloud.callFunction 的失败值不一定是 Error，可能是只带 errMsg 的对象。
+function cloudErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const detail = (error || {}) as { errMsg?: unknown; message?: unknown };
+  if (typeof detail.errMsg === 'string') return detail.errMsg;
+  if (typeof detail.message === 'string') return detail.message;
+  return String(error ?? '');
+}
+
 export function checked(result: Result): Result {
   if (!result || result.ok !== true)
-    throw new ApiError(result?.errMsg || result?.message || '请求失败', result?.code);
+    throw new ApiError(readableError(result?.errMsg || result?.message), result?.code);
   return result;
 }
 
@@ -71,8 +91,14 @@ export function createTeamClient(options: {
     await authenticating;
   }
   async function invoke(action: string, input: Record<string, unknown>) {
-    if (options.target === 'mp-weixin' && options.nativeCall)
-      return checked(await options.nativeCall(action, input));
+    if (options.target === 'mp-weixin' && options.nativeCall) {
+      try {
+        return checked(await options.nativeCall(action, input));
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(readableError(cloudErrorMessage(error)));
+      }
+    }
     await ensureSession();
     try {
       return checked(await options.request('/v1/rpc', { action, input }, options.state.session!.accessToken));
