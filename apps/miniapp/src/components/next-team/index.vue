@@ -43,7 +43,7 @@ const view = useTeamPresentation(
 <style scoped>
 :deep(.mine-next-team.wd-card) {
   border-color: var(--app-brand-light);
-  --wot-card-bg: #f5f3ff;
+  --wot-card-bg: var(--app-brand-light);
   box-shadow: none;
   --wot-card-content-padding: 14px;
 }

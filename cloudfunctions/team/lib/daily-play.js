@@ -18,7 +18,7 @@ const clean = row => { const { _id, ...data } = row; return data; };
 const count = option => Object.keys(option.voters || {}).length;
 const rank = options => [...options].sort((a, b) => count(b) - count(a) || a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 const normalizeGame = name => String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-function createDailyPlay(db, { now = Date.now, history = async () => [], pick = randomInt } = {}) {
+function createDailyPlay(db, { now = Date.now, history = async () => [], pick = randomInt, votingEnabled = true } = {}) {
   async function readOptions(source, index) {
     return (await Promise.all((index?.ids || []).map(id => optional(source.collection('play_options').doc(id))))).filter(Boolean);
   }
@@ -39,12 +39,12 @@ function createDailyPlay(db, { now = Date.now, history = async () => [], pick = 
       const stored = await optional(ref);
       if (stored?.settledAt) return;
       const index = stored ? clean(stored) : { ids: [] };
-      const winner = rank(await readOptions(tx, index)).find(option => count(option) > 0);
+      const winner = votingEnabled ? rank(await readOptions(tx, index)).find(option => count(option) > 0) : null;
       const fallback = !winner && past.length ? past[pick(past.length)] : null;
       const selected = winner || fallback;
       const template = winner ? past.find(team => team.platform === winner.platform && normalizeGame(team.gameName) === normalizeGame(winner.gameName)) : fallback;
       Object.assign(index, { settledAt: at, winnerId: winner?.id || '', teamId: '', source: winner ? 'vote' : fallback ? 'history' : '', selectedGame: selected ? { gameName: selected.gameName, platform: selected.platform, capacity: template?.capacity || 4 } : null, unavailableReason: '' });
-      if (!selected) index.unavailableReason = '16:00时无人投票，也没有可参考的历史发车，今日未生成官方车';
+      if (!selected) index.unavailableReason = '没有可参考的历史发车，今日未生成官方车';
       else if (at >= current.endAt) index.unavailableReason = '今晚活动已结束，未补建过期队伍';
       else {
         const teamId = 'night_' + current.dayId;
@@ -54,7 +54,7 @@ function createDailyPlay(db, { now = Date.now, history = async () => [], pick = 
           zone: 'game', dailyOptionId: winner?.id || '', dailyNightId: current.dayId, officialSource: winner ? 'champion' : 'random', pendingHost: true,
           memberCount: 0, status: 'recruiting', hostNickName: '', hostAvatarUrl: '',
           roomNo: '', roomPwd: '', server: '', voice: '不限', rankReq: '',
-          note: '每日推荐局，21:00–23:00；等待首位玩家填写联系方式并完成发车。', createdAt: at,
+          note: '每日推荐局，等待首位玩家完成发车。', createdAt: at,
         } });
         index.teamId = teamId;
       }

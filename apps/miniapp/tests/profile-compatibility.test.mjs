@@ -32,7 +32,7 @@ test('mine mounts with malformed cached profile and recovers after a fresh profi
   assert.equal(page.state.teamsLoaded, true);
 });
 
-test('profile fetched with malformed fields stays viewable and editable', async () => {
+test('existing profile with malformed fields can still be saved without an avatar', async () => {
   const h = harness({
     callTeam: async (action, input) =>
       action === 'getProfile'
@@ -48,9 +48,31 @@ test('profile fetched with malformed fields stays viewable and editable', async 
   assert.deepEqual([...editor.view.groupIds], []);
   assert.deepEqual([...editor.view.favoriteGames], []);
   assert.deepEqual([...editor.view.playTimes], []);
+  assert.equal(editor.view.avatarRequired, false);
   await editor.save();
   assert.equal(h.emitted.at(-1).name, 'done');
+  assert.equal(h.calls.at(-1).input.avatarUrl, '');
   assert.equal(h.calls.at(-1).input.bio, '');
+});
+
+test('new profile still requires an avatar after the user types a nickname', async () => {
+  const h = harness({
+    uploadAvatar: async () => 'cloud://env/new-avatar.jpg',
+    callTeam: async (_, input) => ({ user: input }),
+  });
+  const editor = h.page('components/profile-gate/index', { show: true });
+  editor.view.nickName = '新玩家';
+  assert.equal(editor.view.avatarRequired, true);
+  await editor.save();
+  assert.equal(h.toasts.at(-1), '请先选择头像');
+  assert.equal(
+    h.calls.some(({ action }) => action === 'saveProfile'),
+    false,
+  );
+  editor.selectPath('/tmp/avatar.jpg');
+  await editor.save();
+  assert.equal(h.emitted.at(-1).name, 'done');
+  assert.equal(h.calls.at(-1).input.avatarUrl, 'cloud://env/new-avatar.jpg');
 });
 
 test('profile labels tolerate null and non-array fields without matching string fragments', () => {

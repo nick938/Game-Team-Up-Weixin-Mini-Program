@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { appThemeStyle, component } from '../../design/tokens';
+import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'ProfileGate' });
@@ -9,7 +9,7 @@ import { usePageFeedback } from '../../composables/usePageFeedback';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { computed, ref, watch } from 'vue';
 import { ALL_GROUP_OPTIONS, PLAY_TIME_OPTIONS, loadGroupOptions } from '../../utils/profile-options';
-import { profileForView } from '../../utils/profile-data';
+import { profileForView, profileString } from '../../utils/profile-data';
 const gameDraft = ref('');
 const steamFriendCode = ref('');
 const wechatId = ref('');
@@ -29,10 +29,17 @@ const { afterLeave } = useTabBarOverlay(() => props.show, { waitForAfterLeave: t
 const store = useAppStore();
 const avatarUrl = ref(''),
   avatarFileID = ref(''),
+  avatarBase64 = ref(''),
   nickName = ref(''),
   bio = ref('');
 const saving = ref(false),
   selectedPath = ref('');
+const avatarRequired = computed(() => !profileString(store.user?.nickName).trim());
+const avatarPreview = computed(() => {
+  if (avatarUrl.value) return avatarUrl.value;
+  if (avatarBase64.value.startsWith('data:image/')) return avatarBase64.value;
+  return avatarBase64.value ? `data:image/jpeg;base64,${avatarBase64.value}` : '';
+});
 watch(
   () => props.show,
   (visible) => {
@@ -41,6 +48,7 @@ watch(
     const user = profileForView(store.user);
     avatarUrl.value = user.avatarUrl || '';
     avatarFileID.value = user.avatarFileID || '';
+    avatarBase64.value = user.avatarBase64?.trim() || '';
     nickName.value = user.nickName || '';
     bio.value = user.bio || '';
     gameDraft.value = '';
@@ -100,6 +108,10 @@ async function save() {
   if (saving.value) return;
   if (!nickName.value.trim()) {
     showError(new Error('请填写昵称'));
+    return;
+  }
+  if (avatarRequired.value && !avatarPreview.value.trim() && !avatarFileID.value) {
+    showError(new Error('请先选择头像'));
     return;
   }
   if (bio.value.trim().length > 50) {
@@ -168,7 +180,7 @@ async function save() {
     safe-area-inset-bottom
     @update:model-value="!$event && close()"
   >
-    <view class="sheet-content" :style="appThemeStyle"
+    <view class="sheet-content"
       ><view class="section-title mb-4">个人资料</view
       ><scroll-view scroll-y class="profile-form-scroll">
         <view class="text-center mb-4">
@@ -183,7 +195,7 @@ async function save() {
               size="80px"
               shape="square"
               mode="aspectFill"
-              :src="avatarUrl || '/static/images/avatar.png'"
+              :src="avatarPreview || '/static/images/avatar.png'"
               custom-style="--wot-avatar-border-radius:24px"
           /></wd-button>
           <!-- #endif -->
@@ -193,14 +205,24 @@ async function save() {
               size="80px"
               shape="square"
               mode="aspectFill"
-              :src="avatarUrl || '/static/images/avatar.png'"
+              :src="avatarPreview || '/static/images/avatar.png'"
               custom-style="--wot-avatar-border-radius:24px"
           /></wd-button>
           <!-- #endif -->
+          <view class="hint mt-2">
+            {{
+              avatarPreview
+                ? '点击更换头像'
+                : avatarRequired
+                  ? '点击选择头像（必填）'
+                  : '点击选择头像（选填）'
+            }}
+          </view>
         </view>
         <app-input
           v-model="nickName"
           label="昵称"
+          required
           :title-width="96"
           :type="capabilities.nicknameInput ? 'nickname' : 'text'"
           :maxlength="32"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'ReportReportPage' });
@@ -7,6 +8,9 @@ import { useReport } from '../../composables/useReport';
 const page = reactive(useReport());
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <app-shell title="举报" subtitle="如果这趟车涉及广告、辱骂或违规内容，告诉我们，我们会尽快处理。">
     <wd-cell-group
       ><wd-cell title="举报对象" :value="page.targetName || '组队'" /><app-picker

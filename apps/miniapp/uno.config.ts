@@ -1,7 +1,7 @@
 import { defineConfig, transformerDirectives, transformerVariantGroup } from 'unocss';
 import { presetUni } from '@uni-helper/unocss-preset-uni';
 import { presetLegacyCompat } from '@unocss/preset-legacy-compat';
-import { primitive, semantic } from './src/design/tokens.ts';
+import { appColor, primitive, semantic } from './src/design/tokens.ts';
 import { spacing, fontSize, baseStyles } from './src/design/uno-theme.ts';
 
 export default defineConfig({
@@ -11,7 +11,7 @@ export default defineConfig({
   ],
   transformers: [transformerDirectives(), transformerVariantGroup()],
   theme: {
-    colors: { ...semantic.color, white: semantic.color.surface, electric: semantic.color.brand },
+    colors: { ...appColor, white: primitive.color.white, electric: appColor.brand },
     spacing,
     fontSize,
     borderRadius: {
@@ -46,10 +46,10 @@ export default defineConfig({
     ['surface-shadow', { 'box-shadow': 'none' }],
     ['motion-enter', { animation: `app-enter ${primitive.motion.transition}ms ease both` }],
     ['motion-card', { animation: `app-enter ${primitive.motion.transition}ms ease both` }],
-    ['game-amber', { background: semantic.illustration.amber, color: semantic.color.warning }],
-    ['game-mint', { background: semantic.illustration.mint, color: semantic.color.success }],
-    ['game-rose', { background: semantic.illustration.rose, color: semantic.color.danger }],
-    ['game-violet', { background: semantic.illustration.violet, color: semantic.color.brand }],
+    ['game-amber', { background: appColor['warning-soft'], color: appColor.warning }],
+    ['game-mint', { background: appColor['success-soft'], color: appColor.success }],
+    ['game-rose', { background: appColor['danger-soft'], color: appColor.danger }],
+    ['game-violet', { background: appColor['brand-light'], color: appColor.brand }],
   ],
   preflights: [{ getCSS: baseStyles }],
 });

@@ -3,18 +3,16 @@ import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'WelcomeLetter' });
-import { reactive, toRefs, nextTick, onMounted, watch } from 'vue';
+import { reactive, toRefs, onMounted, watch } from 'vue';
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
 import { onShow } from '@dcloudio/uni-app';
 
 import { platform as hostPlatform } from '../../platform/host';
 import { isSinglePage } from '../../utils/runtime';
 import { hasReadWelcome, markWelcomeRead } from '../../utils/welcome';
-const emit = defineEmits<{ ready: [] }>();
 const props = withDefaults(defineProps<{ enabled?: boolean }>(), { enabled: true });
 const state = reactive({
   show: false,
-  closing: false,
 });
 const { show } = toRefs(state);
 const { afterLeave: releaseOverlay } = useTabBarOverlay(show, { waitForAfterLeave: true });
@@ -25,25 +23,14 @@ function afterLeave() {
     const url = pendingNavigation;
     pendingNavigation = '';
     hostPlatform.navigateTo({ url });
-  } else if (!isSinglePage() && hasReadWelcome()) emit('ready');
-  state.closing = false;
-}
-function patchState(patch: Partial<typeof state>, done?: () => void) {
-  Object.assign(state, patch);
-  if (done) void nextTick(done);
+  }
 }
 function syncVisibility() {
-  if (isSinglePage() || props.enabled === false) {
-    patchState({ show: false });
-    return;
-  }
-  const read = hasReadWelcome();
-  patchState({ show: !read });
-  if (read && !state.closing) emit('ready');
+  state.show = !isSinglePage() && props.enabled !== false && !hasReadWelcome();
 }
 function dismiss() {
   markWelcomeRead();
-  patchState({ show: false, closing: true });
+  state.show = false;
 }
 function closeAndNavigate(url: string) {
   if (state.show) {

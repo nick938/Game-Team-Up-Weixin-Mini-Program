@@ -69,7 +69,7 @@ test('publish and mine reuse the startup profile request while their pages remai
 test('fresh welcome hides native tabs until dismissal finishes, but returning users do not hide them', () => {
   let hidden = 0,
     shown = 0;
-  const h = harness({ platform: { hideTabBar: () => hidden++, showTabBar: () => shown++ } });
+  const h = harness({ target: 'mp-qq', platform: { hideTabBar: () => hidden++, showTabBar: () => shown++ } });
   const welcome = h.page('components/welcome-letter/index');
   welcome.hooks.mounted();
   assert.equal(hidden, 1);
@@ -177,12 +177,14 @@ test('schedule overlaps are advisory but canceling never writes a join or public
   assert.equal(publish.state.submitting, false);
 });
 
-test('update notice is visible once; optional analytics failure does not discard the team', async () => {
+test('update notice shows only current form fields once, even if analytics fails', async () => {
+  let detailsChangedAt = 100;
+  let changedFields = ['server', 'startAt', 'roomPwd'];
   const h = harness({
     callTeam: async (action) => {
       if (action === 'trackTeamEvent') throw new Error('analytics unavailable');
       return {
-        team: futureTeam({ detailsChangedAt: 100, changedFields: ['server', 'roomPwd'] }),
+        team: futureTeam({ detailsChangedAt, changedFields }),
         role: 'member',
         members: [],
       };
@@ -191,8 +193,12 @@ test('update notice is visible once; optional analytics failure does not discard
   const page = h.page('pages/team/detail');
   page.state.teamId = 't';
   await page.loadDetail();
-  assert.match(page.state.changeNotice, /区服、密码/);
+  assert.equal(page.state.changeNotice, '车头更新了开始时间，请重新核对。');
   assert.ok(page.state.team);
+  await page.loadDetail();
+  assert.equal(page.state.changeNotice, '');
+  detailsChangedAt = 200;
+  changedFields = ['server', 'roomPwd'];
   await page.loadDetail();
   assert.equal(page.state.changeNotice, '');
   assert.equal(h.calls.filter((call) => call.action === 'trackTeamEvent').length, 1);
@@ -318,7 +324,7 @@ test('native tabs remain visible on normal page entry', async () => {
 
 test('closing the last overlay restores the native tab bar', () => {
   let shown = 0;
-  const h = harness({ platform: { showTabBar: () => shown++ } });
+  const h = harness({ target: 'mp-qq', platform: { showTabBar: () => shown++ } });
   const overlay = h.load('composables/useTabBarOverlay');
   const sheet = h.page('components/team-manage-sheet/index', { show: true });
   assert.equal(overlay.tabBarObscured.value, true);
@@ -326,6 +332,45 @@ test('closing the last overlay restores the native tab bar', () => {
   sheet.afterLeave();
   assert.equal(overlay.tabBarObscured.value, false);
   assert.equal(shown, 1);
+});
+
+test('the WeChat tab bar follows the owning page, preview mode and overlay transitions', (t) => {
+  const previous = globalThis.getCurrentPages;
+  t.after(() => {
+    if (previous) globalThis.getCurrentPages = previous;
+    else delete globalThis.getCurrentPages;
+  });
+  const h = harness();
+  const updates = [];
+  let route = 'pages/index/index';
+  globalThis.getCurrentPages = () => [
+    { route, getTabBar: () => ({ setData: (data) => updates.push(data) }) },
+  ];
+  const lobby = h.page(route);
+  lobby.hooks.onReady();
+  assert.equal(updates.at(-1).selectedRoute, route);
+  assert.equal(updates.at(-1).items.length, 3);
+  assert.equal(updates.at(-1).hidden, false);
+
+  const sheet = h.page('components/team-manage-sheet/index', { show: true });
+  assert.equal(updates.at(-1).hidden, true);
+  sheet.bindings.props.show = false;
+  assert.equal(updates.at(-1).hidden, true);
+  sheet.afterLeave();
+  assert.equal(updates.at(-1).hidden, false);
+
+  route = 'pages/publish/publish';
+  h.page(route).hooks.onReady();
+  assert.equal(updates.at(-1).selectedRoute, route);
+  route = 'pages/mine/mine';
+  const mine = h.page(route);
+  mine.hooks.onReady();
+  assert.equal(updates.at(-1).selectedRoute, route);
+  mine.state.singlePage = true;
+  assert.equal(updates.at(-1).hidden, true);
+  const count = updates.length;
+  lobby.hooks.onReady();
+  assert.equal(updates.length, count, 'a cached page must not write to the active tab bar');
 });
 
 test('cached pages show their portal chrome even when onShow precedes the route-stack update', async (t) => {

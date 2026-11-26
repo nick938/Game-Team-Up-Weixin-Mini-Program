@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appTheme, pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/index/index');
@@ -9,6 +10,7 @@ import { privacyConsent } from '../../utils/privacy';
 import { platform } from '../../platform/host';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { useLobby } from '../../composables/useLobby';
+import { useWechatTabBar } from '../../composables/useWechatTabBar';
 import TeamFilters from '../../components/team-filters/index.vue';
 import TeamResults from '../../components/team-results/index.vue';
 import NextTeam from '../../components/next-team/index.vue';
@@ -16,6 +18,22 @@ import type { TeamSearch } from '../../types/domain';
 defineOptions({ name: 'IndexIndexPage' });
 useAppTheme();
 const page = reactive(useLobby());
+const layoutKey = 'home-team-layout';
+const waterfall = ref(false);
+try {
+  waterfall.value = platform.getStorageSync(layoutKey) === 'waterfall';
+} catch {
+  // Keep the default when storage is unavailable.
+}
+function toggleLayout() {
+  waterfall.value = !waterfall.value;
+  try {
+    platform.setStorageSync(layoutKey, waterfall.value ? 'waterfall' : 'list');
+  } catch {
+    // The current page still switches layout.
+  }
+}
+useWechatTabBar('pages/index/index', () => page.singlePage);
 function applyFilters(patch: Partial<TeamSearch>) {
   const { gameName, ...filters } = patch;
   if (gameName !== undefined) page.gameFilter = gameName || '全部';
@@ -44,7 +62,14 @@ onShareAppMessage(page.shareAppMessage);
 onShareTimeline(page.shareTimeline);
 </script>
 <template>
-  <view class="lobby-home" :style="{ '--home-nav-height': navigation.total + 'px' }">
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
+  <view
+    class="lobby-home"
+    :class="{ 'lobby-home-dark': appTheme === 'dark' }"
+    :style="{ '--home-nav-height': navigation.total + 'px' }"
+  >
     <view class="lobby-atmosphere" aria-hidden="true" />
     <view
       class="home-navigation"
@@ -62,7 +87,6 @@ onShareTimeline(page.shareTimeline);
     <view class="home-navigation-spacer" />
     <timeline-preview v-if="page.singlePage" />
     <app-shell :active="pageActive" v-else variant="lobby">
-      <lobby-hero />
       <next-team
         v-if="page.nextTeam"
         :team="page.nextTeam"
@@ -75,25 +99,6 @@ onShareTimeline(page.shareTimeline);
         @open="page.onOpen"
         @refresh="page.loadUpcoming"
       />
-      <view class="home-play-entries">
-        <view role="button" class="home-play-entry" @click="platform.navigateTo({ url: '/pages/play/play' })"
-          ><image class="entry-art" src="/static/images/play-today.png" mode="aspectFill" /><view
-            class="entry-kicker"
-            >TODAY</view
-          ><view class="entry-title">今天玩啥</view><view class="entry-copy">投出想玩，随时约一局</view
-          ><view class="entry-link">找个搭子 →</view></view
-        >
-        <view
-          role="button"
-          class="home-play-entry home-ranking-entry"
-          @click="platform.navigateTo({ url: '/pages/friday/friday' })"
-          ><image class="entry-art" src="/static/images/home-rankings.png" mode="aspectFill" /><view
-            class="entry-kicker"
-            >TOP PLAYERS</view
-          ><view class="entry-title">用户排行</view><view class="entry-copy">发车榜 · 上车榜</view
-          ><view class="entry-link">看看谁上榜 →</view></view
-        >
-      </view>
       <team-filters
         :active="pageActive"
         :query="page.query()"
@@ -125,12 +130,32 @@ onShareTimeline(page.shareTimeline);
             >
               <wd-icon name="filter" size="17px" /> 筛选<text v-if="count" class="home-filter-dot" />
             </wd-button>
+            <wd-button
+              size="small"
+              variant="text"
+              custom-class="home-ranking-button"
+              aria-label="用户排行"
+              @click="platform.navigateTo({ url: '/pages/friday/friday' })"
+            >
+              <wd-icon name="trophy" size="16px" /> 排行
+            </wd-button>
           </view>
         </template>
       </team-filters>
+      <!-- #ifndef MP-WEIXIN -->
+      <wd-button
+        size="small"
+        variant="text"
+        custom-class="home-play-button"
+        @click="platform.navigateTo({ url: '/pages/play/play' })"
+      >
+        今天玩啥 <wd-icon name="arrow-right" size="14px" />
+      </wd-button>
+      <!-- #endif -->
       <team-results
         :query="page.query()"
         :teams="page.filtered"
+        :waterfall="waterfall"
         :total="page.total"
         :loading="page.loading"
         :loading-more="page.loadingMore"
@@ -173,9 +198,21 @@ onShareTimeline(page.shareTimeline);
               @click="page.pickSort(item.value)"
               >{{ item.label }}</wd-button
             >
+            <wd-button
+              variant="text"
+              size="small"
+              custom-class="home-layout-button"
+              :aria-label="waterfall ? '切换为单栏' : '切换为双栏瀑布流'"
+              :aria-pressed="waterfall"
+              @click="toggleLayout"
+              ><wd-icon :name="waterfall ? 'list' : 'apps'" size="18px"
+            /></wd-button>
           </view>
         </template>
       </team-results>
+      <!-- #ifdef MP-WEIXIN -->
+      <view class="wechat-tab-spacer" />
+      <!-- #endif -->
       <entry-notices />
     </app-shell>
   </view>
@@ -186,71 +223,13 @@ onShareTimeline(page.shareTimeline);
   />
 </template>
 <style scoped>
-.home-play-entries {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 0 0 12px;
-}
-.home-play-entry {
-  position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
-  height: 142px;
-  padding: 14px 12px 12px;
-  border-radius: 18px;
-  background: #eae2ff;
-  color: #3e2878;
-  box-shadow: 0 5px 16px #6255e712;
-}
-.entry-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.entry-kicker,
-.entry-title,
-.entry-copy,
-.entry-link {
-  position: relative;
-}
-.entry-kicker {
-  font-size: 10px;
-  letter-spacing: 2px;
-  opacity: 0.8;
-}
-.entry-title {
-  margin-top: 6px;
-  font-size: 18px;
-  font-weight: 700;
-}
-.entry-copy {
-  max-width: 120px;
-  margin-top: 6px;
-  font-size: 11px;
-  line-height: 1.55;
-}
-.entry-link {
-  margin-top: 16px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.home-ranking-entry {
-  background: #252051;
-  color: #fff;
-}
-.home-ranking-entry .entry-copy {
-  color: #e1d7ff;
-}
-
 .home-filter-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
   min-height: 44px;
-  margin: 4px 0 12px;
+  margin: 0 0 8px;
 }
 .home-filter-toolbar :deep(.home-inline-search) {
   flex: 1;
@@ -259,11 +238,21 @@ onShareTimeline(page.shareTimeline);
 }
 .home-filter-toolbar :deep(.home-filter-button.wd-button) {
   position: relative;
-  flex: 0 0 72px;
-  min-width: 72px;
-  height: 36px;
-  padding: 0 10px;
-  font-size: 13px;
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+.home-filter-toolbar :deep(.home-ranking-button.wd-button) {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 0 5px;
+  font-size: 12px;
+  color: var(--app-secondary);
+}
+:deep(.home-play-button.wd-button) {
+  margin: 0 0 8px;
+  padding: 0 8px;
 }
 .home-filter-dot {
   position: absolute;
@@ -272,7 +261,7 @@ onShareTimeline(page.shareTimeline);
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #6255e7;
+  background: var(--app-brand);
 }
 .home-results-heading {
   display: flex;
@@ -291,22 +280,26 @@ onShareTimeline(page.shareTimeline);
   flex-shrink: 0;
 }
 .home-sort-switch :deep(.home-sort-button.wd-button) {
-  padding: 0 12px;
-  min-width: 48px;
+  padding: 0 7px;
+  min-width: 42px;
   font-size: 12px;
 }
 
+.home-sort-switch :deep(.home-layout-button.wd-button) {
+  min-width: 44px;
+  padding: 0;
+}
 .lobby-home {
   position: relative;
   min-height: 100vh;
-  background: #f4f5f8;
+  background: var(--app-page);
 }
 .lobby-atmosphere {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--home-nav-height) + 250px);
+  height: calc(var(--home-nav-height) + 170px);
   background:
     radial-gradient(ellipse at 95% 0, rgba(212, 226, 255, 0.75), transparent 65%),
     linear-gradient(180deg, #e7e2ff 0%, #eeecff 48%, #f4f5f8 100%);
@@ -324,7 +317,7 @@ onShareTimeline(page.shareTimeline);
     box-shadow 180ms ease;
 }
 .home-navigation-scrolled {
-  background: rgba(247, 246, 253, 0.98);
+  background: var(--app-frosted);
   box-shadow: 0 1px 0 rgba(98, 85, 231, 0.06);
 }
 .home-navigation-inner {
@@ -344,8 +337,8 @@ onShareTimeline(page.shareTimeline);
   width: 26px;
   height: 26px;
   border-radius: 9px;
-  background: #6255e7;
-  color: #fff;
+  background: var(--app-brand);
+  color: var(--app-on-brand);
   font-size: 21px;
   line-height: 26px;
 }
@@ -354,7 +347,7 @@ onShareTimeline(page.shareTimeline);
   font-weight: 600;
   letter-spacing: 1px;
   white-space: nowrap;
-  color: #22232a;
+  color: var(--app-ink);
 }
 .home-navigation-spacer {
   height: var(--home-nav-height);
@@ -363,7 +356,13 @@ onShareTimeline(page.shareTimeline);
   position: relative;
   min-height: calc(100vh - var(--home-nav-height));
   background: transparent;
-  padding-top: 20px;
+  padding-top: 10px;
+}
+.lobby-home-dark .lobby-atmosphere {
+  background: radial-gradient(ellipse at 85% 0, var(--app-soft-glow), transparent 70%), var(--app-page);
+}
+.lobby-home-dark .home-navigation:not(.home-navigation-scrolled) {
+  background: var(--app-glass);
 }
 @media (max-width: 359px) {
   .home-navigation-inner {

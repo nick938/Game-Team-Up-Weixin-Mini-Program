@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { computed, reactive, ref, watch } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useMine } from '../../composables/useMine';
@@ -44,6 +45,9 @@ watch(
 );
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <timeline-preview v-if="page.singlePage" />
   <app-shell v-else :active="pageActive" variant="profile">
     <view class="record-tabs">
@@ -98,7 +102,7 @@ watch(
         page.phase === 'Past' ? '结束的队伍会保存在这里' : '约好时间，和队友一起出发'
       }}</view>
       <wd-button v-if="page.phase === 'Ongoing'" variant="text" @click="page.goPlaza"
-        >去大厅看看 <wd-icon name="arrow-right" size="14px"
+        >去首页看看 <wd-icon name="arrow-right" size="14px"
       /></wd-button>
     </view>
   </app-shell>

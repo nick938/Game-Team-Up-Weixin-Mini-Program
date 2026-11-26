@@ -14,7 +14,7 @@ export function useFeedback() {
       kinds: FEEDBACK_KINDS,
       pages: FEEDBACK_PAGES,
       kind: '遇到问题',
-      pageName: '大厅',
+      pageName: '首页',
       content: FEEDBACK_TEMPLATE,
       submitting: false,
       versionText: '',
@@ -50,7 +50,7 @@ export function useFeedback() {
       const ver = state.version || getAppVersion();
       const res = await callTeam('submitFeedback', {
         kind: state.kind,
-        page: state.pageName,
+        page: state.pageName === '首页' ? '大厅' : state.pageName,
         content,
         version: ver.version,
         envVersion: ver.envLabel,

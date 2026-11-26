@@ -3,18 +3,29 @@ import { usableTeamId } from './team-entry';
 import { teamShare } from './team-share';
 import { shareToFriend } from './share';
 import { renderCardShareCover } from './card-share-cover';
+import { callTeam } from '../api/team';
 
 let nextButtonId = 0;
 type Share = ReturnType<typeof shareToFriend>;
 const cards = new Map<string, () => (Share & { promise: Promise<Share> }) | null>();
 
-export function registerCardShare(getTeam: () => Partial<Team>, getFallbackId: () => string = () => '') {
+export function registerCardShare(
+  getTeam: () => Partial<Team>,
+  getFallbackId: () => string = () => '',
+  onCount?: (id: string, count: number) => void,
+) {
   // Each mounted card owns its source, even when the same team appears twice.
   const buttonId = `team-forward-${++nextButtonId}`;
   cards.set(buttonId, () => {
     const team = { ...getTeam() };
     const id = usableTeamId(getFallbackId() || team.id || team._id);
     if (!id) return null;
+    void callTeam('trackTeamEvent', { teamId: id, kind: 'share_intent' })
+      .then(({ shareCount }) => {
+        if (typeof shareCount === 'number' && Number.isSafeInteger(shareCount) && shareCount >= 0)
+          onCount?.(id, shareCount);
+      })
+      .catch(() => {});
     // Read current public fields only; never expose room numbers or passwords.
     const share = shareToFriend(teamShare(team, id));
     // The native share promise supplies the generated image without changing

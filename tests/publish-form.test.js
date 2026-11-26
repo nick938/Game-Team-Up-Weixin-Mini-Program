@@ -36,7 +36,7 @@ test("more settings stay collapsed unless optional fields were filled", () => {
   assert.equal(moreSettingsHint({ voice: "KOOK" }), MORE_HINT);
   assert.equal(
     moreSettingsHint({ voice: "KOOK", server: "欧服", rankReq: "娱乐局" }),
-    "KOOK · 欧服 · 娱乐局"
+    "欧服 · 娱乐局"
   );
   assert.equal(hasExtraSettings({ roomNo: "ABC" }), false);
   assert.equal(moreSettingsHint({ roomNo: "ABC" }), MORE_HINT);

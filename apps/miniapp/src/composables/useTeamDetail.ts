@@ -3,12 +3,11 @@ import { overlappingTeams } from '../utils/team-schedule';
 import { usePageFeedback } from './usePageFeedback';
 import { reactive, toRefs, nextTick } from 'vue';
 import { onLoad, onPullDownRefresh, onShow, onHide, onUnload } from '@dcloudio/uni-app';
-import type { Team, User, Member, Seat, TeamRole, PageQuery } from '../types/domain';
+import type { Team, User, Member, TeamRole, PageQuery } from '../types/domain';
 import { capabilities } from '../platform/host';
 import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { isSinglePage } from '../utils/runtime';
-import { presentTeam } from '../utils/team-presentation';
 import { decorateTeam } from '../utils/format';
 import { callTeam } from '../api/team';
 import { requestTeamNotify } from '../utils/subscribe';
@@ -16,7 +15,6 @@ import { resolveTeamId, teamShareQuery, usableTeamId } from '../utils/team-entry
 import { bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
 import { renderTeamCover } from '../utils/team-cover';
 import { teamShare } from '../utils/team-share';
-import { recruitmentText } from '../utils/recruitment';
 export function useTeamDetail() {
   const { toast, dialog, showError } = usePageFeedback();
   function queryCanvasNode() {
@@ -70,14 +68,6 @@ export function useTeamDetail() {
     }
     return extras;
   }
-  function shouldFoldNote(note: string) {
-    if (!note || typeof note !== 'string') return false;
-    const trimmed = note.trim();
-    if (trimmed.length > 80) return true;
-    const lines = trimmed.split('\n');
-    if (lines.length > 3) return true;
-    return false;
-  }
   const state = reactive({
     entryOptions: {} as PageQuery,
     options: {} as PageQuery,
@@ -96,7 +86,6 @@ export function useTeamDetail() {
       teamId: '',
       team: null as Team | null,
       members: [] as Member[],
-      seats: [] as Seat[],
       showManage: false,
       showMemberProfile: false,
       memberProfileLoading: false,
@@ -112,8 +101,6 @@ export function useTeamDetail() {
       joinSuccess: false,
       trackedTeamId: '',
       notifyAuthorized: false,
-      noteCanFold: false,
-      noteExpanded: false,
     },
   });
   const {
@@ -122,7 +109,6 @@ export function useTeamDetail() {
     teamId,
     team,
     members,
-    seats,
     showManage,
     showMemberProfile,
     memberProfileLoading,
@@ -135,8 +121,6 @@ export function useTeamDetail() {
     pendingAction,
     notifyHint,
     notifyAuthorized,
-    noteCanFold,
-    noteExpanded,
   } = toRefs(state);
   function patchState(patch: Partial<typeof state>, done?: () => void) {
     Object.assign(state, patch);
@@ -155,10 +139,7 @@ export function useTeamDetail() {
         changeNotice: '',
         notifyAuthorized: false,
         members: [],
-        seats: [],
         shareCoverPath: '',
-        noteExpanded: false,
-        noteCanFold: false,
       });
     }
     return teamId;
@@ -206,10 +187,6 @@ export function useTeamDetail() {
       const fields: Record<string, string> = {
         startAt: '开始时间',
         endAt: '结束时间',
-        platform: '平台',
-        server: '区服',
-        roomNo: '车头联系方式',
-        roomPwd: '密码',
       };
       let seenAt = 0;
       try {
@@ -218,15 +195,12 @@ export function useTeamDetail() {
         /* Optional. */
       }
       const changed = Number(res.team.detailsChangedAt || 0);
+      const changedLabels = (res.team.changedFields || [])
+        .map((field) => fields[field])
+        .filter(Boolean)
+        .join('、');
       const changeNotice =
-        role && changed > seenAt
-          ? '车头更新了' +
-            (res.team.changedFields || [])
-              .map((field) => fields[field])
-              .filter(Boolean)
-              .join('、') +
-            '，请重新核对。'
-          : '';
+        role && changed > seenAt && changedLabels ? `车头更新了${changedLabels}，请重新核对。` : '';
       try {
         hostPlatform.setStorageSync('team-seen:' + teamId, Math.max(changed, seenAt));
       } catch {
@@ -239,26 +213,10 @@ export function useTeamDetail() {
           kind: state.entryOptions.from === 'share' ? 'share_view' : 'detail_view',
         }).catch(() => {});
       }
-      const note = (res.team && res.team.note) || '';
-      const noteCanFold = shouldFoldNote(note);
       patchState(
         {
           team: decorateTeam(res.team),
-          noteCanFold,
-          noteExpanded: false,
           members: res.members || [],
-          seats: Array.from(
-            {
-              length:
-                Number.isInteger(res.team.capacity) && res.team.capacity >= 2 && res.team.capacity <= 20
-                  ? res.team.capacity
-                  : 0,
-            },
-            (_, i) => ({
-              key: i,
-              member: (res.members || [])[i] || null,
-            }),
-          ),
           role,
           changeNotice,
           loading: false,
@@ -266,9 +224,6 @@ export function useTeamDetail() {
         // 回调里 canvas 节点才渲染出来，此时才画得了封面
         () => prepareShareCover(),
       );
-      hostPlatform.setNavigationBarTitle({
-        title: (res.team && res.team.gameName) || '组队详情',
-      });
     } catch (error) {
       const e: Error & { code?: string } = error instanceof Error ? error : new Error(String(error));
       if (requestId !== state.detailRequest) return;
@@ -276,7 +231,6 @@ export function useTeamDetail() {
         team: null,
         role: null,
         members: [],
-        seats: [],
         loading: false,
         detailError: e.message || '暂时无法加载队伍',
         detailNotFound: e.code === 'NOT_FOUND' || /不存在|已删除/.test(e.message),
@@ -285,9 +239,6 @@ export function useTeamDetail() {
       prepareShareCover();
       showError(e);
     }
-  }
-  function toggleNoteExpand() {
-    patchState({ noteExpanded: !state.noteExpanded });
   }
   function onMemberProfile(input: string) {
     const memberId = input;
@@ -317,21 +268,6 @@ export function useTeamDetail() {
   function closeMemberProfile() {
     state.memberProfileRequest = (state.memberProfileRequest || 0) + 1;
     patchState({ showMemberProfile: false, memberProfile: null, selectedMemberId: '' });
-  }
-  function copyRoom() {
-    const no = state.team && state.team.roomNo;
-    if (!no) return;
-    hostPlatform.setClipboardData({
-      data: String(no),
-      success: () => {
-        void callTeam('trackTeamEvent', { teamId: state.teamId, kind: 'copy_room' }).catch(() => {});
-      },
-    });
-  }
-  function copyPwd() {
-    const pwd = state.team && state.team.roomPwd;
-    if (!pwd) return;
-    hostPlatform.setClipboardData({ data: String(pwd) });
   }
   async function onEnableNotify() {
     if (!capabilities.wechatSubscription) {
@@ -453,7 +389,6 @@ export function useTeamDetail() {
       roomPwd: team.roomPwd,
       platform: team.platform,
       server: team.server,
-      voice: team.voice,
       rankReq: team.rankReq,
       note: team.note,
     };
@@ -487,28 +422,6 @@ export function useTeamDetail() {
         state.mutating = false;
       });
   }
-  function goPlaza() {
-    hostPlatform.switchTab({ url: '/pages/index/index' });
-  }
-  function copyRecruitment() {
-    if (!state.team || state.role !== 'host' || !presentTeam(state.team, state.role).ongoing) return;
-    hostPlatform.setClipboardData({
-      data: recruitmentText(state.team),
-      success: () => toast.success('已复制，请配合队伍卡片发到群里'),
-    });
-  }
-  function browseSameGame() {
-    if (state.team)
-      hostPlatform.navigateTo({ url: `/pages/game/game?game=${encodeURIComponent(state.team.gameName)}` });
-  }
-  function onReport() {
-    const team = state.team;
-    if (!team) return;
-    const name = encodeURIComponent(team.gameName || '');
-    hostPlatform.navigateTo({
-      url: `/pages/report/report?teamId=${state.teamId}&name=${name}`,
-    });
-  }
   function onProfileClose() {
     patchState({ showProfile: false, pendingAction: '' });
   }
@@ -522,16 +435,6 @@ export function useTeamDetail() {
   onLoad((options = {}) => {
     state.entryOptions = options || {};
     const teamId = syncTeamId(state.entryOptions);
-    const rawName = options && (options.name || options.gameName);
-    if (rawName) {
-      let name = String(rawName);
-      try {
-        name = decodeURIComponent(name);
-      } catch (error) {
-        // 已经是明文
-      }
-      hostPlatform.setNavigationBarTitle({ title: name.slice(0, 40) });
-    }
     if (!teamId) patchState({ loading: false, team: null });
   });
   onPullDownRefresh(() => {
@@ -563,6 +466,8 @@ export function useTeamDetail() {
   });
   function shareAppMessage() {
     const share = buildShare();
+    const id = state.team && usableTeamId(state.teamId || state.team.id || state.team._id);
+    if (id) void callTeam('trackTeamEvent', { teamId: id, kind: 'share_intent' }).catch(() => {});
     const payload = shareToFriend(share, state.shareCoverPath);
     if (state.shareCoverPath) return payload;
     return {
@@ -580,14 +485,12 @@ export function useTeamDetail() {
     waitForCanvasNode,
     pixelRatio,
     readLaunchExtras,
-    shouldFoldNote,
     state,
     singlePage,
     wechatSubscription,
     teamId,
     team,
     members,
-    seats,
     showManage,
     showMemberProfile,
     memberProfileLoading,
@@ -600,19 +503,14 @@ export function useTeamDetail() {
     pendingAction,
     notifyHint,
     notifyAuthorized,
-    noteCanFold,
-    noteExpanded,
     patchState,
     syncTeamId,
     buildShare,
     prepareShareCover,
     loadDetail,
-    toggleNoteExpand,
     onMemberProfile,
     loadMemberProfile,
     closeMemberProfile,
-    copyRoom,
-    copyPwd,
     onEnableNotify,
     onJoin,
     onLeave,
@@ -623,10 +521,6 @@ export function useTeamDetail() {
     onEdit,
     onRepublish,
     onCancel,
-    goPlaza,
-    copyRecruitment,
-    browseSameGame,
-    onReport,
     onProfileClose,
     onProfileDone,
   };

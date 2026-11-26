@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamResults' });
 import type { Team, TeamSearch } from '../../types/domain';
-import { ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch, onUnmounted } from 'vue';
 const props = withDefaults(
   defineProps<{
     query?: TeamSearch;
@@ -9,6 +9,7 @@ const props = withDefaults(
     publishLabel?: string;
     hideClear?: boolean;
     teams: Team[];
+    waterfall?: boolean;
     total: number;
     loading: boolean;
     loadingMore: boolean;
@@ -17,6 +18,12 @@ const props = withDefaults(
   }>(),
   { allowPublish: true, publishLabel: '发起一局，邀请朋友', hideClear: false },
 );
+const columns = computed(() => {
+  if (!props.waterfall) return [props.teams];
+  const lanes: [Team[], Team[]] = [[], []];
+  props.teams.forEach((team, index) => lanes[index % 2].push(team));
+  return lanes;
+});
 const introIds = ref<string[]>([]);
 let introPlayed = false;
 let introTimer: ReturnType<typeof setTimeout> | undefined;
@@ -67,14 +74,19 @@ const emit = defineEmits<{
     ><wd-button variant="soft" @click="emit('retry')">重新加载</wd-button></view
   >
   <template v-else>
-    <team-card
-      v-for="team in teams"
-      :key="team._id"
-      :team="team"
-      :team-id="team.id || team._id"
-      :sequence="introIds.indexOf(team._id)"
-      @open="emit('open', $event)"
-    />
+    <view :class="{ 'results-waterfall': waterfall }">
+      <view v-for="(column, index) in columns" :key="index" class="results-lane">
+        <team-card
+          v-for="team in column"
+          :key="team._id"
+          :team="team"
+          :team-id="team.id || team._id"
+          :compact="waterfall"
+          :sequence="introIds.indexOf(team._id)"
+          @open="emit('open', $event)"
+        />
+      </view>
+    </view>
     <view v-if="!teams.length" class="empty-state"
       ><wd-empty icon="search" :icon-size="58" tip="暂时没有符合条件的队伍" /><view
         class="flex flex-wrap justify-center gap-2"
@@ -107,3 +119,15 @@ const emit = defineEmits<{
     ><text v-else class="hint">已展示全部匹配队伍</text></view
   >
 </template>
+
+<style scoped>
+.results-waterfall {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.results-waterfall .results-lane {
+  flex: 1;
+  min-width: 0;
+}
+</style>

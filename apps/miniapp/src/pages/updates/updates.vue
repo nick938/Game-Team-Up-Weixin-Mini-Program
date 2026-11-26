@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
-import { UPDATES, LATEST_UPDATE, markUpdateRead } from '../../utils/updates';
+import { UPDATES } from '../../utils/updates';
 import { isSinglePage } from '../../utils/runtime';
 import { platform } from '../../platform/host';
 defineOptions({ name: 'UpdatesPage' });
@@ -9,12 +9,12 @@ useAppTheme();
 function openChangelog() {
   platform.navigateTo({ url: '/pages/changelog/changelog' });
 }
-onShow(() => {
-  if (!isSinglePage()) markUpdateRead(LATEST_UPDATE.id);
-});
 </script>
 
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <timeline-preview v-if="isSinglePage()" />
   <app-shell v-else title="更新公告" subtitle="看看开黑星球最近有哪些变化。">
     <wd-cell-group custom-class="!mb-4">

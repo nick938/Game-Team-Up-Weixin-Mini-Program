@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/game/game');
@@ -16,6 +17,9 @@ onShareAppMessage(page.shareAppMessage);
 onShareTimeline(page.shareTimeline);
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <timeline-preview v-if="page.singlePage" />
   <app-shell
     :active="pageActive"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
-import { appThemeStyle, component } from '../../design/tokens';
+import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'TeamManageSheet' });
@@ -21,7 +21,7 @@ const emit = defineEmits<{ close: []; action: [action: string] }>();
     closable
     @update:model-value="!$event && emit('close')"
   >
-    <view class="sheet-content" :style="appThemeStyle"
+    <view class="sheet-content"
       ><view class="section-title mb-5">管理组队</view
       ><view class="flex flex-col gap-3"
         ><wd-button block variant="soft" @click="emit('action', 'edit')">编辑组队</wd-button

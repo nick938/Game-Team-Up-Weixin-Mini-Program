@@ -3,7 +3,7 @@ const VOICES = ['不限', 'KOOK', '游戏内语音', '开麦'];
 const MAX_TEAM_HOURS = 24;
 const APP_VERSION = __APP_VERSION__;
 const FEEDBACK_KINDS = ['遇到问题', '功能建议', '体验吐槽', '其他'];
-const FEEDBACK_PAGES = ['大厅', '发车', '组队详情', '我的', '其他'];
+const FEEDBACK_PAGES = ['首页', '发车', '组队详情', '我的', '其他'];
 const FEEDBACK_TEMPLATE = '【我遇到的情况】\n\n\n【我希望怎样】\n';
 // 举报理由；报错复用 FEEDBACK_PAGES 作为「出问题的页面」。
 const REPORT_REASONS = ['广告营销', '色情低俗', '辱骂骚扰', '虚假信息', '违法违规', '其他'];

@@ -184,6 +184,32 @@ test('list and detail share the same vehicle invitation title and destination', 
   card.dispose();
 });
 
+test('only the native vehicle share action records a launch and updates its card', async () => {
+  const h = harness({ callTeam: async () => ({ shareCount: 7 }) });
+  const list = h.page('pages/index/index');
+  const card = h.page('components/team-card/index', { team, teamId: '', mark: '' });
+  const { buttonId } = card.bindings.cardShare;
+  list.hooks.onShareAppMessage({ from: 'menu' });
+  list.hooks.onShareTimeline();
+  assert.equal(h.calls.length, 0);
+  list.hooks.onShareAppMessage({ from: 'button', target: { id: buttonId } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(h.calls, [
+    { action: 'trackTeamEvent', input: { teamId: team._id, kind: 'share_intent' } },
+  ]);
+  assert.equal(card.view.forwards, 7);
+});
+
+test('holding the pigeon explains the action and suppresses a following synthetic tap', () => {
+  const h = harness();
+  const card = h.page('components/team-card/index', { team, teamId: '', mark: '' });
+  card.bindings.showReactionHint('next');
+  card.bindings.react('next');
+  assert.deepEqual(h.toasts, ['下次一定 · 这次来不了，下次一起玩']);
+  assert.equal(card.bindings.reactions.state.summary.mine, '');
+  assert.equal(h.calls.length, 0);
+});
+
 // Page selectors cannot reach canvas nodes hidden behind a custom component's
 // slot boundary. Verify actual Vue template ownership, beyond mocked selectors.
 for (const page of ['index/index', 'game/game', 'mine/mine', 'friday/friday', 'team/detail']) {

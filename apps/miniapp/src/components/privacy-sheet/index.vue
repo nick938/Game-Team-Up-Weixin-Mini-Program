@@ -36,7 +36,7 @@ function openContract() {
     safe-area-inset-bottom
     :close-on-click-modal="false"
     :z-index="1500"
-    custom-style="border-radius:24px 24px 0 0;background:#fff;"
+    custom-style="border-radius:24px 24px 0 0;background:var(--app-surface);"
     @after-leave="afterLeave"
   >
     <view class="privacy-content">
@@ -67,7 +67,7 @@ function openContract() {
   margin: 0 auto;
   padding: 36px 24px 32px;
   box-sizing: border-box;
-  color: #22232a;
+  color: var(--app-ink);
 }
 .privacy-title {
   font-size: 21px;
@@ -78,10 +78,10 @@ function openContract() {
   margin-top: 24px;
   font-size: 15px;
   line-height: 27px;
-  color: #596174;
+  color: var(--app-secondary);
 }
 .privacy-link {
-  color: #6255e7;
+  color: var(--app-brand);
 }
 .privacy-actions {
   display: grid;

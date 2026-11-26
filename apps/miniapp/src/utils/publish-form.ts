@@ -3,7 +3,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
 const MIN_DURATION_MIN = 30;
 const MAX_DURATION_MIN = 24 * 60;
-const MORE_HINT = '语音、队友要求、备注';
+const MORE_HINT = '队友要求、备注';
 
 const START_PRESETS = [
   { key: 'now', label: '现在' },
@@ -48,7 +48,6 @@ function hasExtraSettings(data: Partial<TeamDraft>) {
 function moreSettingsHint(data: Partial<TeamDraft>) {
   if (!hasExtraSettings(data)) return MORE_HINT;
   const bits = [];
-  if (data.voice && data.voice !== '不限') bits.push(data.voice);
   const server = String(data.server || '').trim();
   const rankReq = String(data.rankReq || '').trim();
   if (server) bits.push(server);

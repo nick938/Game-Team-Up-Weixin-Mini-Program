@@ -22,7 +22,7 @@ export function useBug() {
     singlePage: false,
     ...{
       pages: FEEDBACK_PAGES,
-      pageName: '大厅',
+      pageName: '首页',
       content: BUG_TEMPLATE,
       errorMsg: '',
       submitting: false,
@@ -57,7 +57,7 @@ export function useBug() {
     try {
       const ver = getAppVersion();
       await callTeam('submitBug', {
-        page: state.pageName,
+        page: state.pageName === '首页' ? '大厅' : state.pageName,
         content,
         errorMsg: (state.errorMsg || '').trim(),
         systemInfo: systemSummary(),
@@ -75,7 +75,7 @@ export function useBug() {
     }
   }
   onLoad((options = {}) => {
-    const pageName = options.page && FEEDBACK_PAGES.includes(options.page) ? options.page : '大厅';
+    const pageName = options.page && FEEDBACK_PAGES.includes(options.page) ? options.page : '首页';
     const errorMsg = options.errorMsg ? decodeURIComponent(options.errorMsg) : '';
     patchState({ pageName, errorMsg: errorMsg.slice(0, 500) });
   });

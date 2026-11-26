@@ -143,7 +143,7 @@ test('a draft can restore notes before choosing a game, and retired weekly draft
   }
 });
 
-test('recent launches keep the latest three distinct games including older dates and cache refreshes', async () => {
+test('recent launches keep the latest five distinct games including older dates and cache refreshes', async () => {
   const now = Date.now();
   const row = (id, gameName, days) => ({
     _id: id,
@@ -163,6 +163,7 @@ test('recent launches keep the latest three distinct games including older dates
         row('other', '饥荒', 2),
         row('fourth', '王者荣耀', 9),
         row('fifth', '和平精英', 10),
+        row('sixth', '双人成行', 11),
       ],
       joined: [row('joined', '别人开的车', 0)],
     }),
@@ -172,7 +173,7 @@ test('recent launches keep the latest three distinct games including older dates
   await page.loadRecentLaunches();
   assert.deepEqual(
     page.state.recentLaunches.map((team) => team._id),
-    ['latest', 'other', 'old'],
+    ['latest', 'other', 'old', 'fourth', 'fifth'],
   );
   assert.equal(h.calls.length, 1);
 });
@@ -204,7 +205,7 @@ test('reusing a launch copies its configuration, renews the date at the same clo
   assert.ok(page.view.startTimestamp > Date.now());
   assert.equal(page.state.roomNo, '好友码123456');
   assert.equal(page.state.roomPwd, '');
-  assert.equal(page.state.voice, 'KOOK');
+  assert.equal(Object.hasOwn(page.buildTeam(), 'voice'), false);
   assert.equal(page.state.note, '区服：国服\n娱乐局');
   for (const field of ['roomNo', 'roomPwd', 'note', 'server', 'rankReq']) {
     assert.equal(page.buildTeam()[field], '', `hidden reused field ${field} must not be submitted`);
@@ -214,14 +215,14 @@ test('reusing a launch copies its configuration, renews the date at the same clo
   assert.equal(page.state.weeklyId, '');
 });
 
-test('history failure preserves manually entered fields and new forms default to KOOK', async () => {
+test('history failure preserves manually entered fields and new forms submit no voice preference', async () => {
   const h = harness({
     callTeam: () => {
       throw new Error('offline');
     },
   });
   const page = h.page('pages/publish/publish');
-  assert.equal(page.state.voice, 'KOOK');
+  assert.equal(Object.hasOwn(page.buildTeam(), 'voice'), false);
   page.onGameName('我的游戏');
   page.onRoomNo('好友码123');
   await page.loadRecentLaunches();
@@ -316,7 +317,7 @@ test('clearing a reused launch resets all filled fields and its saved draft whil
   assert.equal(page.state.rankReq, '');
   assert.equal(page.state.capacity, 4);
   assert.equal(page.state.durationMinutes, 120);
-  assert.equal(page.state.voice, 'KOOK');
+  assert.equal(Object.hasOwn(page.buildTeam(), 'voice'), false);
   assert.equal(page.state.weeklyId, '');
   assert.ok(page.view.startTimestamp < startAt);
   assert.equal(page.state.proxyMode, true);

@@ -54,7 +54,11 @@ async function submit() {
 }
 </script>
 <template>
-  <view class="publish-page" :style="{ '--publish-nav-height': navigation.total + 'px' }">
+  <view
+    class="publish-page"
+    :class="{ 'publish-tab-page': !claimMode }"
+    :style="{ '--publish-nav-height': navigation.total + 'px' }"
+  >
     <view
       v-if="!claimMode"
       class="publish-navigation"
@@ -119,25 +123,19 @@ async function submit() {
                 @update:model-value="page.onGameName(String($event))"
               />
             </view>
-            <scroll-view
-              v-if="page.state.recentLaunches.length && !page.editingId"
-              class="game-shortcuts"
-              scroll-x
-            >
-              <view class="history-row">
-                <text class="history-label">最近发过</text>
-                <wd-tag
-                  v-for="team in page.state.recentLaunches"
-                  :key="team._id"
-                  size="small"
-                  :variant="page.state.selectedHistoryId === team._id ? 'light' : 'text'"
-                  type="primary"
-                  round
-                  @click="page.reuseLaunch(team)"
-                  >{{ team.gameName }}</wd-tag
-                >
-              </view>
-            </scroll-view>
+            <view v-if="page.state.recentLaunches.length && !page.editingId" class="history-row">
+              <text class="history-label">最近发过</text>
+              <wd-tag
+                v-for="team in page.state.recentLaunches"
+                :key="team._id"
+                size="small"
+                :variant="page.state.selectedHistoryId === team._id ? 'light' : 'text'"
+                type="primary"
+                round
+                @click="page.reuseLaunch(team)"
+                >{{ team.gameName }}</wd-tag
+              >
+            </view>
           </view>
           <view v-if="!page.state.claimTeamId" class="form-section">
             <view id="field-start">
@@ -218,14 +216,6 @@ async function submit() {
               }}</view>
             </view>
           </view>
-          <view class="form-section">
-            <app-picker
-              label="语音"
-              :model-value="page.voice"
-              :columns="page.voices"
-              @confirm="page.pickVoice(String($event.value))"
-            />
-          </view>
         </wd-form>
         <view v-if="page.state.editLoadError" class="panel"
           ><view class="field-error">{{ page.state.editLoadError }}</view
@@ -267,14 +257,14 @@ async function submit() {
   left: 0;
   right: 0;
   z-index: 90;
-  color: #22232a;
-  background: rgba(244, 245, 248, 0.94);
+  color: var(--app-ink);
+  background: var(--app-frosted);
   transition:
     background-color 180ms ease,
     box-shadow 180ms ease;
 }
 .publish-navigation-scrolled {
-  background: rgba(247, 246, 253, 0.98);
+  background: var(--app-frosted);
   box-shadow: 0 1px 0 rgba(98, 85, 231, 0.06);
 }
 .publish-navigation-title {
@@ -307,22 +297,24 @@ async function submit() {
   justify-content: flex-end;
   width: 100%;
 }
-.game-shortcuts {
-  width: 100%;
-}
 .history-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  width: max-content;
   padding: 2px 12px 10px;
 }
 .history-row :deep(.wd-tag) {
-  flex-shrink: 0;
-  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.history-row :deep(.wd-tag__text) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .history-label {
-  color: #9295a5;
+  flex-shrink: 0;
+  color: var(--app-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -338,4 +330,13 @@ async function submit() {
   margin: 0 auto;
   z-index: 30;
 }
+/* #ifdef MP-WEIXIN */
+.publish-tab-page .publish-dock-spacer {
+  height: calc(86px + var(--app-tab-bar-reserve));
+}
+.publish-tab-page .publish-dock {
+  bottom: var(--app-tab-bar-reserve);
+  bottom: calc(var(--app-tab-bar-reserve) + env(safe-area-inset-bottom));
+}
+/* #endif */
 </style>

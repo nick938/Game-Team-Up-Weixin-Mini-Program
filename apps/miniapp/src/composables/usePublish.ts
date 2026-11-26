@@ -8,7 +8,7 @@ import { platform as hostPlatform } from '../platform/host';
 import { useAppStore } from '../stores/app';
 import { loadMyProfile } from '../utils/my-profile';
 import { isSinglePage } from '../utils/runtime';
-import { PLATFORMS, VOICES, MAX_TEAM_HOURS } from '../utils/constants';
+import { PLATFORMS, MAX_TEAM_HOURS } from '../utils/constants';
 import { dateParts, combineDateTime, defaultStartAt, defaultEndAt } from '../utils/format';
 import { callTeam } from '../api/team';
 import { plazaShare, bindCopyUrl, unbindCopyUrl, shareToFriend, shareToTimeline } from '../utils/share';
@@ -67,7 +67,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
       minimumCapacity: 2,
       editLoadError: '',
       platforms: sortPlatforms('Steam', PLATFORMS),
-      voices: VOICES,
       gameName: '',
       startDate: start.date,
       startTime: start.time,
@@ -86,7 +85,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
       roomPwd: '',
       platform: 'Steam',
       server: '',
-      voice: 'KOOK',
       rankReq: '',
       note: '',
       moreHint: moreSettingsHint({}),
@@ -155,7 +153,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     singlePage,
     editingId,
     platforms,
-    voices,
     gameName,
     startDate,
     startTime,
@@ -173,7 +170,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     roomPwd,
     platform: selectedPlatform,
     server,
-    voice,
     rankReq,
     note,
     moreHint,
@@ -208,13 +204,11 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
       const endAt = team.endAt || team.expireAt || team.startAt;
       const start = dateParts(startAt);
       const end = dateParts(endAt);
-      const voice = team.voice === 'Discord' ? 'KOOK' : team.voice;
       const platform = PLATFORMS.indexOf(team.platform) >= 0 ? team.platform : 'Steam';
       const extras = {
         roomNo: team.roomNo || '',
         roomPwd: team.roomPwd || '',
         server: '',
-        voice: VOICES.indexOf(voice || '') >= 0 ? voice : 'KOOK',
         rankReq: '',
         note: mergeLegacyNote(team),
       };
@@ -232,7 +226,7 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
         ...emptyForm(),
         editingId: id,
         minimumCapacity: Math.max(2, team.memberCount),
-        showMore: !!extras.roomPwd || extras.voice !== '不限',
+        showMore: !!extras.roomPwd,
         gameName: team.gameName || '',
         startDate: start.date,
         startTime: start.time,
@@ -268,13 +262,11 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     const start = dateParts(startAt);
     const end = dateParts(endAt);
     const today = dateParts(Date.now());
-    const voice = draft.voice === 'Discord' ? 'KOOK' : draft.voice;
     const platform = PLATFORMS.indexOf(draft.platform) >= 0 ? draft.platform : 'Steam';
     const extras = {
       roomNo: readGameSettings(draft.gameName)?.contact || '',
       roomPwd: '',
       server: '',
-      voice: VOICES.indexOf(voice || '') >= 0 ? voice : 'KOOK',
       rankReq: '',
       note: mergeLegacyNote(draft),
     };
@@ -291,7 +283,7 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     patchState({
       ...emptyForm(),
       fromLast: true,
-      showMore: !!extras.roomPwd || extras.voice !== '不限',
+      showMore: !!extras.roomPwd,
       gameName: draft.gameName || '',
       startDate: start.date,
       startTime: start.time,
@@ -327,7 +319,7 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
           seen.add(name);
           return true;
         })
-        .slice(0, 3);
+        .slice(0, 5);
       historyLoadedAt = now;
     } catch {
       // History is optional: entering a game and publishing must still work.
@@ -563,7 +555,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
       roomNo: state.roomNo,
       roomPwd: state.roomPwd,
       server: state.server,
-      voice: state.voice,
       rankReq: state.rankReq,
       note: state.note,
       ...partial,
@@ -581,9 +572,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
   }
   function onServer(input: string) {
     patchExtras({ server: input });
-  }
-  function pickVoice(input: string) {
-    patchExtras({ voice: input });
   }
   function onRank(input: string) {
     patchExtras({ rankReq: input });
@@ -687,7 +675,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
       roomPwd: '',
       platform: state.platform,
       server: '',
-      voice: state.voice,
       rankReq: '',
       note: '',
     };
@@ -995,7 +982,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     singlePage,
     editingId,
     platforms,
-    voices,
     gameName,
     startDate,
     startTime,
@@ -1013,7 +999,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     roomPwd,
     selectedPlatform,
     server,
-    voice,
     rankReq,
     note,
     moreHint,
@@ -1053,7 +1038,6 @@ export function usePublish({ claimMode = false }: { claimMode?: boolean } = {}) 
     onRoomPwd,
     pickPlatform,
     onServer,
-    pickVoice,
     onRank,
     onNote,
     loadProxyAccess,

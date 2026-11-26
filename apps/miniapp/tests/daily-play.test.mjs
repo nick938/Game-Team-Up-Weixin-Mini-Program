@@ -179,9 +179,11 @@ test('player departure prefills only the chosen game, leaving schedule and capac
   assert.equal(publish.buildTeam().capacity, 6);
   assert.equal(publish.buildTeam().endAt - publish.buildTeam().startAt, 10800000);
 });
-test('official badges distinguish random and champion cars, ordinary cars remain unlabelled', () => {
-  const { officialTeamLabel } = harness().load('utils/team-source');
+test('WeChat uses one recommendation label while QQ distinguishes random and champion cars', () => {
+  const { officialTeamLabel } = harness({ target: 'mp-qq' }).load('utils/team-source');
   assert.equal(officialTeamLabel({ dailyNightId: 'today', officialSource: 'random' }), '官方 · 随机车');
   assert.equal(officialTeamLabel({ dailyNightId: 'today', officialSource: 'champion' }), '官方 · 冠军车');
   assert.equal(officialTeamLabel({}), '');
+  const wechatLabel = harness().load('utils/team-source').officialTeamLabel;
+  assert.equal(wechatLabel({ dailyNightId: 'today', officialSource: 'champion' }), '官方推荐车');
 });

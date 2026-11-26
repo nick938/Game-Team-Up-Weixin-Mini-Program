@@ -10,12 +10,21 @@ const pages = [
   'team/detail',
   'publish/publish',
   'publish/claim',
-  'play/play',
+  ...(target === 'mp-qq' ? ['play/play'] : []),
   'friday/friday',
 ];
+const appPath = fileURLToPath(new URL(`../dist/build/${target}/app.json`, import.meta.url));
+const app = JSON.parse(readFileSync(appPath, 'utf8'));
+const registeredPages = [
+  ...app.pages,
+  ...(app.subPackages || []).flatMap(({ root, pages }) => pages.map((page) => `${root}/${page}`)),
+];
+if (target === 'mp-weixin' && registeredPages.includes('pages/play/play'))
+  throw new Error('The retired vote page must not be registered in the WeChat build');
 // uni's native page runtime enables onShareAppMessage=2 and onShareTimeline=4.
 // Executing composables in tests does not prove those native methods are emitted.
 const failures = pages.filter((page) => {
+  if (!registeredPages.includes(`pages/${page}`)) return true;
   const path = fileURLToPath(new URL(`../dist/build/${target}/pages/${page}.js`, import.meta.url));
   const code = readFileSync(path, 'utf8');
   const flags = Number(code.match(/\.__runtimeHooks\s*=\s*(\d+)/)?.[1] || 0);

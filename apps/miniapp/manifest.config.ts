@@ -13,11 +13,15 @@ export default defineManifestConfig({
     enable: false,
   },
   h5: {
+    darkmode: true,
+    themeLocation: 'theme.json',
     router: {
       mode: 'hash',
     },
   },
   'mp-weixin': {
+    darkmode: true,
+    themeLocation: 'theme.json',
     sitemapLocation: 'static/sitemap.json',
     appid: process.env.VITE_WEIXIN_APP_ID || 'wxa1af4fb6a4c66334',
     setting: {

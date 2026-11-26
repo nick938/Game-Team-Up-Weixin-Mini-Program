@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'FeedbackFeedbackPage' });
@@ -7,6 +8,9 @@ import { useFeedback } from '../../composables/useFeedback';
 const page = reactive(useFeedback());
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <app-shell title="写给我们" subtitle="按模板填写，我们会认真看。">
     <wd-cell-group
       ><app-picker

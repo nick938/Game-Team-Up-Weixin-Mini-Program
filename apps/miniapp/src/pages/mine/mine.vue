@@ -1,17 +1,21 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle } from '../../utils/app-theme';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { onPageScroll, onResize, onShow } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { useMine } from '../../composables/useMine';
+import { useWechatTabBar } from '../../composables/useWechatTabBar';
 import { homeNavigationMetrics, type CapsuleRect } from '../../utils/home-navigation';
 import MineAvatar from '../../components/mine-avatar/index.vue';
+import { appTheme } from '../../utils/app-theme';
 import NextTeam from '../../components/next-team/index.vue';
 defineOptions({ name: 'MineMinePage' });
 const pageActive = usePageActive('pages/mine/mine');
 useAppTheme();
 const page = reactive(useMine());
+useWechatTabBar('pages/mine/mine', () => page.singlePage);
 const navigation = ref(homeNavigationMetrics());
 const scrolled = ref(false);
 function updateNavigation() {
@@ -24,14 +28,17 @@ function updateNavigation() {
 }
 function syncNavigationColor() {
   uni.setNavigationBarColor?.({
-    frontColor: scrolled.value ? '#000000' : '#ffffff',
-    backgroundColor: scrolled.value ? '#F4F5F8' : '#211B3B',
+    frontColor: scrolled.value && appTheme.value === 'light' ? '#000000' : '#ffffff',
+    backgroundColor: scrolled.value ? (appTheme.value === 'dark' ? '#171622' : '#F4F5F8') : '#211B3B',
     fail() {},
   });
 }
 onShow(() => {
   updateNavigation();
   syncNavigationColor();
+});
+watch(appTheme, () => {
+  if (pageActive.value) syncNavigationColor();
 });
 onResize(updateNavigation);
 onPageScroll(({ scrollTop }) => {
@@ -45,11 +52,20 @@ const entries = computed(() => [
   { tab: 'joined' as const, title: '我加入的', count: page.joinedCount },
   { tab: 'all' as const, title: '未结束', count: page.ongoingCount },
 ]);
+const shortcuts = [
+  { title: '设置中心', icon: 'settings', open: page.openSettings },
+  { title: '常见问题', icon: 'question-circle', open: page.openHelp },
+  { title: '意见反馈', icon: 'message', open: page.openFeedback },
+  { title: '报个错', icon: 'bug', open: page.openBug },
+  { title: '更新公告', icon: 'notification', open: page.openUpdates },
+  { title: '协议与隐私', icon: 'safe', open: () => page.openLegal('agreement') },
+];
 // Keep native share hook registration in the page SFC for uni compilation.
 onShareAppMessage(page.shareAppMessage);
 onShareTimeline(page.shareTimeline);
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground" />
   <timeline-preview v-if="page.singlePage" />
   <app-shell v-else :active="pageActive" variant="profile">
     <view class="profile-hub" :style="{ '--mine-nav-height': navigation.total + 'px' }">
@@ -107,11 +123,6 @@ onShareTimeline(page.shareTimeline);
         </view>
         <view class="mine-menu-group">
           <wd-cell-group border>
-            <wd-cell title="更新公告" prefix-icon="notification" is-link center @click="page.openUpdates" />
-          </wd-cell-group>
-        </view>
-        <view class="mine-menu-group">
-          <wd-cell-group border>
             <wd-cell
               title="固定车"
               label="每天固定开黑，联系作者帮你配置"
@@ -150,15 +161,15 @@ onShareTimeline(page.shareTimeline);
         </view>
         <view class="mine-menu-group">
           <wd-cell-group border>
-            <wd-cell title="帮助与反馈" prefix-icon="message" is-link center @click="page.openHelp" />
             <wd-cell
-              title="社区公约"
-              prefix-icon="safe"
+              v-for="shortcut in shortcuts"
+              :key="shortcut.title"
+              :title="shortcut.title"
+              :prefix-icon="shortcut.icon"
               is-link
               center
-              @click="page.openLegal('community')"
+              @click="shortcut.open()"
             />
-            <wd-cell title="设置中心" prefix-icon="settings" is-link center @click="page.openSettings" />
           </wd-cell-group>
         </view>
         <view class="mine-version"
@@ -167,6 +178,9 @@ onShareTimeline(page.shareTimeline);
       </view>
     </view>
     <profile-gate :show="page.showProfile" @done="page.onProfileDone" @close="page.onProfileClose" />
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="wechat-tab-spacer" />
+    <!-- #endif -->
     <entry-notices />
   </app-shell>
   <canvas

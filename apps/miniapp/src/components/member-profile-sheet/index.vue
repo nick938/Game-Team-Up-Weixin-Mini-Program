@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useTabBarOverlay } from '../../composables/useTabBarOverlay';
-import { appThemeStyle, component } from '../../design/tokens';
+import { component } from '../../design/tokens';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'MemberProfileSheet' });
@@ -29,7 +29,7 @@ function previewAvatar() {
     safe-area-inset-bottom
     closable
     @update:model-value="!$event && emit('close')"
-    ><view class="sheet-content" :style="appThemeStyle"
+    ><view class="sheet-content"
       ><view class="section-title mb-5">公开资料</view><wd-loading v-if="loading" /><view
         v-else-if="error"
         class="text-center"

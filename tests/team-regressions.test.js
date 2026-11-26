@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
+const TEST_AVATAR = 'cloud://env/test-avatar.jpg';
 
 function backend({ teams = [], members = [], users = [], feedback = [], reports = [], rateLimits = [], admins = [], organizers = [], send = async () => {}, env = {}, sendMail, imgCheck, msgCheck, paginate = false, beforeTransaction, transactionConflicts = 0 } = {}) {
   const tables = { teams, members, users, feedback, reports, rate_limits: rateLimits, admins, organizers };
@@ -317,10 +318,35 @@ test('profile can be read back without any preference record', async () => {
   const users = [];
   const ctx = backend({ users });
   assert.equal(await ctx.saveNotifyPreference, undefined);
-  await ctx.saveProfile({ nickName: 'new player' }, 'new');
+  for (const avatarUrl of [undefined, '  ', '/static/images/avatar.png', {}]) {
+    const result = await ctx.saveProfile({ nickName: 'new player', avatarUrl }, 'new');
+    assert.equal(result.ok, false);
+    assert.equal(result.errMsg, '请先选择头像');
+  }
+  assert.equal(users.length, 0);
+  await ctx.saveProfile({ nickName: 'new player', avatarUrl: TEST_AVATAR }, 'new');
   assert.equal(users.length, 1);
   assert.equal(users[0].notifyEnabled, undefined);
   assert.equal((await ctx.getProfile('new')).user.nickName, 'new player');
+});
+
+test('users with a saved nickname can edit their profile, publish and join without an avatar', async () => {
+  const users = [{ _id: 'u', nickName: '老玩家' }];
+  const teams = [{ ...teamPayload(), _id: 't', openid: 'other', memberCount: 1, status: 'recruiting' }];
+  const ctx = backend({ users, teams });
+  assert.equal((await ctx.saveProfile({ nickName: '新昵称' }, 'u')).ok, true);
+  assert.equal(users[0].avatarUrl, '');
+  assert.equal((await ctx.joinTeam({ teamId: 't' }, 'u')).ok, true);
+  assert.equal((await ctx.createTeam({ team: teamPayload() }, 'u')).ok, true);
+});
+
+test('a saved legacy avatar remains valid when updating a nickname', async () => {
+  const avatarBase64 = 'data:image/png;base64,AAAA';
+  const users = [{ _id: 'u', nickName: '老玩家', avatarBase64 }];
+  const ctx = backend({ users });
+  assert.equal((await ctx.requireProfile('u')).avatarBase64, avatarBase64);
+  assert.equal((await ctx.saveProfile({ nickName: '新昵称' }, 'u')).ok, true);
+  assert.equal(users[0].avatarBase64, avatarBase64);
 });
 
 test('public profile saves the signature, preserves it when omitted and allows clearing', async () => {
@@ -757,7 +783,7 @@ test('review-graded text is not treated as a violation', async () => {
 test('risk profile text is rejected and no user record is written', async () => {
   const users = [];
   const ctx = backend({ users, msgCheck: async () => ({ result: { suggest: 'risky' } }) });
-  const res = await ctx.saveProfile({ nickName: '正常昵称', bio: '违规简介' }, 'new');
+  const res = await ctx.saveProfile({ nickName: '正常昵称', avatarUrl: TEST_AVATAR, bio: '违规简介' }, 'new');
   assert.equal(res.ok, false);
   assert.match(res.errMsg, /不支持/);
   assert.equal(users.length, 0);
@@ -1334,16 +1360,11 @@ test('team lists return each viewer reaction without leaking identity', async ()
   assert.equal((await ctx.myTeams('host')).hosted[0].reactions.counts.fire, 1);
 });
 
-test('retired weekly and manual daily departures cannot create a second activity car', async () => {
+test('retired weekly launches cannot create a second activity car', async () => {
   const teams = [], members = [];
   const ctx = backend({ teams, members, users: [{ _id: 'u', nickName: '玩家' }] });
   ctx.getOpenid = async () => 'u';
   assert.equal((await ctx.createTeam({ team: { ...teamPayload(), weeklyId: '2026-10-23' } }, 'u')).ok, false);
-  for (const type of ['getWeeklyPlay', 'votePlay', 'launchPlayOption']) {
-    const result = await ctx.exports.main({ type });
-    assert.equal(result.ok, false);
-    assert.match(result.errMsg, /每日16:00/);
-  }
   assert.equal(teams.length, 0);
   assert.equal(members.length, 0);
 });
@@ -1369,33 +1390,37 @@ test('daily cars remain visible in the lobby and personal teams; room info can c
   }
 });
 
-test('real timer creates an unowned car; claiming requires full form and then normal passengers can join', async () => {
-  const teams = [], members = [];
-  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }, { _id: 'blocked', nickName: '封禁', banned: true }] });
-  let at = Date.parse('2026-10-20T15:00:00+08:00');
-  ctx.nowMs = () => at;
-  let actor = 'a';
-  ctx.getOpenid = async () => actor;
-  const input = { type: 'createPlayOption', gameName: '饥荒联机版', platform: 'Steam', requestId: 'integration-key' };
-  const created = await ctx.exports.main(input);
-  assert.equal(created.ok, true);
-  const optionId = created.board.options[0].id;
-  actor = 'blocked';
-  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true })).ok, false);
-  actor = 'b';
-  assert.equal((await ctx.exports.main({ type: 'votePlayOption', optionId, want: true, openid: 'forged-user' })).ok, true);
-  assert.equal(teams.length, 0);
-  at = Date.parse('2026-10-20T16:00:00+08:00');
+test('real timer recommends a past game without counting old ballots; the car can still be claimed and joined', async () => {
+  const day = '2026-10-20';
+  const startAt = Date.parse(`${day}T16:00:00+08:00`);
+  const teams = [{
+    _id: 'previous', gameName: '饥荒联机版', platform: 'Steam', capacity: 6,
+    openid: 'a', status: 'recruiting', memberCount: 1,
+    startAt: startAt - 86400000, endAt: startAt - 82800000,
+  }];
+  const members = [];
+  const ctx = backend({ teams, members, users: [{ _id: 'a', nickName: 'A' }, { _id: 'b', nickName: 'B' }] });
+  ctx.nowMs = () => startAt;
+  const db = ctx.require('wx-server-sdk').database();
+  await db.collection('daily_play').doc(day).set({ data: { ids: ['old-option'] } });
+  await db.collection('play_options').doc('old-option').set({
+    data: { id: 'old-option', gameName: '旧投票游戏', platform: 'Steam', voters: { a: true } },
+  });
   const tick = await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
   assert.equal(tick.ok, true);
-  const board = (await ctx.exports.main({ type: 'getDailyPlay' })).board;
-  assert.equal(teams.length, 1);
-  assert.equal(teams[0].openid, undefined);
-  assert.equal(teams[0].memberCount, 0);
+  const { data: board } = await db.collection('daily_play').doc(day).get();
+  assert.equal(board.source, 'history');
+  assert.equal(board.winnerId, '');
+  assert.equal(board.selectedGame.gameName, '饥荒联机版');
+  assert.equal(board.selectedGame.capacity, 6);
+  assert.equal(teams.length, 2);
+  const recommended = teams.find(team => team._id === board.teamId);
+  assert.equal(recommended.openid, undefined);
+  assert.equal(recommended.memberCount, 0);
   assert.equal(members.length, 0);
-  assert.equal((await ctx.listTeams({}, 'visitor')).list[0]._id, board.teamId);
+  assert.ok((await ctx.listTeams({}, 'visitor')).list.some(team => team._id === board.teamId));
   assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'b')).ok, false);
-  const teamInput = { gameName: teams[0].gameName, platform: teams[0].platform, startAt: teams[0].startAt, endAt: teams[0].endAt, capacity: teams[0].capacity, roomNo: '' };
+  const teamInput = { gameName: recommended.gameName, platform: recommended.platform, startAt: recommended.startAt, endAt: recommended.endAt, capacity: recommended.capacity, roomNo: '' };
   teamInput.roomNo = '待填写';
   assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, false);
   teamInput.roomNo = '';
@@ -1403,35 +1428,27 @@ test('real timer creates an unowned car; claiming requires full form and then no
   const claimed = await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b');
   assert.equal(claimed.ok, true);
   assert.equal(claimed.teamId, board.teamId);
-  assert.equal(teams[0].openid, 'b');
-  assert.equal(teams[0].memberCount, 1);
-  assert.equal(teams[0].pendingHost, false);
+  assert.equal(recommended.openid, 'b');
+  assert.equal(recommended.memberCount, 1);
+  assert.equal(recommended.pendingHost, false);
   assert.deepEqual(members.map(m => m.openid), ['b']);
   assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'b')).ok, true);
   assert.equal(members.length, 1);
   assert.equal((await ctx.createTeam({ claimTeamId: board.teamId, team: teamInput }, 'a')).ok, false);
   assert.equal((await ctx.joinTeam({ teamId: board.teamId }, 'a')).ok, true);
-  assert.equal(teams[0].memberCount, 2);
+  assert.equal(recommended.memberCount, 2);
   assert.equal((await ctx.myTeams('b')).hosted[0]._id, board.teamId);
   await ctx.exports.main({ TriggerName: 'startRemind', Type: 'Timer' });
-  assert.equal(teams.length, 1);
+  assert.equal(teams.length, 2);
 });
 
-test('custom game names require an explicit security pass; review, risky, malformed and outages never publish', async () => {
-  const cases = [
-    async () => ({ errCode: 0, result: { suggest: 'review' } }),
-    async () => ({ errCode: 0, result: { suggest: 'risky' } }),
-    async () => ({ errCode: 0 }),
-    async () => { throw new Error('security offline'); },
-  ];
-  for (const msgCheck of cases) {
-    const ctx = backend({ users: [{ _id: 'a', nickName: 'A' }], msgCheck });
-    ctx.nowMs = () => Date.parse('2026-10-20T15:00:00+08:00');
-    ctx.getOpenid = async () => 'a';
-    const result = await ctx.exports.main({ type: 'createPlayOption', gameName: '自定义游戏', platform: 'Steam', requestId: 'secure-key' });
-    assert.equal(result.ok, false);
-    assert.match(result.errMsg, /安全检测/);
-    assert.equal((await ctx.exports.main({ type: 'getDailyPlay' })).board.options.length, 0);
+test('WeChat team function rejects current and legacy voting actions from older clients', async () => {
+  const ctx = backend({ users: [{ _id: 'a', nickName: 'A' }] });
+  ctx.getOpenid = async () => 'a';
+  for (const type of ['getDailyPlay', 'createPlayOption', 'votePlayOption', 'launchPlayOption', 'getWeeklyPlay', 'votePlay']) {
+    const result = await ctx.exports.main({ type, gameName: '自定义游戏', optionId: 'old-option', want: true });
+    assert.equal(result.ok, false, type);
+    assert.match(result.errMsg, /已下线/, type);
   }
 });
 
@@ -1487,6 +1504,18 @@ test('every detail/share entry increments views including repeat users, with old
   const card = (await ctx.listTeams({}, 'visitor')).list[0];
   assert.equal(card.viewCount, 4);
   assert.equal(card.openid, undefined);
+});
+
+test('share launches count separately from share visits and appear on public cards', async () => {
+  const team = { _id: 't', ...teamPayload(), memberCount: 2, status: 'recruiting', shareCount: -1 };
+  const ctx = backend({ teams: [team] });
+  for (const shareCount of [1, 2]) {
+    assert.equal((await ctx.trackTeamEvent({ teamId: 't', kind: 'share_intent' }, 'viewer')).shareCount, shareCount);
+  }
+  await ctx.trackTeamEvent({ teamId: 't', kind: 'share_view' }, 'viewer');
+  const card = (await ctx.listTeams({}, 'visitor')).list[0];
+  assert.equal(card.shareCount, 2);
+  assert.equal(card.viewCount, 1);
 });
 
 

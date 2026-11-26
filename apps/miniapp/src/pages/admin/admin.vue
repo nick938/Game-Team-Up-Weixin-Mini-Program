@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'AdminAdminPage' });
@@ -9,6 +10,9 @@ import { useAdmin } from '../../composables/useAdmin';
 const page = reactive(useAdmin());
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <app-shell title="管理端" subtitle="数据概览、组队、用户与反馈处理。">
     <wd-empty v-if="page.denied" tip="你没有管理权限，请联系管理员" />
     <template v-else

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'BugBugPage' });
@@ -7,6 +8,9 @@ import { useBug } from '../../composables/useBug';
 const page = reactive(useBug());
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <app-shell title="报个错" subtitle="告诉我们你做了什么、出现了什么。">
     <wd-cell-group
       ><app-picker

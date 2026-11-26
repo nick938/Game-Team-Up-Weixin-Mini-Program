@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { ref } from 'vue';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { useDailyPlay } from '../../composables/useDailyPlay';
@@ -12,6 +13,9 @@ onShareAppMessage(() => shareToFriend(share));
 onShareTimeline(() => shareToTimeline(share));
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <page-navigation title="今天玩啥" />
   <timeline-preview v-if="page.singlePage.value" />
   <app-shell v-else>
@@ -68,7 +72,7 @@ onShareTimeline(() => shareToTimeline(share));
         <view v-if="showRules" class="panel rules-copy">
           <view>全天都能发起投票、给多个游戏投票，也能随时自己发车。同一款游戏每人一票，再点可取消。</view>
           <view
-            >官方每天16:00选出一辆车，在大厅查看，21:00–23:00开玩。有票选当时冠军，无票从历史车随机选；之后仍可继续投票。</view
+            >官方每天16:00选出一辆车，在首页查看，21:00–23:00开玩。有票选当时冠军，无票从历史车随机选；之后仍可继续投票。</view
           >
           <view>点游戏下方的「发一车」，自己选择时间和人数。并列票数按发起投票的时间排序。</view>
         </view>
@@ -116,7 +120,7 @@ onShareTimeline(() => shareToTimeline(share));
   right: 0;
   z-index: 90;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: #f4f5f8;
+  background: var(--app-page);
   border-top: 1px solid rgba(98, 85, 231, 0.08);
 }
 .vote-action-inner {
@@ -131,7 +135,7 @@ onShareTimeline(() => shareToTimeline(share));
 }
 .play-caption {
   margin: 8px 0 20px;
-  color: #7d748d;
+  color: var(--app-secondary);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -149,23 +153,23 @@ onShareTimeline(() => shareToTimeline(share));
   min-width: 0;
   padding: 10px 8px;
   border-radius: 12px;
-  background: #eeebf6;
+  background: var(--app-surface-muted);
   text-align: center;
 }
 .podium-0 {
-  background: #fff0c9;
+  background: var(--app-warning-soft);
   padding-top: 17px;
   padding-bottom: 14px;
 }
 .podium-2 {
-  background: #f7e8de;
+  background: var(--app-danger-soft);
 }
 .podium-label {
   font-size: 11px;
-  color: #7b688b;
+  color: var(--app-secondary);
 }
 .podium-0 .podium-label {
-  color: #8b6416;
+  color: var(--app-warning);
 }
 .podium-name {
   display: -webkit-box;
@@ -180,7 +184,7 @@ onShareTimeline(() => shareToTimeline(share));
   font-weight: 600;
 }
 .podium-count {
-  color: #6255e7;
+  color: var(--app-brand);
   font-size: 18px;
   font-weight: 700;
 }
@@ -211,13 +215,13 @@ onShareTimeline(() => shareToTimeline(share));
 }
 .rank-number {
   width: 20px;
-  color: #a49bb3;
+  color: var(--app-muted);
   font-size: 16px;
   font-weight: 700;
   flex-shrink: 0;
 }
 .rank-top {
-  color: #6255e7;
+  color: var(--app-brand);
 }
 .option-name {
   flex: 1;
@@ -228,12 +232,12 @@ onShareTimeline(() => shareToTimeline(share));
 }
 .vote-count {
   flex-shrink: 0;
-  color: #6255e7;
+  color: var(--app-brand);
   font-size: 18px;
   font-weight: 700;
 }
 .vote-count text {
-  color: #93899f;
+  color: var(--app-secondary);
   font-size: 11px;
   font-weight: 400;
 }
@@ -247,12 +251,12 @@ onShareTimeline(() => shareToTimeline(share));
   display: flex;
   justify-content: center;
   gap: 8px;
-  color: #93899f;
+  color: var(--app-secondary);
   font-size: 12px;
   padding: 4px 0 16px;
 }
 .rules-copy {
-  color: #7d748d;
+  color: var(--app-secondary);
   font-size: 12px;
   line-height: 1.7;
 }

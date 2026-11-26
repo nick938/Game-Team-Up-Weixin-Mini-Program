@@ -1,8 +1,8 @@
 import { onUnmounted, toValue, watch, ref, type MaybeRefOrGetter } from 'vue';
 import { component } from '../design/tokens';
-import { platform } from '../platform/host';
+import { buildTarget, platform } from '../platform/host';
 
-// Keep native tabs hidden for both visible and closing overlays.
+// Keep tabs hidden for both visible and closing overlays.
 const activeOverlays = new Set<symbol>();
 export const tabBarObscured = ref(false);
 export function useTabBarOverlay(
@@ -19,7 +19,7 @@ export function useTabBarOverlay(
     if (!activeOverlays.delete(key)) return;
     if (!activeOverlays.size) {
       tabBarObscured.value = false;
-      platform.showTabBar({ animation: false, fail() {} });
+      if (buildTarget !== 'mp-weixin') platform.showTabBar({ animation: false, fail() {} });
     }
   }
   function afterLeave() {
@@ -33,7 +33,8 @@ export function useTabBarOverlay(
       cancelTimer();
       if (show) {
         if (activeOverlays.has(key)) return;
-        if (!activeOverlays.size) platform.hideTabBar({ animation: false, fail() {} });
+        if (!activeOverlays.size && buildTarget !== 'mp-weixin')
+          platform.hideTabBar({ animation: false, fail() {} });
         activeOverlays.add(key);
         tabBarObscured.value = true;
       } else if (activeOverlays.has(key) && !options.waitForAfterLeave) {

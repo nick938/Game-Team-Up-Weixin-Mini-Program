@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 import { CHANGELOG } from '../../utils/changelog';
 import { isSinglePage } from '../../utils/runtime';
@@ -7,6 +8,9 @@ useAppTheme();
 </script>
 
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <timeline-preview v-if="isSinglePage()" />
   <app-shell v-else title="更新日志" subtitle="按版本记录每一次改进。">
     <view v-for="release in CHANGELOG" :key="release.version" class="panel">

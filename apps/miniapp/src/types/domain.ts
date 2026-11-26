@@ -67,6 +67,7 @@ export interface Team {
   weeklyId?: string;
   reactions?: ReactionSummary;
   viewCount?: number;
+  shareCount?: number;
   _id: string;
   id?: string;
   gameName: string;
@@ -104,10 +105,6 @@ export type TeamDraft = Pick<Team, 'gameName' | 'capacity' | 'platform'> & Parti
 export interface Member extends User {
   _id: string;
   role?: TeamRole;
-}
-export interface Seat {
-  key: string | number;
-  member?: Member | null;
 }
 export interface Game {
   slug: string;
@@ -227,6 +224,7 @@ export interface TeamResults {
   getTeam: { team: Team; members: Member[]; role: TeamRole | null; reactions?: ReactionSummary };
   getPublicProfile: { profile: User };
   setReaction: { reactions: ReactionSummary };
+  trackTeamEvent: { shareCount?: number };
   listTeams: {
     list: Team[];
     total?: number;
@@ -280,7 +278,7 @@ export interface TeamRequests {
   setReaction: { teamId: string; reaction: ReactionId | ''; enabled?: boolean };
   getPublicProfile: { teamId: string; memberId: string };
   listTeams: TeamSearch;
-  trackTeamEvent: { teamId: string; kind: 'detail_view' | 'share_view' | 'copy_room' };
+  trackTeamEvent: { teamId: string; kind: 'detail_view' | 'share_view' | 'share_intent' | 'copy_room' };
   myTeams: undefined;
   searchProxyUsers: { keyword: string };
   createTeam: { team: TeamInput; hostOpenid?: string; claimTeamId?: string };

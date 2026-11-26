@@ -96,7 +96,7 @@ test('Wot single-column picker adapts array values and ignores an empty confirma
 test('nested Wot overlays keep tabs hidden until closing animations finish or unmount', async () => {
   let hidden = 0,
     shown = 0;
-  const h = harness({ platform: { hideTabBar: () => hidden++, showTabBar: () => shown++ } });
+  const h = harness({ target: 'mp-qq', platform: { hideTabBar: () => hidden++, showTabBar: () => shown++ } });
   const first = h.page('components/app-picker/index', { label: '平台', columns: ['Steam'] });
   const second = h.page('components/app-datetime-picker/index', { label: '日期', modelValue: Date.now() });
   assert.equal(hidden, 0);
@@ -113,7 +113,7 @@ test('nested Wot overlays keep tabs hidden until closing animations finish or un
 
 test('popup waits for after-leave and ignores obsolete close events after reopening', () => {
   let shown = 0;
-  const h = harness({ platform: { showTabBar: () => shown++ } });
+  const h = harness({ target: 'mp-qq', platform: { showTabBar: () => shown++ } });
   const sheet = h.page('components/team-manage-sheet/index', { show: true });
   sheet.bindings.props.show = false;
   assert.equal(shown, 0);
@@ -129,7 +129,7 @@ test('popup waits for after-leave and ignores obsolete close events after reopen
 
 test('a reopened picker cancels pending tab restoration and unmount releases immediately', async () => {
   let shown = 0;
-  const h = harness({ platform: { showTabBar: () => shown++ } });
+  const h = harness({ target: 'mp-qq', platform: { showTabBar: () => shown++ } });
   const picker = h.page('components/app-picker/index', { label: 'platform', columns: ['Steam'] });
   picker.view.visible = true;
   picker.view.visible = false;

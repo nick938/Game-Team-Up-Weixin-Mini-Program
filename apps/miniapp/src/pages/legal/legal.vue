@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { useAppTheme } from '../../composables/useAppTheme';
 useAppTheme();
 defineOptions({ name: 'LegalLegalPage' });
@@ -7,6 +8,9 @@ import { useLegal } from '../../composables/useLegal';
 const page = reactive(useLegal());
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
   <app-shell :title="page.title" subtitle="开黑星球｜游戏搭子">
     <view class="flex flex-wrap gap-2 mb-5"
       ><wd-button

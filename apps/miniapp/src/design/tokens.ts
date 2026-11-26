@@ -96,6 +96,7 @@ export const component = {
   sheet: { radius: primitive.radius.sheet, duration: semantic.motion.transition },
   overlay: { pickerDuration: 300, frameBuffer: 16 },
   hero: { radius: primitive.radius.hero, height: '136px' },
+  tabBar: { reserve: '76px' },
   avatar: { size: '48px', radius: primitive.radius.control },
   glass: {
     surface: 'rgba(255,255,255,.72)',
@@ -112,7 +113,42 @@ export const appCSSVars = Object.fromEntries([
   ['--app-content-max', semantic.layout.contentMax],
   ['--app-card-radius', component.card.radius],
   ['--app-sheet-radius', component.sheet.radius],
+  ['--app-tab-bar-reserve', component.tabBar.reserve],
 ]);
 export const appThemeStyle = Object.entries(appCSSVars)
   .map(([key, value]) => `${key}:${value}`)
   .join(';');
+
+export const darkColors: Record<keyof typeof semantic.color, string> = {
+  brand: '#b5a7ff',
+  'brand-pressed': '#cec4ff',
+  'brand-light': '#342956',
+  'brand-soft-pressed': '#453768',
+  page: '#171622',
+  surface: '#222131',
+  'surface-muted': '#2c2a3c',
+  ink: '#f3f1fa',
+  secondary: '#c3bcd5',
+  muted: '#a79fba',
+  border: '#3e3952',
+  'control-border': '#48415d',
+  success: '#99e5bb',
+  'success-soft': '#203930',
+  warning: '#ffcf7b',
+  'warning-soft': '#413321',
+  danger: '#ff9eb1',
+  'danger-soft': '#482837',
+  night: '#17182d',
+  lime: '#b8f36b',
+  'on-brand': '#21183a',
+};
+
+export const appColor = Object.fromEntries(
+  Object.keys(semantic.color).map((name) => [name, `var(--app-${name})`]),
+) as Record<keyof typeof semantic.color, string>;
+export const appLightStyle = `${appThemeStyle};color-scheme:light;--app-search-surface:rgba(255,255,255,.64);--app-frosted:rgba(255,255,255,.88);--app-glass:rgba(255,255,255,.72);--app-glass-shadow:${component.glass.shadow};--app-soft-glow:rgba(210,220,251,.35);--app-soft-glow-alt:rgba(228,219,249,.25);--app-picker-mask-start:rgba(255,255,255,.93);--app-picker-mask-end:rgba(255,255,255,.18)`;
+export const appDarkStyle =
+  Object.entries(darkColors)
+    .map(([name, value]) => `--app-${name}:${value}`)
+    .join(';') +
+  ';color-scheme:dark;--app-search-surface:#292638;--app-frosted:rgba(35,32,50,.96);--app-glass:rgba(36,32,52,.78);--app-glass-shadow:0 8px 26px rgba(0,0,0,.32);--app-soft-glow:rgba(65,53,109,.35);--app-soft-glow-alt:rgba(48,35,79,.35);--app-picker-mask-start:rgba(34,33,49,.93);--app-picker-mask-end:rgba(34,33,49,.18)';

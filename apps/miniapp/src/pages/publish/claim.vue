@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { reactive } from 'vue';
 import { usePublish } from '../../composables/usePublish';
@@ -9,4 +10,8 @@ const page = reactive(usePublish({ claimMode: true }));
 onShareAppMessage(page.shareAppMessage);
 onShareTimeline(page.shareTimeline);
 </script>
-<template><publish-screen :page="page" claim-mode /></template>
+<template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" /> </page-meta
+  ><publish-screen :page="page" claim-mode />
+</template>

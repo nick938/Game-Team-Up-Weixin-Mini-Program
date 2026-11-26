@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 defineOptions({ name: 'HelpPage' });
 import { platform } from '../../platform/host';
 import { usePageFeedback } from '../../composables/usePageFeedback';
@@ -8,7 +9,7 @@ const { dialog, toast } = usePageFeedback();
 const questions = [
   [
     '加入后怎么进游戏？',
-    '加入队伍后，复制详情里的房间号或好友码，再打开游戏加入。小程序只记录组队位置，不会自动进入游戏。',
+    '加入队伍后，在座位图点头像查看队友的公开资料。如果对方填写了好友码或微信号，可以用它联系对方。请在游戏里自行汇合。',
   ],
   [
     '满员、退出和结束有什么区别？',
@@ -22,11 +23,7 @@ const questions = [
     '为什么没有收到提醒？',
     '微信提醒需要你主动授权，并受订阅额度与实际发送结果影响。开始前 10 分钟内才加入可能赶不上提醒，请自行留意开局时间。QQ 暂不支持微信订阅提醒。',
   ],
-  ['密码谁能看到？', '加入方式公开；密码仅按成员权限展示。车头可以查看，队员在未解散时可查看。'],
 ];
-function open(path: string) {
-  platform.navigateTo({ url: '/pages/' + path });
-}
 function contact() {
   void dialog
     .confirm({ title: '联系作者', msg: '作者微信号：Louisville_k', confirmButtonText: '复制微信号' })
@@ -37,30 +34,16 @@ function contact() {
 }
 </script>
 <template>
-  <app-shell title="帮助与反馈" subtitle="先看看常见问题，也欢迎告诉我们哪里需要改进。">
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
+  <app-shell>
     <view v-for="[question, answer] in questions" :key="question" class="panel"
       ><view class="text-base font-semibold mb-2">{{ question }}</view
       ><view class="text-sm text-secondary leading-6">{{ answer }}</view></view
     >
-    <wd-cell-group
-      ><wd-cell title="更新公告" is-link @click="open('updates/updates')" /><wd-cell
-        title="意见反馈"
-        label="功能建议与体验反馈"
-        is-link
-        @click="open('feedback/feedback')" /><wd-cell
-        title="报个错"
-        label="页面异常或功能无法使用"
-        is-link
-        @click="open('bug/bug')" /><wd-cell title="联系作者" is-link @click="contact" /><wd-cell
-        title="用户协议"
-        is-link
-        @click="open('legal/legal?type=agreement')" /><wd-cell
-        title="隐私政策"
-        is-link
-        @click="open('legal/legal?type=privacy')" /><wd-cell
-        title="社区公约"
-        is-link
-        @click="open('legal/legal?type=community')"
-    /></wd-cell-group>
+    <wd-cell-group border>
+      <wd-cell title="联系作者" prefix-icon="message" is-link @click="contact" />
+    </wd-cell-group>
   </app-shell>
 </template>

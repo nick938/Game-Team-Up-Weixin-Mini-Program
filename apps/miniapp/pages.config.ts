@@ -1,12 +1,25 @@
 // Adapted from unibest base; see README.md for template provenance.
 import { semantic } from './src/design/tokens.ts';
+import { tabBarItems } from './src/design/tab-bar.ts';
 import { defineUniPages } from '@uni-helper/vite-plugin-uni-pages';
+const themed = ['mp-weixin', 'h5'].includes(process.env.UNI_PLATFORM || '');
+const pageBackground = themed ? '@pageBackground' : semantic.color.page;
+const navigationText = (themed ? '@navigationText' : 'black') as 'black';
+const refreshText = (themed ? '@refreshText' : 'light') as 'light';
 export default defineUniPages({
   pages: [
-    {
-      path: 'pages/play/play',
-      style: { navigationStyle: 'custom', navigationBarTitleText: '今天玩啥', enablePullDownRefresh: true },
-    },
+    ...(process.env.UNI_PLATFORM === 'mp-weixin'
+      ? []
+      : [
+          {
+            path: 'pages/play/play',
+            style: {
+              navigationStyle: 'custom' as const,
+              navigationBarTitleText: '今天玩啥',
+              enablePullDownRefresh: true,
+            },
+          },
+        ]),
     {
       path: 'pages/friday/friday',
       style: { navigationStyle: 'custom', navigationBarTitleText: '用户排行', enablePullDownRefresh: true },
@@ -34,7 +47,7 @@ export default defineUniPages({
       path: 'pages/publish/publish',
       style: {
         navigationStyle: 'custom',
-        navigationBarTextStyle: 'black',
+        navigationBarTextStyle: navigationText,
         navigationBarTitleText: '发起组队开黑',
       },
     },
@@ -44,7 +57,7 @@ export default defineUniPages({
         navigationStyle: 'custom',
         navigationBarTextStyle: 'white',
         navigationBarBackgroundColor: '#211B3B',
-        backgroundColor: semantic.color.page,
+        backgroundColor: pageBackground,
         navigationBarTitleText: '我的',
         enablePullDownRefresh: true,
       },
@@ -54,11 +67,12 @@ export default defineUniPages({
     {
       path: 'pages/team/detail',
       style: {
+        navigationStyle: 'custom',
         navigationBarTitleText: '组队详情',
         enablePullDownRefresh: true,
       },
     },
-    { path: 'pages/help/help', style: { navigationBarTitleText: '帮助与反馈' } },
+    { path: 'pages/help/help', style: { navigationBarTitleText: '常见问题' } },
     { path: 'pages/updates/updates', style: { navigationBarTitleText: '更新公告' } },
     { path: 'pages/changelog/changelog', style: { navigationBarTitleText: '更新日志' } },
     {
@@ -90,43 +104,24 @@ export default defineUniPages({
       style: {
         navigationBarTitleText: '管理端',
         enablePullDownRefresh: true,
-        backgroundTextStyle: 'light',
+        backgroundTextStyle: refreshText,
       },
     },
   ],
   globalStyle: {
-    backgroundColor: semantic.color.page,
-    backgroundTextStyle: 'light',
-    navigationBarBackgroundColor: semantic.color.page,
+    backgroundColor: pageBackground,
+    backgroundTextStyle: refreshText,
+    navigationBarBackgroundColor: pageBackground,
     navigationBarTitleText: '开黑星球｜游戏搭子',
-    navigationBarTextStyle: 'black',
+    navigationBarTextStyle: navigationText,
   },
   tabBar: {
-    custom: false,
-    color: semantic.color.muted,
-    selectedColor: semantic.color.brand,
-    backgroundColor: semantic.color.surface,
-    borderStyle: 'white',
-    list: [
-      {
-        pagePath: 'pages/index/index',
-        text: '大厅',
-        iconPath: 'static/images/fresh-plaza.png',
-        selectedIconPath: 'static/images/fresh-plaza-active.png',
-      },
-      {
-        pagePath: 'pages/publish/publish',
-        text: '发车',
-        iconPath: 'static/images/fresh-plus.png',
-        selectedIconPath: 'static/images/fresh-plus-active.png',
-      },
-      {
-        pagePath: 'pages/mine/mine',
-        text: '我的',
-        iconPath: 'static/images/fresh-user.png',
-        selectedIconPath: 'static/images/fresh-user-active.png',
-      },
-    ],
+    custom: process.env.UNI_PLATFORM === 'mp-weixin',
+    color: themed ? '@tabText' : semantic.color.muted,
+    selectedColor: themed ? '@tabSelected' : semantic.color.brand,
+    backgroundColor: themed ? '@tabBackground' : semantic.color.surface,
+    borderStyle: (themed ? '@tabBorder' : 'white') as 'white',
+    list: tabBarItems,
   },
   easycom: {
     autoscan: true,
@@ -139,7 +134,6 @@ export default defineUniPages({
       '^app-shell$': '@/components/app-shell/index.vue',
       '^page-navigation$': '@/components/page-navigation/index.vue',
       '^team-card$': '@/components/team-card/index.vue',
-      '^lobby-hero$': '@/components/lobby-hero/index.vue',
       '^profile-tags$': '@/components/profile-tags/index.vue',
       '^profile-gate$': '@/components/profile-gate/index.vue',
       '^welcome-letter$': '@/components/welcome-letter/index.vue',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pageThemeBackground, pageThemeStyle, pageThemeForeground } from '../../utils/app-theme';
 import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app';
 import { usePageActive } from '../../composables/usePageActive';
 const pageActive = usePageActive('pages/team/detail');
@@ -8,7 +9,6 @@ import { useAppTheme } from '../../composables/useAppTheme';
 import { reactive, computed } from 'vue';
 import { useTeamDetail } from '../../composables/useTeamDetail';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
-import { platform } from '../../platform/host';
 defineOptions({ name: 'TeamDetailPage' });
 useAppTheme();
 const page = reactive(useTeamDetail());
@@ -19,31 +19,36 @@ const view = useTeamPresentation(
     void page.loadDetail();
   },
 );
-const tags = computed(() =>
-  [page.team?.server, page.team?.voice, page.team?.rankReq].filter((value) => value && value !== '不限'),
-);
-function goRoom() {
-  platform.pageScrollTo({ selector: '#room-info', duration: 220 });
-}
+const officialLabel = computed(() => officialTeamLabel(page.team || {}));
+const seats = computed(() => {
+  const members = [...page.members].sort((a, b) => Number(b.role === 'host') - Number(a.role === 'host'));
+  const capacity = Number(page.team?.capacity);
+  const count = Number(page.team?.memberCount);
+  const total =
+    Number.isInteger(capacity) && capacity >= 2 && capacity <= 20
+      ? Math.max(capacity, Math.min(members.length, 20))
+      : Math.min(members.length, 20);
+  const occupied = Number.isInteger(count) && count >= 0 && count <= total ? count : members.length;
+  return Array.from({ length: total }, (_, index) => ({
+    member: members[index],
+    occupied: index < occupied || Boolean(members[index]),
+  }));
+});
 // Keep native share hook registration in the page SFC for uni compilation.
 onShareAppMessage(page.shareAppMessage);
 onShareTimeline(page.shareTimeline);
 </script>
 <template>
+  <page-meta :page-style="pageThemeStyle" :background-color="pageThemeBackground">
+    <navigation-bar :front-color="pageThemeForeground" :background-color="pageThemeBackground" />
+  </page-meta>
+  <page-navigation title="组队详情" />
   <timeline-preview v-if="page.singlePage" />
   <app-shell :active="pageActive" v-else variant="detail">
-    <view class="flex items-center justify-between mb-3">
-      <text class="brand-kicker">队伍邀请</text>
-      <wd-button variant="text" size="small" @click="page.goPlaza"
-        >去大厅 <wd-icon name="arrow-right" size="14px"
-      /></wd-button>
-    </view>
     <template v-if="page.team">
-      <view class="panel">
-        <view class="flex flex-wrap items-center gap-2 mb-3">
-          <text v-if="officialTeamLabel(page.team)" class="official-badge">{{
-            officialTeamLabel(page.team)
-          }}</text>
+      <view class="panel detail-summary">
+        <view class="detail-summary-heading">
+          <view class="detail-game-name">{{ page.team.gameName }}</view>
           <text
             class="room-status"
             :class="
@@ -53,214 +58,136 @@ onShareTimeline(page.shareTimeline);
                   ? 'bg-brand-light text-brand'
                   : 'bg-surface-muted text-secondary'
             "
-            >{{ view.statusLabel }}</text
+            >{{ view.recruitment === 'open' && !page.team.pendingHost ? '招募中' : view.statusLabel }}</text
           >
+        </view>
+        <view v-if="page.team.timeText" class="detail-time">
+          <wd-icon name="time-line" size="16px" />
+          <text class="detail-time-text">{{ page.team.timeText }}</text>
+        </view>
+        <view v-if="view.timeLabel || officialLabel" class="detail-summary-meta">
           <text v-if="view.timeLabel" class="hint">{{ view.timeLabel }}</text>
-          <text v-if="page.role" class="hint">{{ page.role === 'host' ? '我发起的' : '已加入' }}</text>
+          <text v-if="officialLabel" class="official-badge">{{ officialLabel }}</text>
         </view>
-        <view class="page-heading">{{ page.team.gameName }}</view>
-        <view class="room-meta flex items-start gap-2 mt-3"
-          ><wd-icon name="time-line" size="16px" /><text>{{ page.team.timeText }}</text></view
-        >
-        <view class="flex items-baseline gap-2 my-4">
-          <text class="text-2xl font-bold">{{ page.team.memberCount }} / {{ page.team.capacity }}</text>
-          <text class="text-sm text-secondary">人已上车</text>
+        <view v-if="page.team.pendingHost && view.ongoing" class="hint mt-3">
+          接手后，你会成为这局的车头。
         </view>
-        <view v-if="tags.length" class="flex flex-wrap gap-2"
-          ><text v-for="(tag, index) in tags" :key="index" class="room-tag break-words">{{ tag }}</text></view
-        >
         <view v-if="page.team.proxyNickName" class="hint mt-3">由 {{ page.team.proxyNickName }} 代开</view>
       </view>
       <view v-if="page.state.changeNotice" class="panel !bg-brand-light text-sm">{{
         page.state.changeNotice
       }}</view>
-      <view v-if="page.role === 'member' && view.ongoing" class="panel"
-        ><view class="text-sm font-semibold mb-2">{{
-          page.state.joinSuccess ? '加入成功，接下来进入游戏' : '你已加入这局'
-        }}</view
-        ><view class="hint"
-          >复制下方联系方式，添加车头后一起玩。上车只代表占位，不会自动添加好友。</view
-        ></view
-      >
-      <view id="room-info" class="panel">
-        <view class="section-title mb-3">如何联系车头</view>
-        <view class="flex items-start justify-between gap-3">
-          <view class="min-w-0 flex-1"
-            ><view class="hint mb-1">好友码 / 联系方式</view
-            ><view class="text-base break-all whitespace-pre-wrap">{{
-              page.team.roomNo || (page.team.pendingHost ? '待首位玩家完成发车后填写' : '车头暂未填写')
-            }}</view></view
+      <view v-if="seats.length" class="panel detail-seating">
+        <view class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <view class="section-title">队伍座位</view>
+          <text
+            v-if="page.state.joinSuccess && page.role === 'member' && view.ongoing"
+            class="text-sm text-success"
+            >加入成功</text
           >
-          <wd-button v-if="page.team.roomNo" size="small" variant="soft" @click="page.copyRoom"
-            >复制</wd-button
-          >
+          <text v-else-if="page.members.length" class="hint">点头像看资料</text>
         </view>
-        <view
-          v-if="page.team.hasPwd || (view.canViewPassword && page.team.roomPwd)"
-          class="flex items-start justify-between gap-3 mt-4 pt-4 border-t border-solid border-border border-x-0 border-b-0"
-        >
-          <view class="min-w-0 flex-1"
-            ><view class="hint mb-1">进房密码</view
-            ><view class="text-sm break-all">{{
-              view.canViewPassword
-                ? page.team.roomPwd || '无密码'
-                : page.role === 'member'
-                  ? '当前不可见'
-                  : '加入后可见'
-            }}</view></view
-          >
-          <wd-button
-            v-if="view.canViewPassword && page.team.roomPwd"
-            size="small"
-            variant="soft"
-            @click="page.copyPwd"
-            >复制</wd-button
-          >
-        </view>
-      </view>
-      <view class="panel">
-        <view class="flex justify-between gap-2 mb-1"
-          ><view class="section-title">这局的队友</view
-          ><text class="text-sm text-secondary"
-            >{{ page.members.length }} / {{ page.team.capacity }}</text
-          ></view
-        >
-        <view class="hint mb-4">点头像，查看队友的游戏资料</view>
-        <view class="grid grid-cols-4 gap-x-3 gap-y-4">
-          <view v-for="seat in page.seats" :key="seat.key" class="text-center min-w-0">
+        <view class="detail-seats" :style="{ '--seat-columns': Math.min(4, seats.length) }">
+          <view v-for="(seat, index) in seats" :key="index" class="detail-seat">
             <template v-if="seat.member">
               <wd-button
                 variant="text"
                 custom-class="!p-0 !h-auto"
-                :aria-label="'查看' + seat.member.nickName + '的资料'"
+                :aria-label="'查看' + (seat.member.nickName || '玩家') + '的资料'"
                 @click="page.onMemberProfile(seat.member._id)"
-                ><wd-avatar
-                  size="medium"
+              >
+                <wd-avatar
+                  size="44px"
                   shape="square"
                   mode="aspectFill"
                   :src="seat.member.avatarUrl || '/static/images/avatar.png'"
-              /></wd-button>
-              <view class="text-xs truncate mt-2">{{ seat.member.nickName || '玩家' }}</view
-              ><view v-if="seat.member.role === 'host'" class="text-xs text-brand mt-1">车头</view>
+                />
+              </wd-button>
+              <view class="text-xs truncate mt-1">{{ seat.member.nickName || '玩家' }}</view>
+              <view v-if="seat.member.role === 'host'" class="text-xs text-brand">车头</view>
             </template>
-            <template v-else
-              ><view class="avatar bg-surface-muted text-muted flex-center mx-auto text-2xl">＋</view
-              ><view class="hint mt-2">{{ view.ongoing ? '等队友' : '空位' }}</view></template
-            >
+            <template v-else>
+              <view class="detail-seat-placeholder" :class="{ 'detail-seat-occupied': seat.occupied }">
+                <wd-icon :name="seat.occupied ? 'user' : 'user-add'" size="18px" />
+              </view>
+              <view class="hint mt-1">{{ seat.occupied ? '已入座' : '空位' }}</view>
+            </template>
           </view>
         </view>
       </view>
-      <view v-if="page.team.note" class="panel">
-        <view class="section-title mb-3">开黑约定</view>
-        <view
-          class="text-base whitespace-pre-wrap break-words leading-6"
-          :class="page.noteCanFold && !page.noteExpanded ? 'line-clamp-3' : ''"
-          >{{ page.team.note }}</view
-        >
-        <wd-button v-if="page.noteCanFold" variant="text" size="small" @click="page.toggleNoteExpand">{{
-          page.noteExpanded ? '收起' : '展开全部'
-        }}</wd-button>
-      </view>
-      <view v-if="page.wechatSubscription && page.role && view.ongoing" class="panel">
+      <view v-if="page.wechatSubscription && page.role && view.ongoing" class="panel detail-inline-row">
+        <view class="min-w-0">
+          <view class="text-sm font-semibold">开打提醒</view>
+          <view class="hint mt-1">
+            {{
+              page.notifyHint ||
+              (page.role === 'host'
+                ? '授权后可在开打前约 10 分钟收到微信提醒。'
+                : '开始前 10 分钟内上车可能赶不上提醒。')
+            }}
+          </view>
+        </view>
         <wd-button
+          size="small"
           variant="soft"
-          block
           :loading="page.state.requestingNotify"
           :disabled="page.notifyAuthorized"
           @click="page.onEnableNotify"
-          >{{ page.notifyAuthorized ? '本次已授权提醒' : '开打前提醒我（可选）' }}</wd-button
-        ><view class="hint mt-2">开始前 10 分钟内才加入可能赶不上提醒，请留意开局时间。</view
-        ><view v-if="page.notifyHint" class="hint mt-2">{{ page.notifyHint }}</view>
-      </view>
-      <view class="flex flex-wrap gap-2 mt-5">
-        <view v-if="view.ongoing && page.role === 'host' && view.recruitment === 'open'" class="panel w-full">
-          <view class="text-base font-semibold">{{
-            page.team.memberCount === 1 ? '队伍已创建，邀请朋友一起玩' : '还缺 ' + view.needCount + ' 位搭子'
-          }}</view>
-          <view class="text-sm text-secondary mt-2">{{
-            page.team.memberCount === 1
-              ? '暂时还没有其他成员加入。可以分享到常玩的群，也可以调整时间，或看看同游戏的其他队伍。'
-              : '把队伍卡片发到常玩的群，朋友可以直接查看并加入。'
-          }}</view>
-          <view class="flex flex-wrap gap-2 mt-3">
-            <wd-button size="small" variant="soft" @click="page.copyRecruitment">复制招募文案</wd-button>
-            <wd-button size="small" variant="text" @click="page.onEdit">调整时间</wd-button>
-            <wd-button size="small" variant="text" @click="page.browseSameGame">看看同游戏队伍</wd-button>
-          </view>
-        </view>
-        <wd-button
-          v-if="view.ongoing && page.role === 'host'"
-          variant="soft"
-          :disabled="page.state.mutating"
-          @click="page.onManage"
-          >管理队伍</wd-button
+          >{{ page.notifyAuthorized ? '已授权' : '提醒我' }}</wd-button
         >
+      </view>
+      <app-action-dock v-if="view.ongoing || (page.role === 'host' && view.confirmed)" :active="pageActive">
+        <view class="detail-dock-actions">
+          <view class="min-w-0 flex-1">
+            <wd-button
+              v-if="view.primaryAction === 'join'"
+              block
+              :loading="page.state.joining"
+              :disabled="page.state.joining"
+              @click="page.onJoin"
+              >{{
+                page.team.pendingHost ? '我来发车' : view.lifecycle === 'active' ? '中途加入' : '加入队伍'
+              }}</wd-button
+            >
+            <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share">分享招人</wd-button>
+            <wd-button
+              v-else-if="view.primaryAction === 'room' && page.role === 'host'"
+              block
+              :disabled="page.state.mutating"
+              @click="page.onManage"
+              >管理队伍</wd-button
+            >
+            <wd-button v-else-if="view.primaryAction === 'room'" block open-type="share">分享队伍</wd-button>
+            <wd-button v-else-if="view.ongoing" block open-type="share">分享</wd-button>
+            <wd-button v-else block @click="page.onRepublish">再发一趟</wd-button>
+          </view>
+          <wd-button
+            v-if="view.primaryAction === 'share'"
+            variant="soft"
+            :disabled="page.state.mutating"
+            @click="page.onManage"
+            >管理队伍</wd-button
+          >
+          <wd-button
+            v-else-if="
+              view.primaryAction === 'join' || (view.primaryAction === 'room' && page.role === 'host')
+            "
+            variant="soft"
+            open-type="share"
+            >分享</wd-button
+          >
+        </view>
+      </app-action-dock>
+      <view v-if="view.ongoing && page.role === 'member'" class="flex flex-wrap gap-2 mt-3">
         <wd-button
-          v-if="view.ongoing && page.role === 'member'"
           variant="text"
+          size="small"
           type="danger"
           :loading="page.state.mutating"
           @click="page.onLeave"
           >下车</wd-button
         >
-        <wd-button
-          v-if="page.role !== 'host'"
-          variant="text"
-          type="danger"
-          size="small"
-          @click="page.onReport"
-          >举报这趟车</wd-button
-        >
       </view>
-      <app-action-dock :active="pageActive">
-        <wd-button
-          v-if="view.primaryAction === 'join'"
-          block
-          :loading="page.state.joining"
-          :disabled="page.state.joining"
-          @click="page.onJoin"
-          >{{
-            page.team.pendingHost
-              ? '我来发车 · 填写联系方式'
-              : view.lifecycle === 'active'
-                ? '中途加入'
-                : '加入队伍'
-          }}
-          · 还差 {{ view.needCount }} 人</wd-button
-        >
-        <wd-button v-else-if="view.primaryAction === 'share'" block open-type="share"
-          >分享招人 · 还缺 {{ view.needCount }} 人</wd-button
-        >
-        <wd-button
-          v-else-if="view.primaryAction === 'room'"
-          block
-          @click="page.team.roomNo ? page.copyRoom() : goRoom()"
-          >{{ page.team.roomNo ? '复制车头联系方式' : '查看车头联系方式' }}</wd-button
-        >
-        <wd-button v-else block @click="page.goPlaza">{{
-          view.recruitment === 'full'
-            ? '这趟已满员，去大厅看看'
-            : view.confirmed
-              ? '去大厅看看其他队伍'
-              : '状态待确认，去大厅看看'
-        }}</wd-button>
-        <view class="flex flex-wrap gap-2 mt-2">
-          <wd-button
-            v-if="view.ongoing && view.primaryAction !== 'share'"
-            variant="soft"
-            block
-            open-type="share"
-            >分享给好友</wd-button
-          >
-          <wd-button
-            v-if="!view.ongoing && page.role === 'host' && view.confirmed"
-            block
-            variant="soft"
-            @click="page.onRepublish"
-            >再发一趟</wd-button
-          >
-        </view>
-      </app-action-dock>
     </template>
     <view v-else-if="page.loading" class="panel" aria-label="正在加载队伍"
       ><wd-skeleton
@@ -292,7 +219,6 @@ onShareTimeline(page.shareTimeline);
         @click="page.loadDetail"
         >重新加载</wd-button
       >
-      <wd-button block @click="page.goPlaza">去大厅看看</wd-button>
     </view>
     <team-manage-sheet
       v-if="page.role === 'host'"
@@ -320,11 +246,83 @@ onShareTimeline(page.shareTimeline);
 </template>
 
 <style scoped>
+.detail-summary {
+  background: var(--app-surface);
+}
+.detail-summary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.detail-game-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.detail-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  color: var(--app-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.detail-time-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.detail-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+}
+.detail-seats {
+  display: grid;
+  grid-template-columns: repeat(var(--seat-columns), minmax(0, 1fr));
+  gap: 14px 8px;
+}
+.detail-seat {
+  min-width: 0;
+  text-align: center;
+}
+.detail-seat-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  border: 1px dashed var(--app-control-border);
+  border-radius: 12px;
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
+}
+.detail-seat-occupied {
+  border-style: solid;
+  background: var(--app-brand-light);
+  color: var(--app-brand-pressed);
+}
+.detail-inline-row,
+.detail-dock-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .official-badge {
   padding: 4px 8px;
   border-radius: 6px;
-  color: #6255e7;
-  background: #f0edff;
+  color: var(--app-brand);
+  background: var(--app-brand-light);
   font-size: 12px;
   font-weight: 600;
 }

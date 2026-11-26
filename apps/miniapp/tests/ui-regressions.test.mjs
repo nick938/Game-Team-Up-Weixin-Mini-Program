@@ -16,6 +16,27 @@ const team = {
 };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+test('top navigation returns to the previous page or opens home from a direct entry', (t) => {
+  const previousGetCurrentPages = globalThis.getCurrentPages;
+  t.after(() => {
+    if (previousGetCurrentPages) globalThis.getCurrentPages = previousGetCurrentPages;
+    else delete globalThis.getCurrentPages;
+  });
+  const backCalls = [];
+  const h = harness({ platform: { navigateBack: (options) => backCalls.push(options) } });
+  const header = h.page('components/page-navigation/index', { title: '组队详情' });
+
+  globalThis.getCurrentPages = () => [{ route: 'pages/index/index' }, { route: 'pages/team/detail' }];
+  header.back();
+  assert.equal(backCalls[0].delta, 1);
+  assert.deepEqual(h.navigation, []);
+
+  globalThis.getCurrentPages = () => [{ route: 'pages/team/detail' }];
+  header.back();
+  assert.equal(backCalls.length, 1);
+  assert.deepEqual(h.navigation, ['/pages/index/index']);
+});
+
 test('joining proceeds without requesting optional reminder authorization', async () => {
   const order = [];
   const h = harness({
@@ -88,19 +109,6 @@ test('member profiles ignore stale responses after switching or closing the shee
   await last;
   assert.equal(page.state.memberProfile, null);
   assert.equal(page.state.showMemberProfile, false);
-});
-
-test('long detail notes start collapsed and can expand', async () => {
-  const h = harness({
-      callTeam: async () => ({ team: { ...team, note: '长'.repeat(81) }, members: [], role: null }),
-    }),
-    page = h.page('pages/team/detail');
-  page.state.teamId = team._id;
-  await page.loadDetail();
-  assert.equal(page.state.noteCanFold, true);
-  assert.equal(page.state.noteExpanded, false);
-  page.toggleNoteExpand();
-  assert.equal(page.state.noteExpanded, true);
 });
 
 test('welcome dismissal persists across component instances and feedback still navigates', () => {

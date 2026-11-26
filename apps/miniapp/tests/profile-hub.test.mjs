@@ -96,15 +96,16 @@ test('failed team loading keeps summary counts unavailable and retry recovers', 
   assert.equal(page.view.ongoingCount, 1);
 });
 
-test('settings legal entries use existing document routes and profile editor closes on page hide', () => {
+test('profile shortcuts open settings, help, feedback, bug reports, announcements and legal documents directly', () => {
   const h = harness();
-  const page = h.page('pages/mine/settings');
-  for (const type of ['agreement', 'privacy', 'community']) page.openLegal(type);
-  assert.deepEqual(
-    h.navigation,
-    ['agreement', 'privacy', 'community'].map((type) => `/pages/legal/legal?type=${type}`),
-  );
-  page.view.showProfile = true;
-  page.hooks.onHide();
-  assert.equal(page.view.showProfile, false);
+  const page = h.page('pages/mine/mine');
+  for (const shortcut of page.bindings.shortcuts) shortcut.open();
+  assert.deepEqual(h.navigation, [
+    '/pages/mine/settings',
+    '/pages/help/help',
+    '/pages/feedback/feedback',
+    '/pages/bug/bug?page=我的&errorMsg=',
+    '/pages/updates/updates',
+    '/pages/legal/legal?type=agreement',
+  ]);
 });

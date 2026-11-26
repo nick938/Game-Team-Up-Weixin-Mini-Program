@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineOptions({ name: 'TeamCard' });
-import { computed, onScopeDispose } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
 import { officialTeamLabel } from '../../utils/team-source';
 import ReactionEffect from '../reaction-effect/index.vue';
 import { registerCardShare } from '../../utils/card-share';
@@ -8,46 +8,92 @@ import type { Team } from '../../types/domain';
 import { usableTeamId } from '../../utils/team-entry';
 import { useTeamPresentation } from '../../composables/useTeamPresentation';
 import { useCardReactions } from '../../composables/useCardReactions';
+import { usePageFeedback } from '../../composables/usePageFeedback';
+import type { ReactionId } from '../../utils/reactions';
+import { groupLabels } from '../../utils/profile-options';
 const props = withDefaults(
-  defineProps<{ team?: Partial<Team>; teamId?: string; mark?: string; sequence?: number }>(),
-  { team: () => ({}), teamId: '', mark: '', sequence: -1 },
+  defineProps<{
+    team?: Partial<Team>;
+    teamId?: string;
+    mark?: string;
+    sequence?: number;
+    compact?: boolean;
+  }>(),
+  { team: () => ({}), teamId: '', mark: '', sequence: -1, compact: false },
 );
+const teamId = computed(() => usableTeamId(props.teamId || props.team.id || props.team._id));
+const groups = computed(() => groupLabels(props.team.groupIds));
+const latestShare = ref({ id: '', count: 0 });
 const cardShare = registerCardShare(
   () => props.team,
   () => props.teamId,
+  (id, count) => {
+    if (teamId.value === id && (latestShare.value.id !== id || latestShare.value.count < count))
+      latestShare.value = { id, count };
+  },
 );
 onScopeDispose(cardShare.dispose);
 const view = useTeamPresentation(() => props.team);
 const reactions = useCardReactions(() => props.team);
+const { toast } = usePageFeedback();
+let nextHintAt = 0;
+function showReactionHint(id: ReactionId) {
+  if (id !== 'next') return;
+  nextHintAt = Date.now();
+  toast.show('下次一定 · 这次来不了，下次一起玩');
+}
+function react(id: ReactionId) {
+  if (id === 'next' && Date.now() - nextHintAt < 500) return;
+  const before = reactions.state.summary.mine;
+  reactions.react(id);
+  const after = reactions.state.summary.mine;
+  if (id === 'next' && before !== after)
+    toast.show(after === 'next' ? '已标记「下次一定」' : '已取消「下次一定」');
+}
 const views = computed(() => {
   const count = Number(props.team.viewCount);
   return Number.isSafeInteger(count) && count >= 0 ? count : 0;
 });
+const forwards = computed(() => {
+  const stored = Number(props.team.shareCount);
+  const count = Number.isSafeInteger(stored) && stored >= 0 ? stored : 0;
+  return latestShare.value.id === teamId.value ? Math.max(count, latestShare.value.count) : count;
+});
 const emit = defineEmits<{ open: [detail: { id: string; gameName: string }] }>();
 function onTap() {
   const team = props.team || {};
-  const id = usableTeamId(props.teamId || team.id || team._id);
+  const id = teamId.value;
   if (id) emit('open', { id, gameName: team.gameName || '' });
 }
 </script>
 <template>
   <view
     class="tap-feedback"
-    :class="sequence >= 0 && sequence < 4 ? 'room-enter' : ''"
+    :class="{ 'room-enter': sequence >= 0 && sequence < 4, 'room-compact': compact }"
     :style="sequence >= 0 && sequence < 4 ? { animationDelay: sequence * 30 + 'ms' } : undefined"
     role="button"
-    :aria-label="'查看队伍：' + (team.gameName || '组队')"
+    :aria-label="
+      '查看队伍：' +
+      (team.gameName || '组队') +
+      (!compact && groups.length ? '，群组：' + groups.join('、') : '')
+    "
     @tap="onTap"
   >
     <wd-card
       :custom-class="'!mx-0 !mb-3 room-card ' + (view.recruitment === 'closed' ? 'room-inactive' : '')"
     >
       <template #title>
-        <view class="flex items-start justify-between gap-3 w-full min-w-0">
+        <view class="flex items-start justify-between gap-2 w-full min-w-0">
           <view class="min-w-0 flex-1">
-            <view class="text-base font-semibold leading-6 break-words line-clamp-2">{{
-              team.gameName || '组队'
-            }}</view>
+            <view class="room-card-heading">
+              <view class="room-card-title text-base font-semibold leading-6 break-words line-clamp-2">
+                {{ team.gameName || '组队' }}
+              </view>
+              <view v-if="!compact && groups.length" class="room-group-mark" aria-hidden="true">
+                <text class="room-group-name">{{ groups[0] }}</text>
+                <text v-if="groups.length > 1" class="room-group-extra">+{{ groups.length - 1 }}</text>
+              </view>
+            </view>
             <text v-if="officialTeamLabel(team)" class="official-badge">{{ officialTeamLabel(team) }}</text>
             <text v-if="mark || team.mark" class="text-xs text-brand">{{ mark || team.mark }}</text>
           </view>
@@ -55,8 +101,9 @@ function onTap() {
             <view
               class="room-occupancy"
               :aria-label="`${team.memberCount || 0}人，最多${team.capacity || 0}人`"
-              >{{ team.memberCount || 0 }}<text class="text-muted">/{{ team.capacity || 0 }}</text></view
             >
+              {{ team.memberCount || 0 }}<text class="text-muted">/{{ team.capacity || 0 }}</text>
+            </view>
             <text
               v-if="view.lifecycle === 'cancelled' || view.lifecycle === 'ended'"
               class="text-xs text-muted"
@@ -83,11 +130,13 @@ function onTap() {
           <text>{{ team.timeText || '时间待确认' }}</text>
         </view>
       </view>
-      <view v-if="team.groupIds?.length" class="mb-2"
-        ><profile-tags :user="{ groupIds: team.groupIds }" groups-only
-      /></view>
       <view class="room-reactions" @tap.stop>
-        <view v-for="item in reactions.REACTIONS" :key="item.id" class="reaction-slot">
+        <view
+          v-for="item in reactions.REACTIONS"
+          :key="item.id"
+          class="reaction-slot"
+          @longpress.stop="showReactionHint(item.id)"
+        >
           <wd-button
             size="mini"
             :custom-class="
@@ -98,7 +147,7 @@ function onTap() {
             :aria-busy="reactions.state.pending"
             :aria-label="item.label + '，' + (reactions.state.summary.counts[item.id] || 0) + '人'"
             :aria-pressed="reactions.state.summary.selected?.includes(item.id)"
-            @click="reactions.react(item.id)"
+            @click="react(item.id)"
           >
             <view class="reaction-button-content">
               <view
@@ -115,7 +164,11 @@ function onTap() {
                 <image
                   v-if="item.id === 'next'"
                   class="reaction-pigeon-icon"
-                  src="/static/images/reactions/pigeon.png"
+                  :src="
+                    reactions.state.summary.selected?.includes(item.id)
+                      ? '/static/images/reactions/pigeon.png'
+                      : '/static/images/reactions/pigeon-outline.png'
+                  "
                   mode="aspectFit"
                 />
                 <wd-icon
@@ -124,7 +177,6 @@ function onTap() {
                   size="16px"
                 />
               </view>
-              <text v-if="item.id === 'next'">{{ item.label }}</text>
               <text v-if="reactions.state.summary.counts[item.id]" class="reaction-count">{{
                 (reactions.state.summary.counts[item.id] || 0) > 99
                   ? '99+'
@@ -139,19 +191,21 @@ function onTap() {
           />
         </view>
         <view class="room-visitors" :aria-label="views + '次浏览'">
-          <wd-icon name="eye" size="14px" /> {{ views }}
+          <wd-icon name="eye" size="14px" /> {{ compact && views > 999 ? '999+' : views }}
         </view>
         <!-- Native share data must reach onShareAppMessage across component boundaries. -->
         <button
           open-type="share"
           :id="cardShare.buttonId"
           :data-card-share-id="cardShare.buttonId"
+          :aria-label="'发起转发 ' + forwards + ' 次，转发队伍'"
           class="room-forward"
           @tap.stop
         >
-          <view class="reaction-button-content"
-            ><wd-icon name="share-external" size="15px" /><text>转发</text></view
-          >
+          <view class="reaction-button-content">
+            <wd-icon name="share-external" size="15px" /><text v-if="!compact">转发</text>
+            <text class="reaction-count">{{ forwards > 999 ? '999+' : forwards }}</text>
+          </view>
         </button>
       </view>
     </wd-card>
@@ -164,8 +218,8 @@ function onTap() {
   margin-top: 5px;
   padding: 2px 6px;
   border-radius: 5px;
-  color: #6255e7;
-  background: #f0edff;
+  color: var(--app-brand);
+  background: var(--app-brand-light);
   font-size: 10px;
   font-weight: 600;
 }
@@ -173,8 +227,43 @@ function onTap() {
   font-size: 18px;
   line-height: 24px;
   font-weight: 600;
-  color: #6255e7;
+  color: var(--app-brand);
   white-space: nowrap;
+}
+.room-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.room-card-title {
+  min-width: 0;
+  max-width: 100%;
+}
+.room-group-mark {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 5px;
+  box-sizing: border-box;
+  align-items: center;
+  border-radius: 6px;
+  background: var(--app-brand-light);
+  color: var(--app-brand-pressed);
+  font-size: 10px;
+  line-height: 16px;
+}
+.room-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-group-extra {
+  flex-shrink: 0;
 }
 .room-host-row {
   display: flex;
@@ -197,7 +286,7 @@ function onTap() {
   gap: 4px;
   flex-shrink: 0;
   font-size: 11px;
-  color: #687085;
+  color: var(--app-secondary);
   white-space: nowrap;
 }
 .room-forward {
@@ -208,7 +297,7 @@ function onTap() {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #6255e7;
+  color: var(--app-brand);
   font-weight: 400;
   line-height: 18px;
   min-width: 0;
@@ -229,7 +318,7 @@ function onTap() {
   height: 44px;
   line-height: 18px;
   font-size: 10px;
-  color: #9295a5;
+  color: var(--app-muted);
   white-space: nowrap;
 }
 .reaction-count {
@@ -243,7 +332,7 @@ function onTap() {
   min-width: 0;
 }
 .room-reactions {
-  grid-template-columns: repeat(3, minmax(0, 0.7fr)) minmax(0, 1.8fr) minmax(0, 0.75fr) minmax(0, 1.05fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.15fr) minmax(0, 1.82fr);
   align-items: center;
 }
 .room-reactions :deep(.room-reaction.wd-button) {
@@ -286,5 +375,34 @@ function onTap() {
   justify-content: center;
   line-height: 1;
   vertical-align: middle;
+}
+.room-compact :deep(.room-card.wd-card) {
+  --wot-card-title-padding: 9px 8px 5px;
+  --wot-card-content-padding: 0 8px 7px;
+}
+.room-compact .room-host-row {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 7px;
+}
+.room-compact .room-host {
+  max-width: 100%;
+}
+.room-compact .room-meta {
+  justify-content: flex-start;
+  white-space: normal;
+}
+.room-compact .room-reactions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 3px;
+}
+.room-compact .room-card-title {
+  font-size: 14px;
+  line-height: 20px;
+}
+.room-compact .room-occupancy {
+  font-size: 15px;
+  line-height: 20px;
 }
 </style>

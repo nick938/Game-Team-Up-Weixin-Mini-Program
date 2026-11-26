@@ -42,8 +42,6 @@ const REPORT_REASONS = [
 const REPORT_DUPLICATE_MS = 24 * 60 * 60 * 1000;
 // 防刷：按 (动作 + 用户) 记录时间窗内的调用次数，超限直接拒绝。写库失败不影响主流程。
 const RATE_LIMITS = {
-  createPlayOption: { windowMs: 30 * 60 * 1000, max: 15, message: "添加得太快了，稍后再试" },
-  votePlayOption: { windowMs: 60 * 1000, max: 30, message: "投票太频繁，请稍后再试" },
   trackTeamEvent: { windowMs: 60 * 1000, max: 60, message: "操作太频繁，请稍后再试" },
   setReaction: { windowMs: 60 * 1000, max: 30, message: "表情操作太频繁，请稍后再试" },
   createTeam: { windowMs: 30 * 60 * 1000, max: 8, message: "发车太频繁了，先缓一缓再来" },
@@ -219,7 +217,7 @@ async function removeCloudFiles(fileIDs) {
 }
 
 // 用户可见文本的合规检测。msgSecCheck v2 返回 result.suggest（pass/review/risky），
-// 旧入口只拦 risky，review/部分异常放行；游戏投票使用 strict，仅明确 pass 才发布。
+// 旧入口只拦 risky，review/部分异常放行；strict 要求内容安全服务明确返回 pass。
 const MSG_SEC_CHECK_MAX = 2500;
 
 async function textPassesSecurityCheck(content, openid, strict = false) {
@@ -520,7 +518,6 @@ async function ensureCollections() {
     "team_views",
     "fixed_team_plans",
     "daily_play",
-    "play_options",
     "weekly_play",
     "play_votes",
     "feedback",
@@ -574,11 +571,15 @@ function bannedError() {
   return err;
 }
 
+function profileAvatarUrl(value) {
+  return typeof value === "string" && /^(?:cloud|https?):\/\/\S+$/i.test(value.trim()) ? trim(value, 1000) : "";
+}
+
 async function requireProfile(openid) {
   const user = await getUser(openid);
   if (user && user.banned) throw bannedError();
-  if (!user || !user.nickName) {
-    const err = new Error("请先填写头像和昵称");
+  if (!trim(user?.nickName, 32)) {
+    const err = new Error("请先设置头像和昵称");
     err.code = "NEED_PROFILE";
     throw err;
   }
@@ -852,14 +853,19 @@ async function getPublicProfile(event) {
 
 async function saveProfile(event, openid) {
   const nickName = trim(event.nickName, 32);
-  const avatarUrl = trim(event.avatarUrl, 1000);
-  const avatarBase64 = typeof event.avatarBase64 === "string" ? event.avatarBase64 : "";
   if (!nickName) return fail("请填写昵称");
   const existed = await getUser(openid);
+  if (existed && existed.banned) throw bannedError();
+  const avatarUrl = profileAvatarUrl(event.avatarUrl) || profileAvatarUrl(existed?.avatarUrl);
+  const cloudAvatar = avatarUrl.startsWith("cloud://");
+  const avatarBase64 = cloudAvatar
+    ? ""
+    : safeAvatarBase64(event.avatarBase64).trim() || safeAvatarBase64(existed?.avatarBase64).trim();
+  // 已保存过昵称的旧账号可以继续沿用默认头像。
+  if (!trim(existed?.nickName, 32) && !avatarUrl && !avatarBase64) return fail("请先选择头像");
   const { groups } = await groupsService.read();
   const checked = validatePublicProfile(event, groups, Array.isArray(existed?.groupIds) ? existed.groupIds : []);
   if (checked.error) return fail(checked.error);
-  if (existed && existed.banned) throw bannedError();
   // 仅在文本真正变化时送检，避免每次换头像都重复调用检测接口。
   const profileFields = ["bio", "favoriteGames", "steamFriendCode", "wechatId"];
   const nickChanged = !existed || existed.nickName !== nickName;
@@ -883,7 +889,6 @@ async function saveProfile(event, openid) {
     );
     if (textError) return fail(textError);
   }
-  const cloudAvatar = avatarUrl.startsWith("cloud://");
   // 只对本次新上传的文件送检；沿用旧头像时无需重复检测（也不再浪费接口调用）。
   if (cloudAvatar && (!existed || existed.avatarUrl !== avatarUrl)) {
     const safe = await avatarPassesSecurityCheck(avatarUrl);
@@ -895,11 +900,9 @@ async function saveProfile(event, openid) {
   const payload = {
     ...checked.value,
     nickName,
-    avatarUrl: avatarUrl || (existed && existed.avatarUrl) || "",
+    avatarUrl,
     // 头像改走云存储后不再需要 base64；写入 fileID 时顺手清掉历史 base64，避免响应体过大。
-    avatarBase64: cloudAvatar
-      ? ""
-      : avatarBase64 || (existed && existed.avatarBase64) || "",
+    avatarBase64,
     updatedAt: nowMs(),
   };
   const id = existed ? existed._id : openid;
@@ -973,7 +976,7 @@ async function createTeam(event, openid) {
 
   const checked = validateTeamInput(event.team || {}, { isCreate: true });
   if (checked.error) return fail(checked.error);
-  if (event.team && event.team.weeklyId) return fail("每周活动已改为每日16:00人气榜首局，请返回首页查看");
+  if (event.team && event.team.weeklyId) return fail("每周活动已改为每日推荐局，请返回首页查看");
   const textError = await textSafeError(
     openid,
     teamVisibleTexts(checked.value),
@@ -1083,7 +1086,7 @@ async function updateTeam(event, openid) {
       if (!teamExists(latest) || !isOngoing(latest, nowMs())) throw new Error("队伍已结束，不能再改");
       if (checked.value.capacity < latest.memberCount) throw new Error("人数不能少于当前已加入人数，请刷新后重试");
       if ((latest.dailyOptionId || latest.dailyNightId) && ["gameName", "platform", "startAt", "endAt"].some(key => latest[key] !== checked.value[key])) {
-        throw new Error("今晚榜首局的游戏、平台和21:00–23:00时间已定，请保留；其他玩法可另发普通队伍");
+        throw new Error("推荐局的游戏、平台和21:00–23:00时间已定，请保留；其他玩法可另发普通队伍");
       }
       // Detect conflicting edits while content moderation was in flight.
       if (Number(latest.updatedAt || 0) !== Number(team.updatedAt || 0)) throw new Error("队伍信息已更新，请刷新后重试");
@@ -1366,7 +1369,7 @@ async function joinTeam(event, openid) {
       if (!teamExists(team)) throw new Error("队伍不存在");
       if (team.status === "cancelled") throw new Error("这趟已经散了");
       if (nowMs() >= teamEndAt(team)) throw new Error("已经结束，不能上车");
-      if (team.pendingHost) throw new Error("请先到发车页面填写联系方式并完成发车");
+      if (team.pendingHost) throw new Error("请先接手推荐局并完成发车");
       if (hostUid(team) === openid) {
         throw new Error("你已经是车头，不用再上车");
       }
@@ -1768,29 +1771,32 @@ async function recordTeamEvent(teamId, openid, kind) {
   const id = require("node:crypto").createHash("sha256").update(`${dayKey(nowMs())}:${teamId}:${openid}:${kind}`).digest("hex");
   await db.collection("team_events").doc(id).set({ data: { teamId, openid, kind, createdAt: nowMs() } });
 }
-// Count every successful detail entry, including repeat visitors.
-async function recordTeamView(teamId) {
-  return db.runTransaction(async tx => {
+// Count every detail entry or share launch, including repeat users.
+async function incrementTeamCounter(teamId, field) {
+  return runTransactionWithRetry(async tx => {
     const teamRef = tx.collection("teams").doc(teamId);
     const team = (await teamRef.get()).data;
     if (!teamExists(team)) throw new Error("队伍不存在");
-    const current = Number(team.viewCount);
-    await teamRef.update({ data: { viewCount: (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1 } });
-  });
+    const current = Number(team[field]);
+    const count = (Number.isSafeInteger(current) && current >= 0 ? current : 0) + 1;
+    await teamRef.update({ data: { [field]: count } });
+    return count;
+  }, field);
 }
 async function trackTeamEvent(event, openid) {
   await requireNotBanned(openid);
   const limited = await rateLimitExceeded(openid, "trackTeamEvent");
   if (limited) return fail(limited);
-  if (!["detail_view", "share_view", "copy_room"].includes(event.kind)) return fail("无效事件");
+  if (!["detail_view", "share_view", "share_intent", "copy_room"].includes(event.kind)) return fail("无效事件");
   const teamId = trim(event.teamId, 80);
   if (!teamId) return fail("缺少队伍");
   const team = (await db.collection("teams").doc(teamId).get()).data;
   if (!teamExists(team)) return fail("队伍不存在");
   await recordTeamEvent(teamId, openid, event.kind);
-  if (["detail_view", "share_view"].includes(event.kind)) await recordTeamView(teamId);
+  if (["detail_view", "share_view"].includes(event.kind)) await incrementTeamCounter(teamId, "viewCount");
+  const shareCount = event.kind === "share_intent" ? await incrementTeamCounter(teamId, "shareCount") : undefined;
   await recordAction(openid, "trackTeamEvent");
-  return ok();
+  return shareCount === undefined ? ok() : ok({ shareCount });
 }
 
 async function myTeams(openid) {
@@ -2269,7 +2275,9 @@ async function adminHandleFeedback(event, openid) {
 
 function fixedTeamsService() {
   return require("./lib/fixed-teams").createFixedTeams(db, {
-    now: nowMs, readPlans: () => readAllRows("fixed_team_plans"), requireHost: requireProfile,
+    now: nowMs,
+    readPlans: () => readAllRows("fixed_team_plans"),
+    requireHost: requireProfile,
   });
 }
 async function adminFixedTeams(event, openid) {
@@ -2306,7 +2314,13 @@ exports.main = async (event) => {
     if (event && (event.TriggerName === "startRemind" || event.Type === "Timer")) {
       try { await fixedTeamsService().generate(); }
       catch (error) { console.error("fixed car timer failed", error.message); }
-      await require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") }).settle();
+      try {
+        await require("./lib/daily-play").createDailyPlay(db, {
+          now: nowMs,
+          history: () => readAllRows("teams"),
+          votingEnabled: false,
+        }).settle();
+      } catch (error) { console.error("daily recommendation timer failed", error.message); }
       return await remindStartingTeams();
     }
     const openid = await getOpenid();
@@ -2342,29 +2356,12 @@ exports.main = async (event) => {
       case "getUserRankings":
         return await getUserRankings();
       case "getDailyPlay":
-        return ok({ board: await require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") }).get(openid) });
       case "createPlayOption":
-      case "votePlayOption": {
-        const user = await requireProfile(openid);
-        const limited = await rateLimitExceeded(openid, event.type);
-        if (limited) return fail(limited);
-        const daily = require("./lib/daily-play").createDailyPlay(db, { now: nowMs, history: () => readAllRows("teams") });
-        let result;
-        if (event.type === "createPlayOption") {
-          const gameName = trim(event.gameName, 40).normalize("NFKC").trim().replace(/\s+/g, " ");
-          if (BAD.test(gameName)) return fail("内容包含不允许发布的信息");
-          const textError = await textSafeError(openid, [gameName], "游戏名称未通过安全检测，请修改或稍后重试", true);
-          if (textError) return fail(textError);
-          result = { board: await daily.create(openid, user, { ...event, gameName }) };
-        } else result = await daily.vote(openid, user, event);
-        await recordAction(openid, event.type);
-        return ok(result);
-      }
+      case "votePlayOption":
       case "launchPlayOption":
-        return fail("已改为每日16:00自动发车，请到今晚一起开黑查看");
       case "getWeeklyPlay":
       case "votePlay":
-        return fail("每周活动已改为每日16:00人气榜首局，请更新小程序");
+        return fail("此功能已下线，请到大厅查看队伍");
       case "submitFeedback":
         return await submitFeedback(event, openid);
       case "submitBug":

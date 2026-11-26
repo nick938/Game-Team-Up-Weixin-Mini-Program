@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* global getCurrentPages */
 import { ref } from 'vue';
 import { onShow, onResize, onPageScroll } from '@dcloudio/uni-app';
 import { homeNavigationMetrics, type CapsuleRect } from '../../utils/home-navigation';
@@ -16,7 +17,12 @@ function updateNavigation() {
   navigation.value = homeNavigationMetrics(info.statusBarHeight, info.windowWidth, capsule);
 }
 function back() {
-  platform.navigateBack({ delta: 1, fail: () => platform.switchTab({ url: '/pages/index/index' }) });
+  const goHome = () => platform.switchTab({ url: '/pages/index/index' });
+  if (getCurrentPages().length <= 1) {
+    goHome();
+    return;
+  }
+  platform.navigateBack({ delta: 1, fail: goHome });
 }
 onShow(updateNavigation);
 onResize(updateNavigation);
@@ -40,8 +46,9 @@ onPageScroll(({ scrollTop }) => {
           paddingLeft: Math.max(56, navigation.right) + 'px',
           paddingRight: Math.max(56, navigation.right) + 'px',
         }"
-        >{{ title }}</view
       >
+        <text class="navigation-title-text">{{ title }}</text>
+      </view>
     </view>
   </view>
   <view :style="{ height: navigation.total + 'px' }" />
@@ -53,11 +60,11 @@ onPageScroll(({ scrollTop }) => {
   left: 0;
   right: 0;
   z-index: 90;
-  color: #22232a;
-  background: rgba(244, 245, 248, 0.94);
+  color: var(--app-ink);
+  background: var(--app-frosted);
 }
 .is-scrolled {
-  background: rgba(247, 246, 253, 0.98);
+  background: var(--app-frosted);
   box-shadow: 0 1px 0 rgba(98, 85, 231, 0.06);
 }
 .navigation-inner {
@@ -74,6 +81,11 @@ onPageScroll(({ scrollTop }) => {
   font-size: 17px;
   font-weight: 600;
   white-space: nowrap;
+}
+.navigation-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .navigation-back {
   position: absolute;

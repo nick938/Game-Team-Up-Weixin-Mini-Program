@@ -1,0 +1,30 @@
+<view
+  wx:if="{{ !hidden }}"
+  class="glass-tabs {{ dark ? 'glass-tabs-dark' : '' }} {{ dragging ? 'glass-tabs-dragging' : '' }}"
+  bindtouchstart="onTouchStart"
+  bindtouchmove="onTouchMove"
+  bindtouchend="onTouchEnd"
+  bindtouchcancel="onTouchCancel"
+>
+  <view
+    aria-hidden="true"
+    class="glass-lens {{ dragging ? 'glass-lens-dragging' : '' }}"
+    style="transform: translateX({{ lensIndex * 100 }}%); --glass-lens-stretch: {{ lensStretch }};"
+  >
+    <view class="glass-lens-surface" />
+  </view>
+  <button
+    wx:for="{{ items }}"
+    wx:key="pagePath"
+    class="glass-tab {{ selectedRoute === item.pagePath ? 'glass-tab-selected' : '' }} {{ dragging && lensIndex >= index - 0.5 && lensIndex < index + 0.5 ? 'glass-tab-under-lens' : '' }}"
+    data-route="{{ item.pagePath }}"
+    aria-label="{{ item.text + (selectedRoute === item.pagePath ? '，当前页' : '') }}"
+    bindtap="switchPage"
+    hover-class="glass-tab-pressed"
+    hover-start-time="0"
+    hover-stay-time="120"
+  >
+    <image class="glass-tab-icon" src="/{{ selectedRoute === item.pagePath ? item.selectedIconPath : item.iconPath }}" mode="aspectFit" />
+    <text>{{ item.text }}</text>
+  </button>
+</view>

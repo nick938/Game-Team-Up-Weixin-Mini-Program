@@ -6,9 +6,11 @@ import { loadMyProfile } from './utils/my-profile';
 import { capabilities } from './platform/host';
 import { wechatCloud } from './platform/wechat';
 import { isSinglePage } from './utils/runtime';
+import { initializeAppTheme, syncAppTheme } from './utils/app-theme';
 import { initializePrivacyConsent } from './utils/privacy';
 
 onLaunch((options) => {
+  initializeAppTheme();
   const store = useAppStore();
   if (isSinglePage(options)) return;
   initializePrivacyConsent();
@@ -20,6 +22,7 @@ onError((error) => {
   useAppStore().lastError = String(error || '').slice(0, 500);
 });
 onShow(() => {
+  syncAppTheme();
   if (!isSinglePage()) void loadGroupOptions().catch(() => {});
 });
 </script>
