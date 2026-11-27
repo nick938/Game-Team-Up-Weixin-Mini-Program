@@ -96,7 +96,9 @@ test('personal fixed car and group requests explain the service and copy the aut
   assert.match(confirmations[0].msg, /每天固定发车/);
   page.openAuthor('group');
   await new Promise((resolve) => setImmediate(resolve));
-  assert.match(confirmations[1].msg, /群组标识/);
+  assert.equal(confirmations[1].title, '申请新增群昵称');
+  assert.match(confirmations[1].msg, /我的 → 编辑资料 → 群组标识.*自行选择并保存/);
+  assert.match(confirmations[1].msg, /由群主添加作者微信，提供群昵称/);
   assert.deepEqual(copied, ['Louisville_k', 'Louisville_k']);
   cancelled = true;
   page.openAuthor('group');

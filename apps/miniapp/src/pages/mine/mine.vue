@@ -131,8 +131,8 @@ onShareTimeline(page.shareTimeline);
               @click="page.openAuthor('fixed')"
             />
             <wd-cell
-              title="添加群组标识"
-              label="让发车信息展示你的群组，联系作者添加"
+              title="申请新增群昵称"
+              label="群主可申请新增，个人群组标识可在「编辑资料」中修改"
               is-link
               center
               @click="page.openAuthor('group')"

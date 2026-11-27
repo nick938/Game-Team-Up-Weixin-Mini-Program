@@ -183,12 +183,12 @@ export function useMine() {
     hostPlatform.navigateTo({ url: '/pages/feedback/feedback' });
   }
   function openAuthor(kind?: 'fixed' | 'group') {
-    const title = kind === 'fixed' ? '申请固定车' : kind === 'group' ? '添加群组标识' : '联系作者';
+    const title = kind === 'fixed' ? '申请固定车' : kind === 'group' ? '申请新增群昵称' : '联系作者';
     const description =
       kind === 'fixed'
         ? '有每天固定发车的需求？添加小程序作者微信，告诉作者游戏、时间、人数和车头，作者会帮你配置固定车。'
         : kind === 'group'
-          ? '想在发车信息里展示你的群组？添加小程序作者微信，提供群组名称，作者会协助添加群组标识。配置后，在个人资料中选择群组，新发的车就会展示。'
+          ? '修改自己的群组标识，请到「我的 → 编辑资料 → 群组标识」自行选择并保存。\n\n如果你们群的昵称还不在列表里，请由群主添加作者微信，提供群昵称，申请加入群组标识列表。'
           : '';
     void dialog
       .confirm({
