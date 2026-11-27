@@ -1,5 +1,4 @@
 /* global Component */
-const SWITCH_DELAY_MS = 180;
 const DRAG_THRESHOLD_PX = 8;
 
 Component({
@@ -13,19 +12,12 @@ Component({
     lensStretch: 1,
   },
   observers: {
-    'items, selectedRoute, hidden': function () {
-      this.resetLens();
-    },
-  },
-  lifetimes: {
-    detached() {
-      clearTimeout(this.switchTimer);
+    'selectedRoute, hidden': function () {
+      this.gesture = null;
     },
   },
   methods: {
     resetLens() {
-      clearTimeout(this.switchTimer);
-      this.switching = false;
       this.gesture = null;
       const index = this.data.items.findIndex((item) => item.pagePath === this.data.selectedRoute);
       this.setData({ lensIndex: Math.max(index, 0), dragging: false, lensStretch: 1 });
@@ -38,16 +30,19 @@ Component({
     selectTab(index) {
       const item = this.data.items[index];
       if (this.data.hidden || this.switching || !item) return;
-      this.setData({ lensIndex: index, dragging: false, lensStretch: 1 });
-      if (item.pagePath === this.data.selectedRoute) return;
+      if (item.pagePath === this.data.selectedRoute) {
+        if (this.data.dragging) this.resetLens();
+        return;
+      }
       this.switching = true;
-      // Let the current page's lens settle before WeChat replaces its tab bar instance.
-      this.switchTimer = setTimeout(() => {
-        wx.switchTab({
-          url: '/' + item.pagePath,
-          complete: () => this.resetLens(),
-        });
-      }, SWITCH_DELAY_MS);
+      // The destination page syncs its own tab bar when it becomes visible.
+      wx.switchTab({
+        url: '/' + item.pagePath,
+        fail: () => this.resetLens(),
+        complete: () => {
+          this.switching = false;
+        },
+      });
     },
     onTouchStart(event) {
       if (this.data.hidden || this.switching) return;

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 const require = createRequire(import.meta.url);
 const { harness } = require('../../../tests/support/miniapp.cjs');
 const team = {
@@ -15,6 +17,51 @@ const team = {
   displayStatus: 'recruiting',
 };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test('the WeChat tab bar switches immediately on tap and drag release', () => {
+  const switches = [];
+  let component;
+  const source = readFileSync(new URL('../src/custom-tab-bar/index.js', import.meta.url), 'utf8');
+  runInNewContext(source, {
+    Component: (options) => {
+      component = options;
+    },
+    wx: { switchTab: (options) => switches.push(options) },
+  });
+  const home = 'pages/index/index';
+  const publish = 'pages/publish/publish';
+  const bar = {
+    ...component.methods,
+    data: {
+      ...component.data,
+      hidden: false,
+      selectedRoute: home,
+      items: [home, publish].map((pagePath) => ({ pagePath })),
+    },
+    setData(patch) {
+      Object.assign(this.data, patch);
+    },
+  };
+  const tap = (route) => bar.switchPage({ currentTarget: { dataset: { route } } });
+
+  tap(home);
+  assert.equal(switches.length, 0);
+  tap(publish);
+  assert.equal(switches[0].url, `/${publish}`);
+  assert.equal(bar.data.lensIndex, 0);
+  tap(publish);
+  assert.equal(switches.length, 1);
+  switches[0].complete();
+
+  bar.gesture = { dragging: true, rect: { left: 0, width: 208 } };
+  bar.setData({ dragging: true, lensIndex: 0.8, lensStretch: 1.2 });
+  bar.onTouchEnd({ changedTouches: [{ clientX: 154 }] });
+  assert.equal(switches[1].url, `/${publish}`);
+  switches[1].fail();
+  switches[1].complete();
+  assert.equal(bar.data.lensIndex, 0);
+  assert.equal(bar.data.dragging, false);
+});
 
 test('top navigation returns to the previous page or opens home from a direct entry', (t) => {
   const previousGetCurrentPages = globalThis.getCurrentPages;

@@ -12,6 +12,9 @@ type NativeTabPage = {
       selectedRoute: string;
       hidden: boolean;
       dark: boolean;
+      lensIndex: number;
+      dragging: boolean;
+      lensStretch: number;
     }) => void;
   } | null;
 };
@@ -19,6 +22,10 @@ type NativeTabPage = {
 export function useWechatTabBar(route: string, preview: MaybeRefOrGetter<boolean>) {
   if (buildTarget !== 'mp-weixin') return;
   const instance = getCurrentInstance();
+  const lensIndex = Math.max(
+    0,
+    tabBarItems.findIndex((item) => item.pagePath === route),
+  );
   function sync() {
     // Uni's page proxy exposes its own native page even while the route stack is switching tabs.
     const owner = (instance?.proxy as { $scope?: NativeTabPage } | null | undefined)?.$scope;
@@ -30,6 +37,9 @@ export function useWechatTabBar(route: string, preview: MaybeRefOrGetter<boolean
       dark: appTheme.value === 'dark',
       selectedRoute: route,
       hidden: tabBarObscured.value || toValue(preview),
+      lensIndex,
+      dragging: false,
+      lensStretch: 1,
     });
   }
   onShow(sync);

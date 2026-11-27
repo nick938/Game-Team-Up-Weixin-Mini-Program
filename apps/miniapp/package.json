@@ -1,6 +1,6 @@
 {
   "name": "game-team-miniapp",
-  "version": "1.8.4",
+  "version": "2.2.1",
   "private": true,
   "scripts": {
     "dev:h5": "node scripts/uni.mjs --host 127.0.0.1",

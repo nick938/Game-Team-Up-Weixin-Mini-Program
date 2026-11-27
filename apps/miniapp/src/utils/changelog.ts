@@ -1,6 +1,16 @@
 // New versions go first. Keep published records when adding the next version.
 export const CHANGELOG = [
   {
+    version: '2.2.1',
+    date: '2026-11-27',
+    sections: [
+      {
+        title: '修复',
+        items: ['微信底栏点按或拖动松手后立即切页，目标页同步显示正确的选中项。'],
+      },
+    ],
+  },
+  {
     version: '1.8.4',
     date: '2026-10-19',
     sections: [

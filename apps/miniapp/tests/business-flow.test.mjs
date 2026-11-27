@@ -362,10 +362,14 @@ test('the WeChat tab bar follows the owning page, preview mode and overlay trans
   route = 'pages/publish/publish';
   h.page(route).hooks.onReady();
   assert.equal(updates.at(-1).selectedRoute, route);
+  assert.equal(updates.at(-1).lensIndex, 1);
+  assert.equal(updates.at(-1).hidden, false);
   route = 'pages/mine/mine';
   const mine = h.page(route);
   mine.hooks.onReady();
   assert.equal(updates.at(-1).selectedRoute, route);
+  assert.equal(updates.at(-1).lensIndex, 2);
+  assert.equal(updates.at(-1).hidden, false);
   mine.state.singlePage = true;
   assert.equal(updates.at(-1).hidden, true);
   const count = updates.length;
